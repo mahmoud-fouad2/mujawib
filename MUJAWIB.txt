@@ -1,0 +1,654 @@
+MUJAWIB
+مُجاوِب
+Arabic AI Voice Operations Platform
+صوت عربي يفهم، ينفّذ، ويُدار باحتراف
+Product Bible شامل: المنتج • UX/UI • Admin • Client Portal • Agent Factory • Arabic Voice QA • Telephony • Integrations • Templates • Architecture • Roadmap
+Version 1.0  —  Product Definition & Experience Blueprint
+ 
+1. تعريف المنتج والقرار النهائي
+القرار التنفيذي
+MUJAWIB ليس Voice Bot Builder ولا SaaS مفتوحًا للتسجيل الذاتي. هو منصة B2B مُدارة لتشغيل موظفي استقبال وخدمة عملاء صوتيين بالعربية، يجهزهم فريقنا ويختبرهم قبل النشر، بينما يحصل العميل على لوحة تشغيل ومراقبة وتقارير سهلة.
+
+الوعد الأساسي
+“أفضل تجربة استقبال صوتي عربي يمكن تشغيلها داخل شركة حقيقية — مع إعداد Agent مضبوط، نطق ولهجة واختبارات، وربط فعلي بالحجز والأنظمة.”
+المشكلة التي نحلها
+•  الصوت العربي لدى كثير من الحلول يبدو آليًا أو غير مستقر مع اللهجات والـ code switching.
+•  إعداد الـAgent يعتمد غالبًا على Prompt حر؛ فينتج Agents مختلفة الجودة وغير قابلة للضبط.
+•  العميل التجاري لا يريد أن يتعلم SIP وPrompt Engineering وTool Schemas؛ يريد نتيجة تشغيلية.
+•  لوحات Voice AI المعتادة تعرض Metrics تقنية أكثر مما تعرض نتيجة العمل: حجز، تحويل، حل الطلب، فشل التكامل.
+التميّز
+المحور	ما الذي نملكه
+Arabic Voice Quality	Arabic Profiles + Pronunciation + QA datasets + production feedback loop
+Agent Quality	Agent Factory + Prompt Compiler + Flow rules + publish gate
+Operations	Calls + outcomes + bookings + QA + integration health in one console
+Managed Delivery	فريقنا يجهز ويختبر وينشر؛ العميل يراقب ويطلب التعديلات
+Infrastructure	SIP + موديل Realtime واحد، دون بناء media stack كامل
+
+2. الاسم والهوية المقترحة
+الاسم الرئيسي: MUJAWIB — مُجاوِب
+•  المعنى: الشخص/النظام الذي يجيب ويتجاوب؛ مباشر وواضح للسوق العربي بدون أن يكون “VoiceAIPro” عامًا.
+•  اللفظ: Mu-ja-wib. يصلح كـ wordmark إنجليزي مع استخدام «مُجاوِب» كهوية عربية ثانوية.
+•  الـTagline العربي: «صوت عربي يفهم ويُنجز».
+•  الـTagline الإنجليزي: “Arabic voice that gets work done.”
+حالة الاسم
+البحث العلني حتى 10 أغسطس 2026 لم يُظهر منصة AI/Voice معروفة باسم MUJAWIB. النطاق mujawib.com مُسجل حاليًا وحالته pendingDelete، لذلك لا نعتبره متاحًا للحجز الآن. لم يظهر في البحث العلني تسجيل واضح لـ mujawib.ai أو getmujawib.com؛ يُستخدم أحدهما كخيار حجز أولي فقط بعد التحقق لحظة الدفع، مع فحص العلامة والاسم التجاري رسميًا قبل الاعتماد.
+
+بدائل احتياطية لا تعتمدها قبل فحص الحجز الرسمي: MAHKI / QAWLI / MASMOO — لكن لكل منها تشابهات أو استخدامات عامة، لذلك MUJAWIB هو الأنظف من البحث الأولي.
+ 
+3. فلسفة UX/UI — تصميم 2027 بدون تقليد
+الهدف ليس نسخ ChatGPT أو Claude أو Gemini. نأخذ منهم أنماط UX الناضجة ونحوّلها إلى Operations Console صوتي.
+المبدأ	التطبيق في MUJAWIB
+Calm Shell	شريط جانبي ثابت، مساحة عمل هادئة، لا Bento Grid في كل صفحة.
+Contextual Inspector	لوحة جانبية يمين الشاشة لخصائص العنصر الحالي بدل فتح صفحات إعدادات متكررة.
+Command Surface	بحث عالمي + Cmd/Ctrl+K للتنقل، الاتصال، فتح عميل أو Agent أو Call.
+Progressive Disclosure	المستخدم يرى الأساسيات أولًا؛ Technical details تظهر فقط للأدمن المتقدم.
+Live Motion with Purpose	حركة waveform/status فقط للمكالمة الحية وحالة التنفيذ؛ لا مؤثرات للزينة.
+AI-native assistance	Ask Mujawib داخل لوحات التحليل: “لماذا زادت التحويلات للبشر هذا الأسبوع؟”
+RTL-first	العربية ليست ترجمة بعدية؛ layout، direction، numbers، mixed text كلها مصممة من البداية.
+Dense when needed	صفحات المراقبة والجداول كثيفة لكن قابلة للمسح السريع؛ صفحات الإنشاء واسعة وهادئة.
+
+قاعدة تصميم
+أقل عدد ممكن من الصفحات، وأكثر قدر ممكن من السياق داخل نفس الشاشة. List → Detail → Inspector هو النمط الأساسي.
+
+4. Design System
+Token	القيمة / الاستخدام
+Canvas / Light	#F7F7F5 — خلفية المنتج النهارية
+Canvas / Dark	#0B0D10 — خلفية الوضع الداكن
+Surface	#FFFFFF / #12151A
+Surface Elevated	#F1F2F4 / #181C22
+Primary Text	#111318 / #F4F6F8
+Muted Text	#687180 / #9CA5B2
+Accent	#5D6CFF — واحد فقط للـfocus والـactive
+Live Accent	#5D6CFF + soft aurora only when call is live
+Success	#178A5B
+Warning	#B57917
+Critical	#C43B48
+Radius	12px controls / 16px panels / 22px hero surfaces
+Borders	1px, 6–10% opacity; لا heavy shadows
+Motion	140–220ms; spring خفيف للعناصر الحية
+Typography	Arabic: Noto Sans Arabic أو IBM Plex Sans Arabic عند توفره؛ Latin: Geist/Inter
+Grid	8px base, content max-width 1440px, sidebar 248px, inspector 320–360px
+
+ممنوعات بصرية
+•  Glassmorphism على كل شيء.
+•  Gradients ضخمة داخل dashboard.
+•  بطاقات KPI كثيرة في كل صفحة.
+•  أيقونات ملونة بدون معنى.
+•  Sidebar فيها 20 عنصرًا دائمًا.
+•  استخدام الـAI “sparkle” كزخرفة لكل زر.
+ 
+5. معمارية التجربة: لوحتان منفصلتان
+A) Operator Console — لفريق MUJAWIB
+Navigation	الهدف
+Home	الوضع التشغيلي العام والـalerts
+Live	المكالمات الجارية والحالة اللحظية
+Clients	الشركات/workspaces وإعداداتها
+Agents	Agents والنسخ والحالة
+Calls	كل المكالمات والنتائج والتفاصيل
+QA	مراجعات الجودة والمكالمات التي تحتاج تدخل
+Templates	Industry Packs
+Voice Lab	Arabic profiles + pronunciation + tests
+Integrations	Connections + health + credentials
+Phone	SIP/DID/routing/transfer
+System	usage, costs, audit, roles, platform health
+
+B) Client Portal — للعميل
+Navigation	الهدف
+Overview	أداء العمل وليس تفاصيل الـAI
+Calls	المكالمات والنتائج والتسجيل/النص حسب السياسة
+Bookings	الحجوزات الناتجة من الصوت
+Customers	المتصلون والطلبات السابقة
+Insights	الاتجاهات والأسئلة والفرص
+Business Info	الساعات، الخدمات، الفروع، التحديثات الآمنة
+Integrations	حالة الاتصال فقط + إعادة الربط المصرح بها
+Change Requests	طلب تعديل Agent/Flow/Knowledge ومتابعة تنفيذه
+
+قرار صلاحيات
+العميل لا يرى Model / Prompt / SIP secrets / Tool Schema / API Keys. هذه ضمن Operator Console فقط.
+
+6. App Shell الرئيسي
+MUJAWIB
+Home
+Live
+Clients
+Agents
+Calls
+QA
+Integrations	Operations Overview
+Search or press ⌘K
+Today: 1,842 calls • 327 completed bookings • 82% resolved
+Attention: 12 calls need review • 2 integrations degraded
+Live now: 6 calls
+Recent activity: published Agent v18 • CRM reconnect • QA issue resolved	Inspector
+Workspace: All Clients
+Date: Today
+Status filters
+Quick action: Test call
+Quick action: New client
+
+•  Top bar لا يحمل 10 أزرار. فقط: Workspace switcher، Search/Command، Help، Notifications، Profile.
+•  Sidebar يدعم collapse إلى icons على شاشات 13–14 بوصة.
+•  Inspector contextual: عند اختيار Client أو Call أو Agent تظهر خصائصه وإجراءاته دون مغادرة الشاشة.
+ 
+7. Operator Home — لوحة الإدارة اليومية
+Active Calls
+6
+now	Resolved
+82%
+today	Bookings
+327
++12% vs prior	Needs Review
+12
+priority queue
+
+ترتيب الصفحة من أعلى لأسفل:
+•  Status strip: Platform / Telephony / OpenAI / Integrations — يظهر فقط لو فيه مشكلة.
+•  Live activity: عدد المكالمات الجارية مع states صغيرة، بدون تشغيل الصوت.
+•  Needs Attention: أهم Queue في الصفحة، وليس Charts.
+•  Business Outcomes: حجوزات، Leads، Transfers، unresolved.
+•  Clients at Risk: زيادة failures أو tool errors أو transfer rate.
+•  Quick Ask: حقل “اسأل MUJAWIB عن الأداء” لإنتاج تحليل من بيانات المنصة.
+8. Live Operations — المراقبة اللحظية
+المكالمة	العميل	الحالة	النية	آخر حدث	إجراء
++966…321	Alfa Clinic	Live • 01:42	Booking	check_availability ✓	Open
++20…904	Nova Auto	Live • 00:54	Inquiry	Knowledge answer	Open
++966…118	Dune Realty	Waiting Tool	Lead	CRM latency 1.8s	Inspect
+
+V1 الواقعي يعرض Live status + transcript/event stream عند توفره + tool executions + transfer action. “Listen live / Take over” لا يُعد ميزة أساسية إلا إذا دعمها مسار الـtelephony المستخدم؛ لا نبني media bridge فقط من أجلها.
+9. Calls Inbox — بديل “جدول المكالمات” التقليدي
+واجهة تشبه Inbox تشغيلية: Filters ثابتة أعلى القائمة، Preview وسط الشاشة، Inspector يمين. المستخدم لا يفتح صفحة جديدة لكل شيء.
+MUJAWIB
+All calls
+Needs review
+Resolved
+Transferred
+Failed	Calls
+Search caller / intent / booking / agent
+• +966…  Booking  ✓ Resolved  03:12
+• +966…  Complaint  → Transferred  05:41
+• +20…   Pricing  ⚠ Knowledge gap  02:07
+Selected call → timeline + transcript + outcome	Inspector
+Outcome
+QA score
+Agent version
+Tools used
+Booking ID
+Create issue
+
+10. Call Detail Studio
+هذه أهم شاشة مراقبة في المنتج. 3 مناطق: Timeline / Conversation / Inspector.
+المنطقة	المحتوى
+Timeline	Ring → answered → turns → tool calls → transfer/end. Latency badges فقط عند الحاجة.
+Conversation	Transcript ثنائي الأطراف، markers للـinterruptions وunclear audio وtool responses.
+Inspector	Outcome, caller, booking, QA flags, agent version, integration execution, cost internal-only.
+Review actions	Mark good / pronunciation issue / knowledge gap / flow issue / tool issue / false flag.
+
+ 
+11. Agent Factory — تجربة الإعداد التي تتفوق على المنافسين
+المبدأ
+لا يوجد مربع Prompt ضخم كواجهة رئيسية. إعداد الـAgent يتم كمنتج منظّم، والـPrompt النهائي يُولَّد من Prompt Compiler.
+
+المرحلة	الشاشة	الـOutput
+1	Identity	Role, goals, allowed/restricted tasks
+2	Arabic Voice	country, dialect, style, pacing, language switching
+3	Business	structured services/branches/staff/policies
+4	Flows	goals + required fields + tools + failure paths
+5	Actions	integrations and universal tools
+6	Routing	business hours, transfer, fallback, escalation
+7	QA & Publish	scenario tests, score, version, approval
+
+Agent Studio layout
+MUJAWIB
+Overview
+Voice
+Knowledge
+Flows
+Actions
+Routing
+QA
+Versions	Agent: Sara • v18 Draft
+Readiness 92%  •  3 blockers
+Voice profile: Saudi Professional
+Knowledge: 128 structured items • 4 docs
+Flows: Booking / Reschedule / FAQ / Transfer
+QA: 87 / 100 scenarios passed	Inspector
+Status: Draft
+Template: Medical v4
+Last changed by Ops
+Compare with v17
+Run test
+Publish disabled
+
+•  كل tab يعرض Status: Ready / Needs attention بدل السماح للمستخدم يضيع داخل الإعدادات.
+•  Advanced Prompt يكون read-only preview افتراضيًا؛ Developer role فقط يستطيع override عبر patch محكوم.
+•  كل تغيير ينتج Draft Version؛ لا تعديل مباشر على Live.
+12. Prompt Compiler
+يبني تعليمات الإنتاج تلقائيًا من طبقات ثابتة:
+الترتيب	الطبقة
+01	Base production behavior
+02	Industry Template
+03	Arabic Voice Profile
+04	Client Business Rules
+05	Conversation Flows
+06	Tools & confirmation policy
+07	Pronunciations
+08	Escalation & fallback
+09	Safety / restricted answers
+
+قاعدة
+No Tool Success = No Business Confirmation. لا يقول “تم الحجز” أو “تم التعديل” قبل success حقيقي من الـTool.
+
+ 
+13. Arabic Voice Lab — الميزة التي نبني حولها السمعة
+Voice Lab ليس Voice picker. هو مختبر جودة عربي داخلي يضمن أن الـAgent يبدو طبيعيًا قبل النشر.
+قسم	ما يضبطه
+Profile	Saudi / Egyptian / Gulf / MSA في V1
+Language policy	Arabic-first، متى ينتقل للإنجليزية ومتى لا ينتقل
+Style	Professional / warm / concise / premium
+Pacing	response length, pause behavior, turn-taking
+Numbers	phones, OTP-like digits, prices, times
+Dates	بكرة، الأحد الجاي، بعد المغرب، الساعة 7 ونص
+Code switching	consultation / Thursday / brand names داخل جملة عربية
+Pronunciation	أسماء الأشخاص، الأطباء، المناطق، العلامات، الأدوية/الخدمات
+Noise behavior	silence/background/no-op behavior
+Interruptions	barge-in, correction, recovery
+
+Voice Test Pack الإجباري
+•  تحية قصيرة طبيعية.
+•  اسم شخص عربي مركب.
+•  رقم هاتف 10 أرقام.
+•  سعر بالريال.
+•  وقت 6:30 مساءً.
+•  اسم منطقة/فرع.
+•  جملة Arabic-English mixed.
+•  تصحيح رقم بعد أن يقوله المستخدم خطأ.
+•  حالة “لم أسمع الجزء الأخير”.
+•  طلب تحويل لموظف.
+Publish Gate
+لا يمكن نشر Agent حتى يجتاز Voice Pack + Scenario Pack. الصوت “يعجبنا” ليس معيارًا؛ نحتاج درجات واضحة وتسجيل عينات مقارنة.
+
+14. Pronunciation Dictionary
+الحقل	مثال
+Canonical	Rejuvera
+Arabic display	ريجوفيرا
+Spoken hint	ري-جو-في-را
+Category	Brand
+Scope	Client
+Last issue	Call #A823 • 2026-08-08
+Status	Approved
+
+من Call Detail يستطيع QA اختيار كلمة خاطئة → “Add pronunciation fix” → تدخل للـDictionary وتطبق على Draft version التالية.
+ 
+15. Conversation Flows — منطق واضح بدون Node Spaghetti
+الـFlow editor في V1 ليس Canvas حرًا مثل أدوات automation. نستخدم مراحل مرتبة وقابلة للسحب مع شروط بسيطة؛ هذا أسهل للأدمن وأقل أخطاء.
+Flow	Required fields	Action	Fallback
+Booking	service, date/time; branch/staff إذا لزم	check availability → create booking	callback or transfer
+Reschedule	booking/customer + new preference	find → check → update	human
+Information	topic / service	structured knowledge	knowledge gap ticket
+Lead	name, phone, interest	create lead	save callback
+Transfer	department/reason	transfer call	callback request
+
+•  لو المستخدم أعطى 4 حقول في جملة واحدة، لا يعيد الـAgent سؤالها.
+•  Offer max 2–3 options صوتيًا؛ القوائم الطويلة سيئة عبر الهاتف.
+•  كل Flow له Success/Failure/Abandon outcome صريح للتحليل.
+16. Industry Packs / Templates
+الـTemplate ليس Prompt. هو حزمة قابلة للنسخ والتخصيص:
+Pack V1	Knowledge schema	Flows	Integrations الافتراضية
+Medical Reception	services, doctors, branches, policies	FAQ / book / reschedule / cancel / transfer	Calendar + WhatsApp + API
+Real Estate	projects, units, areas, budgets	qualify / viewing / sales transfer	CRM + Calendar + WhatsApp
+Auto Service	brands, models, services, branches	service booking / status / inquiry	Calendar/API + WhatsApp
+General Reception	departments, hours, FAQs	route / message / callback / lead	CRM/Webhook + WhatsApp
+
+إطلاق مركز
+نبدأ 4 Packs فقط ونوصلهم لمستوى ممتاز بدل 15 Template ضعيف. كل Pack له QA suite خاص به.
+
+17. Custom Solution
+•  Custom flow أو required fields
+•  Custom REST tool / webhook
+•  Custom booking adapter
+•  Custom CRM mapping
+•  Custom pronunciation pack
+•  Custom routing/after-hours policy
+•  Custom reporting KPI
+الـCustom لا يعني fork للكود. كل شيء يبقى داخل نفس Agent Factory وTool Gateway.
+ 
+18. Integrations — تصميمها كـ Actions وليس Logos
+Category	V1	Action abstraction
+Calendar	Google / Microsoft	check_availability / create / reschedule / cancel
+Messaging	WhatsApp Business	send_confirmation / send_location / send_link
+CRM	Generic REST/Webhook + first native CRM later	find_customer / create_lead / add_note
+Custom Systems	REST API	typed custom actions
+Long-tail	n8n self-hosted optional	internal workflow executor only
+
+Integration detail screen
+Signal	المعنى
+Connected	آخر test ناجح
+Degraded	ارتفاع latency أو partial failures
+Failed	authentication/API failure
+Last success	timestamp + action
+Error rate	24h
+Test connection	يدوي قبل publish
+Used by	Agents/flows المتأثرة
+
+Fallback
+أي Integration مهم له fallback policy. إذا Calendar فشل لا نؤكد حجزًا؛ نسجل callback أو نحول للموظف.
+
+19. Phone & Telephony UX
+بدل صفحة SIP تقنية، الأدمن يرى Wizard بثلاثة اختيارات واضحة:
+الحالة	UX Flow	الربط الفعلي
+Existing PBX/SIP	Choose provider → show destination → verify route → test call	SIP trunk → OpenAI Realtime SIP
+Mobile / SIM	Choose country/carrier → request AI DID → guide call forwarding → test	Mobile → forwarding → DID/SIP → Realtime
+New Number	Request number → Ops provisions local DID → assign Agent → test	Local DID/SIP → Realtime
+
+Phone Number detail
+الحقل	مثال
+Number	+966 11 XXX XXXX
+Client	Alfa Clinic
+Agent	Sara v18
+Mode	All calls / overflow / after-hours
+Transfer	+966 5X XXX XXXX
+SIP status	Verified
+Last test	Passed 2m ago
+
+•  لا نعرض call-forwarding codes عامة لأن الأكواد والخدمات تختلف حسب شركة الاتصالات والدولة؛ دليل التفعيل يكون خاصًا بالمزود أو يتم عبر فريق التشغيل.
+•  التطبيق لا “يمسك SIM” مباشرة. الموبايل يحتاج forwarding إلى DID/SIP route.
+ 
+20. Client Portal — بسيط لمدير الشركة
+Answered
+1,842
+this month	Bookings
+327
+from voice	Resolved
+82%
+without staff	After-hours
+91
+opportunities saved
+
+لا يظهر للعميل: tokens، prompt versions، API latency الدقيقة إلا إذا كانت مشكلة تشغيلية. يظهر له أثر العمل.
+Client Overview layout
+•  Summary: Calls / bookings / leads / resolved / transferred.
+•  “What changed?”: 3 insights قابلة للفهم.
+•  Top reasons for calling.
+•  After-hours outcomes.
+•  Agent health: Excellent / Needs attention بدون تفاصيل تقنية مرهقة.
+•  Recent calls + quick search.
+•  Change request status.
+Ask MUJAWIB
+Chat-style analytical surface داخل الـportal، لا يستخدم لتغيير إعدادات الإنتاج. أمثلة:
+•  “إيه أكتر سؤال اتكرر الأسبوع ده؟”
+•  “ليه زادت التحويلات للموظفين؟”
+•  “هاتلي المكالمات اللي العميل طلب سعر وما كملش حجز.”
+•  “لخص شكاوى فرع جدة.”
+21. Change Requests — لأن الخدمة Managed
+Type	Flow
+Business info update	Client edits safe fields → review/publish automatically if allowed
+New offer / service	Request → Ops review → knowledge update → test → publish
+Behavior change	Request → Agent draft → QA → approval → publish
+New integration	Discovery → credentials → test → attach actions
+Pronunciation fix	Client/QA flags call → voice lab → approve → version
+
+العميل يرى Timeline شبيه بالـissue tracker بدل رسائل واتساب ضائعة: Requested → In review → Testing → Scheduled → Live.
+ 
+22. QA Center — قلب الميزة التنافسية
+واجهة Review Queue، لا مجرد Quality Score.
+Queue reason	الإجراء
+Repeated clarification	راجع فهم اللهجة/الكيان
+Pronunciation issue	أضف pronunciation fix
+Knowledge gap	أضف structured knowledge
+Tool failure	افحص integration execution
+Long silence	افحص tool latency / response behavior
+Language switch anomaly	عدّل language policy
+Unexpected transfer	راجع escalation rule
+Low task completion	راجع flow / missing fields
+
+QA Scorecard
+Metric	هدف إطلاق داخلي (يُثبت بالـpilot)
+Arabic Naturalness	≥ 9/10 human rating
+Task Completion	≥ 95% on approved scenario suite
+Tool correctness	≥ 99% on deterministic test cases
+Phone/date/time capture	≥ 98% benchmark set
+Critical hallucination	0 in release gate tests
+Transfer routing	≥ 99% configured-case tests
+Language stability	≥ 98% benchmark conversations
+
+هذه أهداف هندسية وليست وعودًا تسويقية مسبقة؛ تُثبت وتُعدّل بعد Pilot حقيقي بلهجات وأساليب اتصال فعلية.
+23. Test Lab
+Mode	استخدام
+Browser voice test	اختبار سريع قبل الهاتف
+Phone test	اختبار transport + telephony + model + tools
+Scenario batch	50–100 سيناريو آلي لكل Template
+Regression	قبل Publish لأي version
+Comparison	v17 vs v18 على نفس scenarios
+Adversarial	noise / interruption / wrong number / code switching / ambiguity
+
+زر النشر
+Publish لا يتفعل إذا هناك blocker: failed critical scenarios، integration failed، phone unverified، أو missing transfer fallback.
+
+ 
+24. Analytics — Business + Quality + Operations
+Audience	Metrics
+Client	calls, bookings, leads, resolved, transfers, after-hours, top intents, conversion
+Ops	QA flags, failed tools, unresolved, knowledge gaps, version drift, client risk
+Technical Admin	latency, model usage, SIP status, API errors, costs, cache/usage telemetry
+
+Charts policy: chart فقط لو يجيب سؤال. Default = trend line واحد + breakdown قابل للنقر. لا dashboard مليء pie charts.
+25. Roles & Permissions
+Portal	Role	صلاحيات أساسية
+Operator	Owner	كل شيء
+Operator	Ops	clients, agents, phone, publish
+Operator	QA	calls, reviews, voice fixes; بدون credentials
+Operator	Integrator	integrations/tools; بدون client billing
+Client	Admin	reports, safe business info, team, requests
+Client	Manager	calls/bookings/insights + requests
+Client	Reviewer	calls/QA flags فقط
+Client	Read-only	view reports
+
+26. Core Data Model
+Entity	أهم العلاقات
+Workspace/Client	owns users, agents, numbers, integrations
+Agent	belongs client; many AgentVersions
+AgentVersion	compiled prompt + profile + flows + tool bindings
+VoiceProfile	country/dialect/style/language policy
+Pronunciation	client/global + approved status
+KnowledgeItem	structured or document chunk metadata
+Flow	required fields + actions + fallback
+Tool	universal action definition
+IntegrationConnection	provider + health + secrets reference
+PhoneNumber	route + agent + transfer rules
+Call	agentVersion + phone + outcome + customer
+CallEvent	turn/tool/transfer/status events
+ToolExecution	request/result/latency/success
+QAResult	scores + flags + reviewer action
+Booking/Lead	business outcome links
+
+ 
+27. Technical Architecture — قليلة الكود ومتسقة
+Layer	الاختيار	لماذا
+Frontend	Next.js	Operator + Client portals في codebase واحد
+Auth/DB	Supabase / PostgreSQL	multi-tenant relational data + managed auth
+Voice Model	GPT-Realtime-2.1	موديل صوتي واحد، quality-first
+Telephony	Local SIP trunk/DID provider	نترك شبكة الهاتف للمختصين
+Realtime transport	OpenAI SIP for phone	لا custom RTP/media server
+Control	Node sideband WebSocket service	instructions + events + tool calls
+Knowledge	PostgreSQL structured + pgvector only when needed	أسعار/ساعات/فروع لا تعتمد على RAG
+Integrations	Direct REST adapters + optional n8n for long-tail	لا vendor يحكم قلب المنتج
+Storage	Object storage	recordings/docs حسب policy
+Hosting	Managed cloud	قلة operations في البداية
+
+Call Path
+Step	المسار
+1	Caller → business number
+2	Carrier/PBX → SIP trunk
+3	SIP → OpenAI Realtime SIP
+4	Incoming webhook → identify To number → client/agent
+5	Platform accepts call with AgentVersion config
+6	Sideband WebSocket handles tool calls and monitoring
+7	Tools → calendar/CRM/WhatsApp/client API
+8	Call outcome/events → database → dashboard/QA
+
+Ownership boundary
+نشتري transport/model؛ نملك agent configuration, Arabic quality system, flows, tools, integrations abstraction, QA, analytics, portals, templates, data.
+
+28. Model Policy
+Launch default: GPT-Realtime-2.1 مع reasoning منخفض لمعظم مكالمات الاستقبال، ثم نثبت السلوك عبر snapshot/version عندما يكون ذلك مناسبًا. Mini لا يدخل launch path قبل benchmark يثبت أن الجودة العربية لا تتراجع.
+•  موديل واحد في كل مكالمة، Audio ↔ Audio.
+•  لا STT + LLM + TTS cascade في V1.
+•  لا model picker للعميل.
+•  أي تغيير موديل مستقبلي يمر عبر Voice Adapter داخلي وليس إعادة بناء المنتج.
+ 
+29. Security, Privacy & Operational Controls
+•  Tenant isolation في قاعدة البيانات وسياسات الوصول.
+•  Credentials لا تظهر في client UI؛ secrets في managed secret store.
+•  Audit log لكل Publish / integration change / phone route / user permission.
+•  Recording/transcription configurable per client and jurisdiction; يحتاج مراجعة قانونية محلية قبل الإطلاق في كل دولة.
+•  Retention policy per workspace: calls/events/recordings/docs.
+•  Optional PII masking في analytics/export.
+•  Role-based access + least privilege.
+•  Emergency kill switch: disable agent / route calls to fallback human destination.
+30. Managed Onboarding Experience
+Stage	Owner	Client sees
+Discovery	Sales/Ops	Requirements complete
+Workspace setup	Ops	Setup in progress
+Knowledge collection	Client + Ops	Checklist
+Phone connection	Ops/IT	Connection status
+Integrations	Integrator	Connected / needs action
+Agent build	Ops	Draft ready
+QA pilot	QA	Score + blockers
+Go live	Ops	Live date + fallback
+Week-1 review	CS/Ops	Outcomes + improvement actions
+
+Client portal يظهر Onboarding Timeline في أول 30 يومًا، وبعد Go Live تتحول الصفحة الافتراضية إلى Overview.
+31. Notification System
+Severity	مثال	Channel
+Info	Agent version published	in-app
+Action	Client must reconnect Calendar	in-app + email
+Warning	Integration degraded / QA trend down	Ops in-app + optional Slack/email
+Critical	Phone route down / all tools failing	Ops immediate escalation
+
+ممنوع إرسال alert لكل failure منفرد؛ نجمع ونستخدم thresholds لتجنب alert fatigue.
+ 
+32. MVP Scope — ما الذي نبنيه فعلًا
+Must Have V1	ليس في V1
+Operator Home + Clients	Full CRM
+Agent Factory + Versioning	Outbound campaign builder
+Arabic Voice Lab + Pronunciation	Mobile app
+Knowledge structured editor	50 native integrations
+Simple Flow editor	Open marketplace
+Universal Tools	Customer self-signup
+Phone/SIP wizard	Customer prompt editor
+Google/Microsoft Calendar	Model selector
+WhatsApp + Generic API	Custom PBX/media server
+Calls + Call Detail	Complex multi-agent orchestration
+QA Center + Test Lab	Visual workflow spaghetti canvas
+Client Overview/Calls/Insights/Requests	Full ticketing/helpdesk
+
+33. Roadmap
+Phase	الناتج
+0 — Prototype	1 Arabic profile + 1 phone + booking + transfer + 30 scenarios
+1 — Private Pilot	Operator console + 3–5 clients + QA loop + 2–4 templates
+2 — Production V1	Client portal + versioning + integration health + billing/usage internal
+3 — Growth	Outbound reminders, missed-call recovery, native CRM adapters, advanced insights
+4 — Enterprise	SLA, SSO, advanced audit/data residency options, telephony-specific live controls where supported
+
+34. Product Acceptance Criteria
+•  Ops يستطيع إنشاء Client ثم Agent من Template دون كتابة Prompt يدويًا.
+•  Ops يستطيع ربط رقم/route واختبار مكالمة end-to-end من نفس الـconsole.
+•  Agent لا يثبت عملية business action قبل نجاح tool.
+•  أي Version لا ينشر قبل critical QA pass.
+•  QA يستطيع تحويل مشكلة نطق من Call إلى Dictionary fix في أقل من دقيقة.
+•  Client يستطيع معرفة: ماذا حدث؟ ماذا أنجز الـAI؟ وما الذي يحتاج تدخلًا؟ بدون فهم أي تفاصيل تقنية.
+•  أي Integration failure له status/fallback واضح.
+•  أي تغيير Production قابل للـrollback.
+•  واجهة RTL وLTR تعمل بنفس المكونات ولا تنكسر مع Arabic/English mixed strings.
+•  المنصة على شاشة 1440px تبدو هادئة ومهنية، وعلى laptop 1280px تحتفظ بـlist/detail/inspector بدون ازدحام.
+ 
+35. UI Component Inventory
+Component	الاستخدام
+AppSidebar	navigation + workspace switch
+CommandPalette	global find + quick actions
+ContextInspector	details/actions without page change
+StatusPill	Live/Ready/Degraded/Failed/Draft
+MetricStrip	3–4 metrics only
+InboxList	Calls/QA/Requests
+Timeline	Call and onboarding events
+TranscriptTurn	caller/agent + markers
+ToolEvent	tool name, status, duration, result summary
+VoiceSample	play/test/compare
+ReadinessBar	Agent setup completion + blockers
+VersionBadge	v18 Live / v19 Draft
+DiffView	Agent config changes
+HealthCard	integration/phone/system health
+EmptyState	clear next action, no decorative illustrations required
+AskSurface	AI analytics query within context
+
+36. Microcopy & Tone
+سيئ	أفضل
+Error 500	تعذر التحقق من المواعيد. سنحاول مرة أخرى أو نحول الطلب للفريق.
+Agent failed	المكالمة لم تُحل تلقائيًا — راجع السبب.
+Integration disconnected	اتصال Google Calendar يحتاج إعادة ربط. آخر نجاح: 18 دقيقة.
+Publish	نشر v19
+Delete agent	Archive agent
+AI Quality 72%	جودة تحتاج مراجعة — 6 سيناريوهات حرجة فشلت.
+
+لغة المنتج نفسها عربية محترفة قصيرة، بلا مبالغة “مدعوم بالذكاء الاصطناعي الثوري”.
+37. Responsive & RTL Rules
+•  Desktop هو primary surface للـOps؛ client portal responsive بالكامل.
+•  على 1280px: inspector يصبح overlay drawer إذا لزم، ولا نضغط transcript إلى عرض غير مقروء.
+•  على mobile: client sees overview/calls/bookings; Operator advanced setup ليس هدفًا رئيسيًا.
+•  استخدم CSS logical properties (inline-start/end) بدل left/right في المكونات.
+•  الأرقام وأرقام الهاتف تُعرض LTR داخل سياق RTL مع isolation لتجنب انقلاب الترتيب.
+•  Search, command palette, date picker, tables كلها تدعم keyboard navigation.
+ 
+38. Marketing Website — نفس هوية المنتج
+الموقع ليس pricing/self-serve SaaS. هو B2B consultative landing.
+Section	المحتوى
+Hero	«صوت عربي يفهم ويُنجز» + Book a demo + Listen to Arabic demo
+Live Demo	3 مكالمات قصيرة: سعودي / مصري / عربي-إنجليزي
+Outcomes	حجز، تحويل، استفسار، follow-up
+Why quality	Agent Factory + Arabic Voice Lab + QA
+Industries	4 Packs launch
+Integrations	Phone / Calendar / WhatsApp / CRM/API
+How deployment works	Discovery → Build → Test → Go Live
+Trust	privacy/security controls + managed support
+CTA	Book a demo / Talk to us
+
+Visual language: editorial typography + dark/light neutral sections + one live voice aurora band. لا نستخدم bento cards في كل section.
+39. Benchmark UX Direction
+المرجع الذهني: هدوء Workspace/Recents في تطبيقات AI الحديثة، split-pane inspector للعمل السياقي، وحركة expressive خفيفة للحالات الحية. لكن بنية MUJAWIB Operation-first وليست Chat-first.
+•  ChatGPT-style: global switcher / recents / project context → نستخدم Workspace switcher وCommand Palette.
+•  Claude-style: dedicated right-hand work pane → نستخدم Context Inspector وCall/Agent detail without navigation churn.
+•  Gemini-style: fluid, expressive motion → نستخدمها فقط في voice/live states والـtransitions، لا في جداول التشغيل.
+40. North Star
+North Star Metric
+Successful Calls Without Human Correction — مكالمات حققت هدفها الصحيح بدون تصحيح بشري لاحق.
+
+Supporting metrics:
+•  Task completion
+•  Arabic naturalness
+•  Critical entity accuracy
+•  Tool success
+•  Transfer accuracy
+•  Booking/lead conversion
+•  Repeat clarification rate
+•  Knowledge-gap rate
+41. الخلاصة التنفيذية
+لو أردنا بناء MUJAWIB كمنتج ممتاز فعلًا، لا نبدأ بالـDashboard ولا بكمية Features. نبدأ بمسار واحد كامل: رقم هاتف → مكالمة عربية طبيعية → Flow واضح → Tool ناجح → Outcome مسجل → QA قابل للمراجعة. ثم نغلفه بواجهة Operator هادئة وAgent Factory يمنع الإعداد الرديء.
+أول 4 أسابيع هندسية يجب أن تنتج Prototype يمكن الاتصال به، وليس تصميم 20 صفحة غير مرتبطة بالصوت الحقيقي.
+42. ترتيب التنفيذ المقترح
+Sprint	ما يتم إنجازه
+1	SIP inbound + webhook + agent config + sideband tools + basic call log
+2	Agent Factory basics + Saudi Voice Profile + pronunciation + browser/phone test
+3	Calendar + transfer + structured knowledge + Call Detail timeline
+4	QA scenarios + publish/versioning + Operator Home
+5	Client Portal minimal + WhatsApp + integration health
+6	Egyptian/Gulf profiles + templates + pilot hardening
+
+Appendix A — مصادر Benchmark الحالية (2026)
+•  OpenAI API — GPT-Realtime-2.1 model documentation.
+•  OpenAI API — Realtime API with SIP.
+•  OpenAI API — Realtime server-side / sideband controls.
+•  OpenAI API — Realtime prompting guidance.
+•  OpenAI — current ChatGPT Work / workspace agent UX and release notes.
+•  Anthropic — Claude Artifacts / dedicated right-side work window.
+•  Google — Gemini Neural Expressive design direction (2026).
+ملاحظة: واجهة “2027” هنا اتجاه تصميم مستقبلي مبني على أنماط 2026 الناضجة، وليست ادعاءً بمعرفة شكل منتجات 2027 قبل صدورها.
