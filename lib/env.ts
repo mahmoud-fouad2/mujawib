@@ -9,6 +9,8 @@ export const env = createEnv({
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_WEBHOOK_SECRET: z.string().min(1).optional(),
     REALTIME_SERVICE_URL: z.string().url().optional(),
+    GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   },
   client: {
@@ -21,6 +23,8 @@ export const env = createEnv({
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_WEBHOOK_SECRET: process.env.OPENAI_WEBHOOK_SECRET,
     REALTIME_SERVICE_URL: process.env.REALTIME_SERVICE_URL,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },

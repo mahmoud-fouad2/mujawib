@@ -1,0 +1,5 @@
+# Native post-install scripts pnpm is allowed to run. Both are needed:
+# esbuild backs tsx (seed + scripts), sharp backs Next's image optimizer.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

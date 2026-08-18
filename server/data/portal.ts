@@ -1,0 +1,334 @@
+import 'server-only'
+
+import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { db } from '@/server/db'
+import {
+  booking,
+  call,
+  changeRequest,
+  customer,
+  integrationConnection,
+  knowledgeItem,
+  lead,
+  qaResult,
+  workspace,
+} from '@/server/db/schema'
+
+/**
+ * Client Portal data — Bible §20. Everything here answers a business question.
+ * Model names, prompts, latency numbers and credentials never cross this line.
+ */
+
+function daysBack(n: number) {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/** The portal is scoped to one workspace; today that is the busiest live client. */
+export async function getPortalWorkspace(slug?: string) {
+  if (slug) {
+    const [row] = await db.select().from(workspace).where(eq(workspace.slug, slug)).limit(1)
+    if (row) return row
+  }
+  const [row] = await db
+    .select()
+    .from(workspace)
+    .where(and(eq(workspace.type, 'client'), eq(workspace.status, 'live')))
+    .orderBy(workspace.createdAt)
+    .limit(1)
+  return row ?? null
+}
+
+export async function getPortalWorkspaces() {
+  return db
+    .select({
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      status: workspace.status,
+    })
+    .from(workspace)
+    .where(eq(workspace.type, 'client'))
+    .orderBy(workspace.name)
+}
+
+export type PortalSummary = {
+  answered: number
+  answeredPrior: number
+  bookings: number
+  bookingsPrior: number
+  resolvedRate: number
+  afterHours: number
+  leads: number
+  transfers: number
+}
+
+export async function getPortalSummary(workspaceId: string): Promise<PortalSummary> {
+  const since = daysBack(30)
+  const priorStart = daysBack(60)
+
+  const [calls] = await db
+    .select({
+      answered: sql<number>`count(*) filter (where ${call.startedAt} >= ${since})`.mapWith(Number),
+      answeredPrior:
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${priorStart} and ${call.startedAt} < ${since})`.mapWith(
+          Number,
+        ),
+      resolved:
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+          Number,
+        ),
+      closed:
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} is not null)`.mapWith(
+          Number,
+        ),
+      afterHours:
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
+          Number,
+        ),
+      transfers:
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} = 'transfer')`.mapWith(
+          Number,
+        ),
+    })
+    .from(call)
+    .where(eq(call.workspaceId, workspaceId))
+
+  const [bookings] = await db
+    .select({
+      current: sql<number>`count(*) filter (where ${booking.createdAt} >= ${since})`.mapWith(
+        Number,
+      ),
+      prior:
+        sql<number>`count(*) filter (where ${booking.createdAt} >= ${priorStart} and ${booking.createdAt} < ${since})`.mapWith(
+          Number,
+        ),
+    })
+    .from(booking)
+    .where(eq(booking.workspaceId, workspaceId))
+
+  const [leads] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(lead)
+    .where(and(eq(lead.workspaceId, workspaceId), gte(lead.createdAt, since)))
+
+  const closed = calls?.closed ?? 0
+
+  return {
+    answered: calls?.answered ?? 0,
+    answeredPrior: calls?.answeredPrior ?? 0,
+    bookings: bookings?.current ?? 0,
+    bookingsPrior: bookings?.prior ?? 0,
+    resolvedRate: closed > 0 ? Math.round(((calls?.resolved ?? 0) / closed) * 100) : 0,
+    afterHours: calls?.afterHours ?? 0,
+    leads: leads?.n ?? 0,
+    transfers: calls?.transfers ?? 0,
+  }
+}
+
+/** Bible §20 "Top reasons for calling". */
+export async function getTopReasons(workspaceId: string) {
+  const rows = await db
+    .select({ intent: call.intent, n: sql<number>`count(*)`.mapWith(Number) })
+    .from(call)
+    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(30))))
+    .groupBy(call.intent)
+    .orderBy(desc(sql`count(*)`))
+    .limit(6)
+
+  const total = rows.reduce((sum, r) => sum + r.n, 0)
+  return rows.map((r) => ({
+    reason: r.intent ?? 'غير محدد',
+    n: r.n,
+    share: total > 0 ? Math.round((r.n / total) * 100) : 0,
+  }))
+}
+
+/**
+ * Bible §20 "What changed?" — derived from the data rather than authored, so it
+ * can never drift out of sync with what the numbers actually say.
+ */
+export async function getPortalInsights(workspaceId: string) {
+  const summary = await getPortalSummary(workspaceId)
+  const reasons = await getTopReasons(workspaceId)
+  const insights: { text: string; tone: 'good' | 'warn' | 'neutral' }[] = []
+
+  const callDelta =
+    summary.answeredPrior > 0
+      ? Math.round(((summary.answered - summary.answeredPrior) / summary.answeredPrior) * 100)
+      : 0
+  if (Math.abs(callDelta) >= 5) {
+    insights.push({
+      text:
+        callDelta > 0
+          ? `عدد المكالمات المُجابة ارتفع ${callDelta}% مقارنة بالثلاثين يومًا السابقة.`
+          : `عدد المكالمات المُجابة انخفض ${Math.abs(callDelta)}% مقارنة بالثلاثين يومًا السابقة.`,
+      tone: callDelta > 0 ? 'good' : 'neutral',
+    })
+  }
+
+  const bookingDelta =
+    summary.bookingsPrior > 0
+      ? Math.round(((summary.bookings - summary.bookingsPrior) / summary.bookingsPrior) * 100)
+      : 0
+  if (summary.bookings > 0) {
+    insights.push({
+      text:
+        bookingDelta >= 0
+          ? `${summary.bookings} حجزًا تم إنجازه صوتيًا${bookingDelta ? ` — بزيادة ${bookingDelta}%` : ''}.`
+          : `الحجوزات انخفضت ${Math.abs(bookingDelta)}% — راجع المكالمات التي انتهت بمعاودة اتصال.`,
+      tone: bookingDelta >= 0 ? 'good' : 'warn',
+    })
+  }
+
+  if (summary.afterHours > 0) {
+    insights.push({
+      text: `${summary.afterHours} مكالمة خارج ساعات العمل تمت معالجتها بدل أن تضيع.`,
+      tone: 'good',
+    })
+  }
+
+  const transferRate =
+    summary.answered > 0 ? Math.round((summary.transfers / summary.answered) * 100) : 0
+  if (transferRate > 18) {
+    insights.push({
+      text: `${transferRate}% من المكالمات تُحوَّل للفريق — أعلى من المستهدف، والسبب الأكثر تكرارًا هو «${reasons[0]?.reason ?? 'غير محدد'}».`,
+      tone: 'warn',
+    })
+  }
+
+  return insights.slice(0, 4)
+}
+
+export async function getPortalCalls(workspaceId: string, limit = 40) {
+  return db
+    .select({
+      id: call.id,
+      callerNumber: call.callerNumber,
+      intent: call.intent,
+      outcome: call.outcome,
+      status: call.status,
+      durationSeconds: call.durationSeconds,
+      startedAt: call.startedAt,
+      metadata: call.metadata,
+    })
+    .from(call)
+    .where(eq(call.workspaceId, workspaceId))
+    .orderBy(desc(call.startedAt))
+    .limit(limit)
+}
+
+export async function getPortalBookings(workspaceId: string, limit = 40) {
+  return db
+    .select()
+    .from(booking)
+    .where(eq(booking.workspaceId, workspaceId))
+    .orderBy(desc(booking.scheduledAt))
+    .limit(limit)
+}
+
+export async function getPortalCustomers(workspaceId: string, limit = 40) {
+  return db
+    .select({
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      tags: customer.tags,
+      lastCallAt: customer.lastCallAt,
+      calls: sql<number>`(
+        select count(*) from ${call}
+        where ${call.workspaceId} = ${workspaceId} and ${call.callerNumber} = ${customer.phone}
+      )`.mapWith(Number),
+      bookings: sql<number>`(
+        select count(*) from ${booking}
+        where ${booking.workspaceId} = ${workspaceId} and ${booking.customerPhone} = ${customer.phone}
+      )`.mapWith(Number),
+    })
+    .from(customer)
+    .where(eq(customer.workspaceId, workspaceId))
+    .orderBy(desc(customer.lastCallAt))
+    .limit(limit)
+}
+
+/** Daily volume + outcome mix for the insights page. */
+export async function getPortalTrend(workspaceId: string, days = 30) {
+  return db
+    .select({
+      day: sql<string>`to_char(date_trunc('day', ${call.startedAt}), 'YYYY-MM-DD')`,
+      total: sql<number>`count(*)`.mapWith(Number),
+      bookings: sql<number>`count(*) filter (where ${call.outcome} = 'booking')`.mapWith(Number),
+      transfers: sql<number>`count(*) filter (where ${call.outcome} = 'transfer')`.mapWith(Number),
+    })
+    .from(call)
+    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(days))))
+    .groupBy(sql`date_trunc('day', ${call.startedAt})`)
+    .orderBy(sql`date_trunc('day', ${call.startedAt})`)
+}
+
+/** Hour-of-day distribution — shows the after-hours window the voice covers. */
+export async function getPortalHourly(workspaceId: string) {
+  return db
+    .select({
+      hour: sql<number>`extract(hour from ${call.startedAt})`.mapWith(Number),
+      n: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(call)
+    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(30))))
+    .groupBy(sql`extract(hour from ${call.startedAt})`)
+    .orderBy(sql`extract(hour from ${call.startedAt})`)
+}
+
+export async function getPortalBusinessInfo(workspaceId: string) {
+  const [ws] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
+  const items = await db
+    .select()
+    .from(knowledgeItem)
+    .where(eq(knowledgeItem.workspaceId, workspaceId))
+    .orderBy(knowledgeItem.category, knowledgeItem.title)
+  return { workspace: ws ?? null, items }
+}
+
+/** The client sees connection state only — never credentials (Bible §5). */
+export async function getPortalIntegrations(workspaceId: string) {
+  return db
+    .select({
+      id: integrationConnection.id,
+      provider: integrationConnection.provider,
+      label: integrationConnection.label,
+      health: integrationConnection.health,
+      lastSuccessAt: integrationConnection.lastSuccessAt,
+    })
+    .from(integrationConnection)
+    .where(eq(integrationConnection.workspaceId, workspaceId))
+    .orderBy(integrationConnection.label)
+}
+
+export async function getPortalRequests(workspaceId: string) {
+  return db
+    .select()
+    .from(changeRequest)
+    .where(eq(changeRequest.workspaceId, workspaceId))
+    .orderBy(desc(changeRequest.createdAt))
+}
+
+/** Agent health, stated as an operating condition rather than a score. */
+export async function getPortalAgentHealth(workspaceId: string) {
+  const [row] = await db
+    .select({
+      avgScore: sql<number>`coalesce(round(avg(${qaResult.score})), 0)`.mapWith(Number),
+      open: sql<number>`count(*) filter (where ${qaResult.reviewerId} is null)`.mapWith(Number),
+    })
+    .from(qaResult)
+    .innerJoin(call, eq(qaResult.callId, call.id))
+    .where(and(eq(call.workspaceId, workspaceId), gte(qaResult.createdAt, daysBack(30))))
+
+  const open = row?.open ?? 0
+  return {
+    state: open > 12 ? 'needs_attention' : ('excellent' as 'excellent' | 'needs_attention'),
+    label: open > 12 ? 'يحتاج مراجعة' : 'مستقر',
+    openReviews: open,
+    avgScore: row?.avgScore ?? 0,
+  }
+}

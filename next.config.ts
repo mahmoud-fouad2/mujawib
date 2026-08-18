@@ -3,10 +3,7 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  compiler: {
-    styledComponents: true,
-  },
-  transpilePackages: ['@primer/react', '@primer/octicons-react'],
+  devIndicators: false,
   serverExternalPackages: ['@neondatabase/serverless'],
 }
 

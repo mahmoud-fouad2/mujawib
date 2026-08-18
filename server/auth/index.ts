@@ -1,9 +1,15 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { organization } from 'better-auth/plugins'
 import { nextCookies } from 'better-auth/next-js'
+import { organization } from 'better-auth/plugins'
 import { db } from '@/server/db'
 import * as schema from '@/server/db/schema'
+
+const googleId = process.env.GOOGLE_CLIENT_ID
+const googleSecret = process.env.GOOGLE_CLIENT_SECRET
+
+/** Only advertised in the UI when credentials actually exist — see `socialProviders`. */
+export const GOOGLE_ENABLED = Boolean(googleId && googleSecret)
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -21,26 +27,23 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
+    minPasswordLength: 10,
   },
+  ...(GOOGLE_ENABLED
+    ? {
+        socialProviders: {
+          google: { clientId: googleId as string, clientSecret: googleSecret as string },
+        },
+      }
+    : {}),
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
-    cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60,
-    },
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
-  plugins: [
-    organization({
-      allowUserToCreateOrganization: async (user) => {
-        // Operator staff only — gate via invite in production
-        return user.email?.endsWith('@mujawib.com') ?? false
-      },
-    }),
-    nextCookies(),
-  ],
-  trustedOrigins: [process.env.BETTER_AUTH_URL!, process.env.NEXT_PUBLIC_APP_URL!].filter(
-    Boolean,
+  plugins: [organization(), nextCookies()],
+  trustedOrigins: [process.env.BETTER_AUTH_URL, process.env.NEXT_PUBLIC_APP_URL].filter(
+    (v): v is string => Boolean(v),
   ),
 })
 

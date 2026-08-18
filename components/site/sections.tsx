@@ -1,0 +1,553 @@
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarCheck,
+  Check,
+  Ear,
+  FileText,
+  Headphones,
+  Languages,
+  Minus,
+  PhoneForwarded,
+} from 'lucide-react'
+import Image from 'next/image'
+import { CallRecord, type RecordItem } from '@/components/site/call-record'
+import { LinkButton } from '@/components/ui/button'
+import type { SiteCopy } from '@/lib/content/site'
+import { duration, num } from '@/lib/format'
+import { isRtl, type Locale, localePath } from '@/lib/i18n'
+
+export function SectionHead({
+  label,
+  title,
+  lead,
+}: {
+  label: string
+  title: string
+  lead?: string
+}) {
+  return (
+    <header className="section__head">
+      <span className="section__label">{label}</span>
+      <div>
+        <h2 className="section__title">{title}</h2>
+        {lead ? <p className="section__lead">{lead}</p> : null}
+      </div>
+    </header>
+  )
+}
+
+/* ─── trust ──────────────────────────────────────────────────────────────── */
+
+export function TrustRow({
+  label,
+  caption,
+  names,
+}: {
+  label: string
+  caption: string
+  names: string[]
+}) {
+  if (names.length === 0) return null
+  return (
+    <section className="trust">
+      <div className="container trust__inner">
+        <div className="trust__head">
+          <span className="trust__label">{label}</span>
+          <p>{caption}</p>
+        </div>
+        <div className="trust__names">
+          {names.map((n) => (
+            <span key={n}>{n}</span>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── demo calls ─────────────────────────────────────────────────────────── */
+
+export type DemoCall = {
+  id: string
+  workspaceName: string
+  intent: string | null
+  outcome: string | null
+  durationSeconds: number | null
+  turns: { role: 'agent' | 'caller'; text: string; at: number }[]
+}
+
+export function DemoCalls({
+  locale,
+  copy,
+  calls,
+}: {
+  locale: Locale
+  copy: SiteCopy
+  calls: DemoCall[]
+}) {
+  if (calls.length === 0) return null
+  const labels =
+    locale === 'ar' ? { agent: 'مُجاوِب', caller: 'العميل' } : { agent: 'Mujawib', caller: 'Caller' }
+
+  return (
+    <section className="section" id="calls">
+      <div className="container">
+        <SectionHead label={copy.demo.label} title={copy.demo.title} lead={copy.demo.lead} />
+        <div className="demos">
+          {calls.map((c) => (
+            <article key={c.id} className="demo">
+              <div className="demo__head">
+                <span className="demo__wave" aria-hidden="true">
+                  {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                    <i key={i} style={{ animationDelay: `${i * 90}ms` }} />
+                  ))}
+                </span>
+                <strong>{c.intent}</strong>
+                <span className="demo__time">{duration(c.durationSeconds)}</span>
+              </div>
+
+              <div className="demo__turns">
+                {c.turns.slice(0, 4).map((t) => (
+                  <div
+                    key={`${c.id}-${t.at}-${t.role}`}
+                    className={`demo__turn${t.role === 'agent' ? ' is-agent' : ''}`}
+                  >
+                    <span>{t.role === 'agent' ? labels.agent : labels.caller}</span>
+                    <p>{t.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="demo__foot">
+                <Check size={14} aria-hidden="true" />
+                <strong>{c.outcome}</strong>
+                <span className="demo__client">{c.workspaceName}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── capabilities ───────────────────────────────────────────────────────── */
+
+const CAN_ICONS = [Languages, Ear, CalendarCheck, FileText, PhoneForwarded, Headphones]
+
+export function Capabilities({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section section--tinted" id="can">
+      <div className="container">
+        <SectionHead label={copy.can.label} title={copy.can.title} lead={copy.can.lead} />
+        <div className="cans">
+          {copy.can.items.map((item, i) => {
+            const Icon = CAN_ICONS[i % CAN_ICONS.length] ?? Languages
+            return (
+              <article key={item.title} className="can">
+                <span className="can__icon">
+                  <Icon size={18} aria-hidden="true" />
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── why ────────────────────────────────────────────────────────────────── */
+
+export function WhyRows({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section" id="quality">
+      <div className="container">
+        <SectionHead label={copy.why.label} title={copy.why.title} lead={copy.why.lead} />
+        <div className="rows">
+          {copy.why.rows.map((row) => (
+            <article key={row.key} className="rows__item">
+              <span className="rows__key">{row.key}</span>
+              <div>
+                <h3>{row.title}</h3>
+                <p style={{ marginBlockStart: 'var(--s-3)' }}>{row.body}</p>
+              </div>
+              <dl className="rows__proof">
+                {row.proof.map((p) => (
+                  <div key={p.term}>
+                    <dt>
+                      <Check size={13} aria-hidden="true" />
+                      {p.term}
+                    </dt>
+                    <dd>{p.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── results / before-after ─────────────────────────────────────────────── */
+
+export function Results({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section" id="results">
+      <div className="container">
+        <SectionHead
+          label={copy.results.label}
+          title={copy.results.title}
+          lead={copy.results.lead}
+        />
+
+        <div className="ba">
+          <div className="ba__col ba__col--before">
+            <h3>{copy.results.beforeTitle}</h3>
+            <ul>
+              {copy.results.before.map((b) => (
+                <li key={b}>
+                  <Minus size={14} aria-hidden="true" />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="ba__col ba__col--after">
+            <h3>{copy.results.afterTitle}</h3>
+            <ul>
+              {copy.results.after.map((a) => (
+                <li key={a}>
+                  <Check size={14} aria-hidden="true" />
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <figure className="ba__quote">
+            <Image
+              src="/images/generated/enterprise-voice-ops-2027.webp"
+              alt=""
+              fill
+              sizes="(max-width: 980px) 100vw, 32vw"
+              className="ba__quote-img"
+            />
+            <span className="ba__quote-shade" aria-hidden="true" />
+            <blockquote>«{copy.results.quote}»</blockquote>
+            <figcaption>{copy.results.quoteBy}</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── deployment ─────────────────────────────────────────────────────────── */
+
+export function Deployment({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section section--tinted" id="deployment">
+      <div className="container">
+        <SectionHead
+          label={copy.deployment.label}
+          title={copy.deployment.title}
+          lead={copy.deployment.lead}
+        />
+        {/* A genuine ordered sequence — the numbering carries real information. */}
+        <ol className="steps">
+          {copy.deployment.steps.map((s) => (
+            <li key={s.n} className="step">
+              <span className="step__n">{s.n}</span>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+              <span className="step__out">
+                <Check size={13} aria-hidden="true" />
+                {s.output}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  )
+}
+
+/* ─── integrations ───────────────────────────────────────────────────────── */
+
+const PROVIDER_LOGO: Record<string, string> = {
+  google_calendar: '/images/integrations/google-calendar.svg',
+  microsoft_365: '/images/integrations/microsoft-calendar.svg',
+  whatsapp: '/images/integrations/whatsapp.svg',
+  hubspot: '/images/integrations/hubspot.svg',
+  zoho_crm: '/images/integrations/zoho.svg',
+  odoo: '/images/integrations/odoo.svg',
+  rest_api: '/images/integrations/webhooks.svg',
+}
+
+const PROVIDER_ACTION_LABEL: Record<string, Record<Locale, string>> = {
+  google_calendar: { ar: 'يفتح التقويم ويثبّت الموعد', en: 'Opens the calendar and locks the slot' },
+  microsoft_365: { ar: 'يقرأ المتاح ويحجز', en: 'Reads availability and books' },
+  whatsapp: { ar: 'يرسل التأكيد والموقع', en: 'Sends confirmation and location' },
+  hubspot: { ar: 'يسجّل العميل المحتمل', en: 'Logs the lead' },
+  zoho_crm: { ar: 'يبحث عن العميل ويضيف ملاحظة', en: 'Finds the customer and adds a note' },
+  odoo: { ar: 'ينشئ الطلب في نظامك', en: 'Creates the order in your system' },
+  rest_api: { ar: 'يستدعي نظامك الخاص', en: 'Calls your own system' },
+}
+
+export function IntegrationWires({
+  locale,
+  copy,
+  providers,
+}: {
+  locale: Locale
+  copy: SiteCopy
+  providers: { provider: string; label: string }[]
+}) {
+  const list = providers.filter((p) => PROVIDER_ACTION_LABEL[p.provider])
+  if (list.length === 0) return null
+
+  return (
+    <section className="section" id="integrations">
+      <div className="container">
+        <SectionHead
+          label={copy.integrations.label}
+          title={copy.integrations.title}
+          lead={copy.integrations.lead}
+        />
+
+        <div className="flowmap">
+          <div className="flowmap__node flowmap__node--start">
+            <Headphones size={18} aria-hidden="true" />
+            <strong>{locale === 'ar' ? 'الموظف الصوتي' : 'Voice agent'}</strong>
+          </div>
+
+          <div className="flowmap__wires">
+            {list.map((p) => (
+              <article key={p.provider} className="wire">
+                <span className="wire__logo">
+                  <Image
+                    src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
+                    alt=""
+                    width={22}
+                    height={22}
+                  />
+                </span>
+                <strong>{p.label}</strong>
+                <span className="wire__action">{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
+              </article>
+            ))}
+          </div>
+
+          <div className="flowmap__node flowmap__node--end">
+            <Check size={18} aria-hidden="true" />
+            <strong>{copy.integrations.flowEnd}</strong>
+          </div>
+        </div>
+
+        <p className="section__note">{copy.integrations.note}</p>
+      </div>
+    </section>
+  )
+}
+
+/* ─── security ───────────────────────────────────────────────────────────── */
+
+export function Security({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section section--tinted" id="security">
+      <div className="container">
+        <SectionHead
+          label={copy.security.label}
+          title={copy.security.title}
+          lead={copy.security.lead}
+        />
+        <div className="shields">
+          {copy.security.items.map((i) => (
+            <article key={i.title} className="shield">
+              <h3>{i.title}</h3>
+              <p>{i.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── pricing ────────────────────────────────────────────────────────────── */
+
+export function Pricing({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+
+  return (
+    <section className="section" id="pricing">
+      <div className="container">
+        <SectionHead
+          label={copy.pricing.label}
+          title={copy.pricing.title}
+          lead={copy.pricing.lead}
+        />
+        <div className="pricing">
+          <ul className="pricing__points">
+            {copy.pricing.points.map((p) => (
+              <li key={p}>
+                <Check size={16} aria-hidden="true" />
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="pricing__actions">
+            <LinkButton
+              href={localePath(locale, '/sign-in')}
+              variant="primary"
+              size="lg"
+              trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+            >
+              {copy.pricing.primary}
+            </LinkButton>
+            <LinkButton href={`mailto:${copy.footer.email}`} size="lg">
+              {copy.pricing.secondary}
+            </LinkButton>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── console preview ────────────────────────────────────────────────────── */
+
+export function ConsolePreview({
+  locale,
+  copy,
+  record,
+}: {
+  locale: Locale
+  copy: SiteCopy
+  record: {
+    title: string
+    meta: string
+    items: RecordItem[]
+    outcome: { label: string; detail: string } | null
+    totalSeconds: number | null
+  } | null
+}) {
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+
+  return (
+    <section className="section on-ink" id="console">
+      <div className="container">
+        <SectionHead
+          label={copy.console.label}
+          title={copy.console.title}
+          lead={copy.console.lead}
+        />
+        <div className="console-preview">
+          <ul className="console-preview__points">
+            {copy.console.points.map((p) => (
+              <li key={p}>
+                <Check size={15} aria-hidden="true" />
+                <span>{p}</span>
+              </li>
+            ))}
+            <li className="console-preview__cta">
+              <LinkButton
+                href="/sign-in"
+                variant="primary"
+                trailing={<Arrow size={16} className="arrow" aria-hidden="true" />}
+              >
+                {copy.console.cta}
+              </LinkButton>
+            </li>
+          </ul>
+
+          {record ? (
+            <CallRecord
+              locale={locale}
+              title={record.title}
+              meta={record.meta}
+              items={record.items}
+              outcome={record.outcome}
+              totalSeconds={record.totalSeconds}
+              animate={false}
+            />
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── closing CTA ────────────────────────────────────────────────────────── */
+
+export function CloseCta({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+
+  return (
+    <section className="section">
+      <div className="container">
+        <div className="close-cta">
+          <div>
+            <h2>{copy.cta.title}</h2>
+            <p>{copy.cta.body}</p>
+            <p className="close-cta__note">
+              <Check size={14} aria-hidden="true" />
+              {copy.cta.note}
+            </p>
+          </div>
+          <div className="close-cta__actions">
+            <LinkButton
+              href={localePath(locale, '/sign-in')}
+              variant="primary"
+              size="lg"
+              trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+            >
+              {copy.cta.primary}
+            </LinkButton>
+            <LinkButton href={`mailto:${copy.footer.email}`} size="lg">
+              {copy.cta.secondary}
+            </LinkButton>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── hero proof strip ───────────────────────────────────────────────────── */
+
+export function ProofStrip({
+  copy,
+  proof,
+}: {
+  copy: SiteCopy
+  proof: { callsHandled: number; bookings: number; resolvedRate: number; medianResponseMs: number }
+}) {
+  const items = [
+    { value: `${num(proof.callsHandled)}+`, label: copy.proofLabels.calls },
+    { value: num(proof.bookings), label: copy.proofLabels.bookings },
+    { value: `${proof.resolvedRate}%`, label: copy.proofLabels.resolved },
+    { value: `${num(proof.medianResponseMs)}ms`, label: copy.proofLabels.response },
+  ]
+
+  return (
+    <div className="hero__proof">
+      <div className="hero__proof-grid">
+        {items.map((i) => (
+          <div key={i.label}>
+            <strong>{i.value}</strong>
+            <span>{i.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="hero__proof-note">{copy.proofNote}</p>
+    </div>
+  )
+}

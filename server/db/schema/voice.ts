@@ -43,17 +43,14 @@ export const pronunciation = pgTable(
   (t) => [index('pronunciation_workspace_idx').on(t.workspaceId, t.status)],
 )
 
-export const industryTemplate = pgTable(
-  'industry_template',
-  {
-    id: text('id').primaryKey(),
-    packKey: text('pack_key').notNull().unique(),
-    name: text('name').notNull(),
-    version: text('version').notNull(),
-    knowledgeSchema: jsonb('knowledge_schema').$type<Record<string, unknown>>().default({}),
-    defaultFlows: jsonb('default_flows').$type<unknown[]>().default([]),
-    defaultIntegrations: jsonb('default_integrations').$type<string[]>().default([]),
-    qaSuite: jsonb('qa_suite').$type<unknown[]>().default([]),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-)
+export const industryTemplate = pgTable('industry_template', {
+  id: text('id').primaryKey(),
+  packKey: text('pack_key').notNull().unique(),
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+  knowledgeSchema: jsonb('knowledge_schema').$type<Record<string, unknown>>().default({}),
+  defaultFlows: jsonb('default_flows').$type<unknown[]>().default([]),
+  defaultIntegrations: jsonb('default_integrations').$type<string[]>().default([]),
+  qaSuite: jsonb('qa_suite').$type<unknown[]>().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})

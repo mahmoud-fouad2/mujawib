@@ -1,69 +1,59 @@
-/* MUJAWIB — self-hosted Arabic fonts (no Google CDN / no next/font) */
+/**
+ * MUJAWIB typography — self-hosted, no CDN.
+ *
+ * IBM Plex Sans Arabic carries both scripts (its unicode-range includes Basic
+ * Latin), so a mixed Arabic-English string sits on one skeleton instead of
+ * switching to the system UI face mid-sentence. IBM Plex Mono is loaded from
+ * @fontsource in the root layout and handles every number, timestamp and id.
+ */
 
 @font-face {
-  font-family: 'Tajawal';
-  src: url('/fonts/tajawal-400.woff2') format('woff2');
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-400.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
 }
 
 @font-face {
-  font-family: 'Tajawal';
-  src: url('/fonts/tajawal-500.woff2') format('woff2');
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-500.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
 }
 
 @font-face {
-  font-family: 'Tajawal';
-  src: url('/fonts/tajawal-700.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
-}
-
-@font-face {
-  font-family: 'Cairo';
-  src: url('/fonts/cairo-500.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
-}
-
-@font-face {
-  font-family: 'Cairo';
-  src: url('/fonts/cairo-600.woff2') format('woff2');
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-600.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
 }
 
 @font-face {
-  font-family: 'Cairo';
-  src: url('/fonts/cairo-700.woff2') format('woff2');
+  font-family: "IBM Plex Sans Arabic";
+  src: url("/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-700.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
+}
+
+/* Fallback while Plex Arabic loads — matched on x-height to limit reflow. */
+@font-face {
+  font-family: "Tajawal";
+  src: url("/fonts/tajawal-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
 }
 
 @font-face {
-  font-family: 'Cairo';
-  src: url('/fonts/cairo-800.woff2') format('woff2');
-  font-weight: 800;
+  font-family: "Tajawal";
+  src: url("/fonts/tajawal-700.woff2") format("woff2");
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+0000-00FF;
-}
-
-:root {
-  --font-tajawal: 'Tajawal', system-ui, sans-serif;
-  --font-cairo: 'Cairo', 'Tajawal', system-ui, sans-serif;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
 }

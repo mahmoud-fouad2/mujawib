@@ -1,67 +1,71 @@
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # MUJAWIB — Render Blueprint
-# Deploy: connect repo → Render auto-detects this file
-# Docs: https://render.com/docs/blueprint-spec
-# ─────────────────────────────────────────────────────────────
+#
+# Deploy: Render → New → Blueprint → point at this repo.
+# The database is Neon (external), so no Render Postgres is provisioned here —
+# set DATABASE_URL in the dashboard to the pooled Neon connection string.
+#
+# The sideband realtime service (services/realtime) is not deployed yet; it is
+# added here once SIP inbound is wired, so we do not ship a service that idles.
+# ─────────────────────────────────────────────────────────────────────────────
 
 services:
-  # Next.js web app (Operator Console + Client Portal + Marketing)
   - type: web
     name: mujawib-web
     runtime: node
-    region: frankfurt # closest to GCC; change if needed
+    region: frankfurt # closest Render region to the Gulf
     plan: starter
+    branch: main
+
+    # `corepack enable` fails on Render: it tries to symlink into /usr/bin,
+    # which is read-only. Render already exposes pnpm, and COREPACK_ENABLE_STRICT=0
+    # stops it rejecting a version that differs from packageManager.
     buildCommand: pnpm install --frozen-lockfile && pnpm build
     startCommand: pnpm start
+
     healthCheckPath: /api/health
+    autoDeploy: true
+
     envVars:
       - key: NODE_ENV
         value: production
+
+      # Stops corepack blocking on a prompt, and from rejecting a pnpm version
+      # that does not exactly match package.json#packageManager.
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: '0'
+      - key: COREPACK_ENABLE_STRICT
+        value: '0'
+
+      # Next binds to this; Render injects the real port at runtime.
+      - key: PORT
+        value: '10000'
+
+      # ─── set these in the Render dashboard ───────────────────────────────
+      # Neon pooled connection string (must include ?sslmode=require)
       - key: DATABASE_URL
-        fromDatabase:
-          name: mujawib-db
-          property: connectionString
+        sync: false
+
+      # openssl rand -base64 32
       - key: BETTER_AUTH_SECRET
         generateValue: true
+
+      # Both must equal the final public URL of this service.
       - key: BETTER_AUTH_URL
-        sync: false # set to https://your-app.onrender.com
+        sync: false
       - key: NEXT_PUBLIC_APP_URL
         sync: false
+
+      # Optional — Google sign-in only appears when both are present.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Optional — voice runtime, not required for the console to run.
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_WEBHOOK_SECRET
         sync: false
       - key: REALTIME_SERVICE_URL
-        fromService:
-          type: web
-          name: mujawib-realtime
-          property: hostport
-
-  # Sideband WebSocket service (OpenAI Realtime tool calls + live monitoring)
-  # Sprint 1: SIP inbound + sideband controls
-  - type: web
-    name: mujawib-realtime
-    runtime: node
-    region: frankfurt
-    plan: starter
-    buildCommand: cd services/realtime && pnpm install --frozen-lockfile && pnpm build
-    startCommand: cd services/realtime && pnpm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mujawib-db
-          property: connectionString
-      - key: OPENAI_API_KEY
         sync: false
-      - key: PORT
-        value: '10000'
-
-databases:
-  # Neon is recommended for production; this Render Postgres is a fallback.
-  # To use Neon: remove this block and set DATABASE_URL manually in dashboard.
-  - name: mujawib-db
-    plan: basic-256mb
-    region: frankfurt
-    postgresMajorVersion: '16'

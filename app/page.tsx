@@ -1,29 +1,10 @@
-import { SiteHeader } from '@/components/landing/site-header'
-import { Hero } from '@/components/landing/hero'
-import {
-  Sectors,
-  Outcomes,
-  DashboardPreview,
-  WhyMujawib,
-  HowItWorks,
-  Integrations,
-} from '@/components/landing/marketing-sections'
-import { Templates, CtaBanner, SiteFooter } from '@/components/landing/templates-cta'
+import { Landing } from '@/components/site/landing'
+import { SiteShell } from '@/components/site/site-shell'
 
 export default function HomePage() {
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: 'var(--bgColor-default)' }}>
-      <SiteHeader />
-      <Hero />
-      <Sectors />
-      <Outcomes />
-      <DashboardPreview />
-      <WhyMujawib />
-      <HowItWorks />
-      <Integrations />
-      <Templates />
-      <CtaBanner />
-      <SiteFooter />
-    </main>
+    <SiteShell locale="ar">
+      <Landing locale="ar" />
+    </SiteShell>
   )
 }

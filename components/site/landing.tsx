@@ -1,0 +1,185 @@
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { CallRecord } from '@/components/site/call-record'
+import { Industries } from '@/components/site/industries'
+import {
+  Capabilities,
+  CloseCta,
+  ConsolePreview,
+  DemoCalls,
+  Deployment,
+  IntegrationWires,
+  Pricing,
+  ProofStrip,
+  Results,
+  Security,
+  TrustRow,
+  WhyRows,
+} from '@/components/site/sections'
+import { LinkButton } from '@/components/ui/button'
+import { copyFor } from '@/lib/content/site'
+import { CALL_OUTCOME_LABEL, clock } from '@/lib/format'
+import { isRtl, type Locale, localePath } from '@/lib/i18n'
+import { buildRecordItems } from '@/lib/record'
+import {
+  getDemoCalls,
+  getHeroCall,
+  getIndustryPacks,
+  getLiveIntegrations,
+  getPlatformProof,
+  getReferenceClients,
+} from '@/server/data/marketing'
+
+export async function Landing({ locale }: { locale: Locale }) {
+  const copy = copyFor(locale)
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+
+  const [proof, hero, demos, packs, integrations, clients] = await Promise.all([
+    getPlatformProof(),
+    getHeroCall(),
+    getDemoCalls(),
+    getIndustryPacks(),
+    getLiveIntegrations(),
+    getReferenceClients(),
+  ])
+
+  const heroItems = hero ? buildRecordItems(hero.turns, hero.tools, hero.durationSeconds) : []
+  const heroOutcome = hero?.booking?.service
+    ? {
+        label:
+          locale === 'ar'
+            ? `تم الحجز — ${hero.booking.service}`
+            : `Booked — ${hero.booking.service}`,
+        detail: clock(hero.booking.scheduledAt),
+      }
+    : null
+
+  const record = hero
+    ? {
+        title: copy.hero.recordTitle,
+        meta: `${hero.workspaceName} · ${copy.hero.recordMeta}`,
+        items: heroItems,
+        outcome: heroOutcome,
+        totalSeconds: hero.durationSeconds,
+      }
+    : null
+
+  return (
+    <>
+      <section className="hero">
+        <div className="container hero__grid">
+          <div>
+            <span className="hero__eyebrow">
+              <span
+                className="pill__dot"
+                aria-hidden="true"
+                style={{ background: 'var(--signal)' }}
+              />
+              {copy.hero.eyebrow}
+            </span>
+
+            <h1>
+              {copy.hero.title}
+              <br />
+              <em>{copy.hero.titleMuted}</em>
+            </h1>
+
+            <p className="hero__lead">{copy.hero.lead}</p>
+
+            <div className="hero__actions">
+              <LinkButton
+                href={localePath(locale, '/sign-in')}
+                variant="primary"
+                size="lg"
+                trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+              >
+                {copy.hero.primary}
+              </LinkButton>
+              <LinkButton href="#calls" size="lg">
+                {copy.hero.secondary}
+              </LinkButton>
+            </div>
+
+            <p className="hero__note">{copy.hero.note}</p>
+
+            <ProofStrip copy={copy} proof={proof} />
+          </div>
+
+          {record ? (
+            <CallRecord
+              locale={locale}
+              title={record.title}
+              meta={record.meta}
+              items={record.items}
+              outcome={record.outcome}
+              totalSeconds={record.totalSeconds}
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <TrustRow
+        label={copy.trust.label}
+        caption={copy.trust.caption}
+        names={clients.map((c) => c.name)}
+      />
+
+      <DemoCalls
+        locale={locale}
+        copy={copy}
+        calls={demos.map((d) => ({
+          id: d.id,
+          workspaceName: d.workspaceName,
+          intent: d.intent,
+          outcome: d.outcome ? (CALL_OUTCOME_LABEL[d.outcome] ?? d.outcome) : null,
+          durationSeconds: d.durationSeconds,
+          turns: d.turns,
+        }))}
+      />
+
+      <Capabilities copy={copy} />
+
+      <WhyRows copy={copy} />
+
+      <section className="section section--tinted" id="industries">
+        <div className="container">
+          <header className="section__head">
+            <span className="section__label">{copy.industries.label}</span>
+            <div>
+              <h2 className="section__title">{copy.industries.title}</h2>
+              <p className="section__lead">{copy.industries.lead}</p>
+            </div>
+          </header>
+          <Industries
+            locale={locale}
+            copy={copy}
+            packs={packs.map((p) => ({
+              packKey: p.packKey,
+              name: p.name,
+              version: p.version,
+              clients: p.clients,
+              flows: (p.defaultFlows ?? []) as string[],
+            }))}
+          />
+        </div>
+      </section>
+
+      <Results copy={copy} />
+
+      <Deployment copy={copy} />
+
+      <IntegrationWires
+        locale={locale}
+        copy={copy}
+        providers={integrations.map((i) => ({ provider: i.provider, label: i.label }))}
+      />
+
+      <ConsolePreview locale={locale} copy={copy} record={record} />
+
+      <Security copy={copy} />
+
+      <Pricing locale={locale} copy={copy} />
+
+      <CloseCta locale={locale} copy={copy} />
+    </>
+  )
+}

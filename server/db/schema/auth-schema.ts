@@ -83,10 +83,7 @@ export const member = pgTable(
     role: text('role').notNull().default('member'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('member_org_idx').on(t.organizationId),
-    index('member_user_idx').on(t.userId),
-  ],
+  (t) => [index('member_org_idx').on(t.organizationId), index('member_user_idx').on(t.userId)],
 )
 
 export const invitation = pgTable('invitation', {

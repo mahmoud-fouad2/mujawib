@@ -25,7 +25,10 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[realtime] listening on http://localhost:${info.port}`)
 })
 
-const wss = new WebSocketServer({ server: server as unknown as import('http').Server, path: '/sideband' })
+const wss = new WebSocketServer({
+  server: server as unknown as import('http').Server,
+  path: '/sideband',
+})
 
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connected', service: 'mujawib-realtime' }))

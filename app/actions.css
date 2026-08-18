@@ -1,0 +1,385 @@
+/**
+ * Action surfaces: toasts, sheets, confirms, row menus.
+ *
+ * These exist so the console can be operated, not just read. Every one of them
+ * is anchored to a real write, so the feedback has to be immediate and precise.
+ */
+
+/* ─── toasts ───────────────────────────────────────────────────────────── */
+
+.toasts {
+  position: fixed;
+  inset-block-end: var(--s-5);
+  inset-inline-end: var(--s-5);
+  z-index: 200;
+  display: grid;
+  gap: var(--s-2);
+  inline-size: min(420px, calc(100vw - var(--s-6)));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--step--1);
+  pointer-events: auto;
+  animation: toast-in 200ms var(--ease-spring);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Base first, tones after — otherwise the lower-specificity rule trails the
+   higher-specificity ones and the cascade reads backwards. */
+.toast svg {
+  flex: none;
+}
+
+.toast[data-tone="success"] svg {
+  color: var(--good);
+}
+
+.toast[data-tone="error"] {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
+
+.toast[data-tone="error"] svg {
+  color: var(--bad);
+}
+
+.toast[data-tone="info"] svg {
+  color: var(--signal);
+}
+
+.toast__msg {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.toast__action {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+.toast__action:hover {
+  background: var(--signal-soft);
+}
+
+.toast__close {
+  flex: none;
+  color: var(--text-faint);
+  line-height: 0;
+}
+
+.toast__close:hover {
+  color: var(--text);
+}
+
+/* ─── overlay shell ────────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.overlay--center {
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+}
+
+.overlay__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(11 13 16 / 48%);
+  backdrop-filter: blur(2px);
+  animation: fade-in var(--t-base) var(--ease);
+  cursor: default;
+}
+
+/* ─── sheet ────────────────────────────────────────────────────────────── */
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(520px, 100vw);
+  block-size: 100dvh;
+  background: var(--surface);
+  border-inline-start: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+  animation: sheet-slide var(--t-slow) var(--ease);
+}
+
+@keyframes sheet-slide {
+  from {
+    transform: translateX(var(--sheet-from, 100%));
+  }
+}
+
+[dir="ltr"] .sheet {
+  --sheet-from: 100%;
+}
+
+[dir="rtl"] .sheet {
+  --sheet-from: -100%;
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-block-end: 1px solid var(--line);
+}
+
+.sheet__head h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.sheet__head p {
+  margin-block-start: 4px;
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.sheet__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-5);
+  display: grid;
+  gap: var(--s-4);
+  align-content: start;
+}
+
+.sheet__foot {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-block-start: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.sheet__foot .btn--primary {
+  margin-inline-start: auto;
+}
+
+/* ─── confirm ──────────────────────────────────────────────────────────── */
+
+.confirm {
+  position: relative;
+  inline-size: min(440px, 100%);
+  padding: var(--s-6);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in var(--t-slow) var(--ease-spring);
+}
+
+.confirm h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.confirm p {
+  margin-block-start: var(--s-3);
+  color: var(--text-muted);
+  line-height: 1.7;
+  font-size: var(--step--1);
+}
+
+.confirm__actions {
+  display: flex;
+  gap: var(--s-3);
+  margin-block-start: var(--s-5);
+}
+
+.confirm__actions .btn:last-child {
+  margin-inline-start: auto;
+}
+
+/* ─── row actions ──────────────────────────────────────────────────────── */
+
+.row-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.row-actions__trigger {
+  display: grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 8px;
+  color: var(--text-faint);
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.row-actions__trigger:hover,
+.row-actions__trigger[aria-expanded="true"] {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.row-actions__menu {
+  position: absolute;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 40;
+  min-inline-size: 210px;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in var(--t-fast) var(--ease);
+}
+
+.row-actions__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  inline-size: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: start;
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.row-actions__item:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.row-actions__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.row-actions__item[data-tone="danger"] {
+  color: var(--bad);
+}
+
+.row-actions__item[data-tone="danger"]:hover:not(:disabled) {
+  background: var(--bad-soft);
+}
+
+.row-actions__sep {
+  block-size: 1px;
+  margin: 4px 0;
+  border: 0;
+  background: var(--line);
+}
+
+/* Reveal row actions on hover, keep them permanent on touch. */
+.table--rows tbody tr .row-actions__trigger {
+  opacity: 0;
+}
+
+.table--rows tbody tr:hover .row-actions__trigger,
+.table--rows tbody tr:focus-within .row-actions__trigger,
+.row-actions__trigger[aria-expanded="true"] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .table--rows tbody tr .row-actions__trigger {
+    opacity: 1;
+  }
+}
+
+/* ─── compact page summary (replaces the KPI card rows) ────────────────── */
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-5);
+  margin-block-end: var(--s-4);
+  padding-block-end: var(--s-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.summary__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+
+.summary__item b {
+  font-family: var(--font-mono);
+  font-size: var(--step-1);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.summary__item[data-tone="bad"] b {
+  color: var(--bad);
+}
+
+.summary__item[data-tone="warn"] b {
+  color: var(--warn);
+}
+
+.summary__item[data-tone="good"] b {
+  color: var(--good);
+}
+
+.summary__spacer {
+  margin-inline-start: auto;
+}
+
+/* ─── inline form bits used inside sheets ──────────────────────────────── */
+
+.sheet select.input,
+.sheet textarea.input {
+  inline-size: 100%;
+}
+
+.sheet textarea.input {
+  min-block-size: 110px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.field__hint {
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.field__error {
+  font-size: 0.8125rem;
+  color: var(--bad);
+}

@@ -1,12 +1,4 @@
-import {
-  index,
-  jsonb,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-} from 'drizzle-orm/pg-core'
+import { index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { organization } from './auth-schema'
 
 export const workspaceTypeEnum = pgEnum('workspace_type', ['operator', 'client'])
