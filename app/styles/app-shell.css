@@ -75,11 +75,11 @@
 
 .sidebar__group {
   padding: var(--s-4) var(--s-3) var(--s-2);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-faint);
 }
 
@@ -331,7 +331,7 @@
 }
 
 .metric__label {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--text-faint);
 }
 
@@ -525,11 +525,11 @@
 
 .detail-section-label {
   padding: var(--s-4) var(--s-5) 0;
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-faint);
 }
 
@@ -660,11 +660,11 @@
 }
 
 .inspector__section h3 {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-faint);
   margin-block-end: var(--s-3);
 }
@@ -839,7 +839,10 @@
   }
 }
 
+/* Sits above the scrim close-button that fills the overlay. */
 .palette {
+  position: relative;
+  z-index: 1;
   inline-size: min(620px, calc(100vw - var(--s-6)));
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -854,6 +857,17 @@
     opacity: 0;
     transform: translateY(-8px) scale(0.985);
   }
+}
+
+/* A real focusable control behind the dialog, so clicking outside closes it
+   without hanging a click handler on a bare div. */
+.palette__scrim-close {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
 }
 
 .palette__input {
@@ -880,10 +894,11 @@
 
 .palette__group {
   padding: var(--s-3) var(--s-3) var(--s-1);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-faint);
 }
 

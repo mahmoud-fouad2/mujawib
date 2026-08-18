@@ -331,11 +331,8 @@
 .wizard__summary h3 {
   padding: var(--s-4) var(--s-5);
   border-block-end: 1px solid var(--line);
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--text-faint);
 }
 
@@ -388,4 +385,25 @@
 .wizard__done p {
   color: var(--text-muted);
   line-height: 1.75;
+}
+
+/* ─── grouped field caption ────────────────────────────────────────────── */
+
+/* Labels a set of inputs rather than one control, so it is not a <label> —
+   each input inside carries its own aria-label. */
+.field__group-label {
+  display: block;
+  margin-block-end: var(--s-2);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.wizard__fields .field > .repeat-row + .repeat-row {
+  margin-block-start: var(--s-2);
+}
+
+.wizard__fields .field .btn {
+  inline-size: fit-content;
+  margin-block-start: var(--s-2);
 }

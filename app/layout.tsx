@@ -1,14 +1,14 @@
 import '@fontsource/ibm-plex-mono/400.css'
 import '@fontsource/ibm-plex-mono/500.css'
-import './fonts.css'
-import './tokens.css'
-import './base.css'
-import './site.css'
-import './site-blocks.css'
-import './console.css'
-import './site-fixes.css'
-import './auth.css'
-import './actions.css'
+// Load order is the cascade: tokens, then the reset and primitives, then the
+// three surfaces, then the overlays that sit above all of them.
+import './styles/fonts.css'
+import './styles/tokens.css'
+import './styles/base.css'
+import './styles/site.css'
+import './styles/app-shell.css'
+import './styles/auth.css'
+import './styles/actions.css'
 
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'

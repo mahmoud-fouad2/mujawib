@@ -1,5 +1,18 @@
-# Native post-install scripts pnpm is allowed to run. Both are needed:
-# esbuild backs tsx (seed + scripts), sharp backs Next's image optimizer.
+packages:
+  - "."
+
+allowBuilds:
+  esbuild: set this to true or false
+  sharp: set this to true or false
+
+# Native post-install scripts pnpm is allowed to run.
+#   esbuild — backs tsx, used by `pnpm db:seed`
+#   sharp   — Next's image optimiser
 onlyBuiltDependencies:
   - esbuild
   - sharp
+
+# pnpm 11 treats any remaining ignored build as a hard install failure. The two
+# above ship prebuilt platform binaries, so a skipped post-install is harmless;
+# failing the deploy over it is not. Warn instead.
+strictDepBuilds: false

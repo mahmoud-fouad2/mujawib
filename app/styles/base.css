@@ -440,11 +440,8 @@ p {
 .table th {
   padding: var(--s-3) var(--s-4);
   text-align: start;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--text-faint);
   border-block-end: 1px solid var(--line);
   white-space: nowrap;
