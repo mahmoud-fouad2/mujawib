@@ -1,10 +1,8 @@
 import type { Metadata } from 'next'
+import { env } from '@/lib/env'
 import { type Locale, localePath } from '@/lib/i18n'
 
-export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://mujawib.onrender.com').replace(
-  /\/$/,
-  '',
-)
+export const SITE_URL = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
 
 export const ORG_NAME_AR = 'مُجاوِب'
 export const ORG_NAME_EN = 'Mujawib'
