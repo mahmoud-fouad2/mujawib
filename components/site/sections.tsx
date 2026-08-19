@@ -11,7 +11,6 @@ import {
   PhoneForwarded,
 } from 'lucide-react'
 import Image from 'next/image'
-import { CallRecord, type RecordItem } from '@/components/site/call-record'
 import { LinkButton } from '@/components/ui/button'
 import type { SiteCopy } from '@/lib/content/site'
 import { duration, num } from '@/lib/format'
@@ -405,14 +404,14 @@ export function Pricing({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
           </ul>
           <div className="pricing__actions">
             <LinkButton
-              href={localePath(locale, '/sign-in')}
+              href={localePath(locale, '/contact')}
               variant="primary"
               size="lg"
               trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
             >
               {copy.pricing.primary}
             </LinkButton>
-            <LinkButton href={`mailto:${copy.footer.email}`} size="lg">
+            <LinkButton href={localePath(locale, '/contact')} size="lg">
               {copy.pricing.secondary}
             </LinkButton>
           </div>
@@ -424,22 +423,28 @@ export function Pricing({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
 
 /* ─── console preview ────────────────────────────────────────────────────── */
 
+export type ConsoleQueueRow = {
+  id: string
+  workspaceName: string
+  intent: string | null
+  outcome: string | null
+  durationSeconds: number | null
+  flags: string[]
+}
+
 export function ConsolePreview({
   locale,
   copy,
-  record,
+  queue,
+  counts,
 }: {
   locale: Locale
   copy: SiteCopy
-  record: {
-    title: string
-    meta: string
-    items: RecordItem[]
-    outcome: { label: string; detail: string } | null
-    totalSeconds: number | null
-  } | null
+  queue: ConsoleQueueRow[]
+  counts: { live: number; review: number; degraded: number }
 }) {
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+  const ar = locale === 'ar'
 
   return (
     <section className="section on-ink" id="console">
@@ -468,17 +473,45 @@ export function ConsolePreview({
             </li>
           </ul>
 
-          {record ? (
-            <CallRecord
-              locale={locale}
-              title={record.title}
-              meta={record.meta}
-              items={record.items}
-              outcome={record.outcome}
-              totalSeconds={record.totalSeconds}
-              animate={false}
-            />
-          ) : null}
+          {/* The console's own ranking surface — the hero already showed one
+              call end to end, so repeating it here would say nothing new. */}
+          <div className="cpanel">
+            <div className="cpanel__bar">
+              <span className="cpanel__stat" data-tone="live">
+                <b>{num(counts.live)}</b>
+                {ar ? 'مباشر الآن' : 'live now'}
+              </span>
+              <span className="cpanel__stat" data-tone="warn">
+                <b>{num(counts.review)}</b>
+                {ar ? 'تحتاج مراجعة' : 'need review'}
+              </span>
+              <span className="cpanel__stat" data-tone={counts.degraded ? 'bad' : undefined}>
+                <b>{num(counts.degraded)}</b>
+                {ar ? 'ربط متعثر' : 'degraded'}
+              </span>
+            </div>
+
+            <div className="cpanel__rows">
+              {queue.map((q) => (
+                <div key={q.id} className="cpanel__row">
+                  <div className="cpanel__main">
+                    <strong>{q.intent ?? (ar ? 'مكالمة' : 'Call')}</strong>
+                    <span>{q.workspaceName}</span>
+                  </div>
+                  <div className="cpanel__flags">
+                    {q.flags.slice(0, 1).map((f) => (
+                      <em key={f}>{f}</em>
+                    ))}
+                  </div>
+                  <span className="cpanel__dur mono">{duration(q.durationSeconds)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="cpanel__foot">
+              {ar ? 'مرتّبة حسب ما يحتاج قرارك أولًا' : 'Ranked by what needs your decision first'}
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -504,14 +537,14 @@ export function CloseCta({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
           </div>
           <div className="close-cta__actions">
             <LinkButton
-              href={localePath(locale, '/sign-in')}
+              href={localePath(locale, '/contact')}
               variant="primary"
               size="lg"
               trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
             >
               {copy.cta.primary}
             </LinkButton>
-            <LinkButton href={`mailto:${copy.footer.email}`} size="lg">
+            <LinkButton href={localePath(locale, '/contact')} size="lg">
               {copy.cta.secondary}
             </LinkButton>
           </div>

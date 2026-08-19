@@ -1,0 +1,275 @@
+/**
+ * Standalone marketing pages: contact, pricing, FAQ, about, security,
+ * how-it-works. Each page has its own block here rather than sharing one
+ * generic layout.
+ */
+
+/* ─── contact channels ─────────────────────────────────────────────────── */
+
+.channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-4);
+  margin-block-end: clamp(var(--s-7), 5vw, var(--s-8));
+}
+
+.channel {
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  transition:
+    border-color var(--t-base) var(--ease),
+    transform var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.channel:hover {
+  border-color: var(--signal-line);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-panel);
+}
+
+.channel__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 11px;
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+.channel__label {
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+}
+
+.channel__value {
+  font-size: var(--step-1);
+  font-weight: 500;
+}
+
+.channel__note {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* ─── what to expect ───────────────────────────────────────────────────── */
+
+.expect {
+  max-inline-size: 72ch;
+}
+
+.expect h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+  margin-block-end: var(--s-5);
+}
+
+.expect ol {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.expect li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.expect__n {
+  font-size: 0.8125rem;
+  color: var(--signal);
+  padding-block-start: 0.2em;
+}
+
+.expect li strong {
+  display: block;
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.expect li p {
+  margin-block-start: 4px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.expect__hours {
+  margin-block-start: var(--s-6);
+  padding-block-start: var(--s-4);
+  border-block-start: 1px solid var(--line);
+  font-size: 0.875rem;
+  color: var(--text-faint);
+}
+
+/* ─── pricing bands ────────────────────────────────────────────────────── */
+
+.bands {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.band {
+  display: grid;
+  gap: var(--s-3);
+  align-content: start;
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  transition:
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.band:hover {
+  border-color: var(--line-strong);
+}
+
+.band--featured {
+  border-color: var(--signal-line);
+  box-shadow: 0 0 0 1px var(--signal-line);
+}
+
+.band h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.band__for {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+
+.band__volume {
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  font-size: 0.8125rem;
+  color: var(--text);
+  inline-size: fit-content;
+}
+
+.band ul {
+  display: grid;
+  gap: var(--s-3);
+  margin-block: var(--s-3);
+  padding-block-start: var(--s-4);
+  border-block-start: 1px solid var(--line-faint);
+}
+
+.band li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.band li svg {
+  flex: none;
+  margin-block-start: 0.3em;
+  color: var(--good);
+}
+
+/* ─── stance block (about / security) ──────────────────────────────────── */
+
+.stance {
+  max-inline-size: 72ch;
+  padding: clamp(var(--s-5), 4vw, var(--s-7));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-hero);
+  background: var(--raised);
+}
+
+.stance h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.stance p {
+  margin-block-start: var(--s-4);
+  color: var(--text-muted);
+  line-height: 1.8;
+}
+
+.stance--plain {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* ─── how it works stages ──────────────────────────────────────────────── */
+
+.stages {
+  display: grid;
+  border-block-start: 1px solid var(--line);
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: clamp(var(--s-4), 3vw, var(--s-7));
+  align-items: start;
+  padding-block: clamp(var(--s-5), 3vw, var(--s-6));
+  border-block-end: 1px solid var(--line);
+}
+
+@media (max-width: 900px) {
+  .stage {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .stage__split {
+    grid-column: 2;
+  }
+}
+
+.stage__n {
+  font-size: var(--step-1);
+  color: var(--signal);
+  padding-block-start: 0.1em;
+}
+
+.stage__body h2 {
+  font-size: var(--step-2);
+  letter-spacing: var(--tracking-tight);
+}
+
+.stage__body p {
+  margin-block-start: var(--s-3);
+  color: var(--text-muted);
+  line-height: 1.75;
+}
+
+.stage__split {
+  display: grid;
+  gap: var(--s-4);
+  margin: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--raised);
+}
+
+.stage__split dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--signal);
+}
+
+.stage__split dd {
+  margin: 0;
+  margin-block-start: 3px;
+  font-size: var(--step--1);
+  line-height: 1.6;
+  color: var(--text-muted);
+}

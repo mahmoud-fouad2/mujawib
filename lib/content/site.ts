@@ -102,11 +102,11 @@ type Copy = {
 
 const ar: Copy = {
   nav: [
-    { label: 'كيف يعمل', href: '#calls' },
-    { label: 'الإمكانات', href: '#can' },
+    { label: 'كيف يعمل', href: '/how-it-works' },
     { label: 'القطاعات', href: '#industries' },
-    { label: 'التكاملات', href: '#integrations' },
-    { label: 'الأسعار', href: '#pricing' },
+    { label: 'الموثوقية', href: '/security' },
+    { label: 'الأسعار', href: '/pricing' },
+    { label: 'الأسئلة', href: '/faq' },
   ],
   hero: {
     eyebrow: 'مكالمة حقيقية، لحظة بلحظة',
@@ -360,10 +360,12 @@ const ar: Copy = {
       {
         title: 'الشركة',
         links: [
-          { label: 'كيف نبدأ', href: '#deployment' },
-          { label: 'الموثوقية', href: '#security' },
-          { label: 'الأسعار', href: '#pricing' },
-          { label: 'تسجيل الدخول', href: '/sign-in' },
+          { label: 'من نحن', href: '/about' },
+          { label: 'كيف نبدأ', href: '/how-it-works' },
+          { label: 'الموثوقية', href: '/security' },
+          { label: 'الأسعار', href: '/pricing' },
+          { label: 'الأسئلة الشائعة', href: '/faq' },
+          { label: 'تواصل معنا', href: '/contact' },
         ],
       },
     ],
@@ -383,11 +385,11 @@ const ar: Copy = {
 
 const en: Copy = {
   nav: [
-    { label: 'How it works', href: '#calls' },
-    { label: 'Capabilities', href: '#can' },
+    { label: 'How it works', href: '/how-it-works' },
     { label: 'Industries', href: '#industries' },
-    { label: 'Integrations', href: '#integrations' },
-    { label: 'Pricing', href: '#pricing' },
+    { label: 'Reliability', href: '/security' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'FAQ', href: '/faq' },
   ],
   hero: {
     eyebrow: 'A real call, moment by moment',
@@ -659,10 +661,12 @@ const en: Copy = {
       {
         title: 'Company',
         links: [
-          { label: 'How we start', href: '#deployment' },
-          { label: 'Reliability', href: '#security' },
-          { label: 'Pricing', href: '#pricing' },
-          { label: 'Sign in', href: '/sign-in' },
+          { label: 'About', href: '/about' },
+          { label: 'How we start', href: '/how-it-works' },
+          { label: 'Reliability', href: '/security' },
+          { label: 'Pricing', href: '/pricing' },
+          { label: 'FAQ', href: '/faq' },
+          { label: 'Contact', href: '/contact' },
         ],
       },
     ],

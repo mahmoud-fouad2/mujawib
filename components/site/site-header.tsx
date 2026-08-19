@@ -47,7 +47,7 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
             className="site-header__brand"
             aria-label="مُجاوِب MUJAWIB"
           >
-            <Logo size="lg" priority />
+            <Logo size="xl" priority />
           </Link>
 
           <nav className="site-nav" aria-label={locale === 'ar' ? 'التنقل الرئيسي' : 'Main'}>

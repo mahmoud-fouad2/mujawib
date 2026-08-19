@@ -8,6 +8,7 @@ import {
   callEvent,
   industryTemplate,
   integrationConnection,
+  qaResult,
   toolExecution,
   workspace,
 } from '@/server/db/schema'
@@ -209,6 +210,50 @@ export async function getLiveIntegrations() {
     .orderBy(desc(sql`count(*)`))
 
   return rows
+}
+
+/**
+ * A slice of the operator console for the landing page. The hero already shows
+ * one call in full, so this section shows the surface that *ranks* calls —
+ * otherwise the page states the same thing twice.
+ */
+export async function getConsolePreview() {
+  const [queue, counts] = await Promise.all([
+    db
+      .select({
+        id: call.id,
+        workspaceName: workspace.name,
+        intent: call.intent,
+        outcome: call.outcome,
+        durationSeconds: call.durationSeconds,
+        flags: qaResult.flags,
+      })
+      .from(qaResult)
+      .innerJoin(call, eq(qaResult.callId, call.id))
+      .innerJoin(workspace, eq(call.workspaceId, workspace.id))
+      .where(sql`${qaResult.reviewerId} is null`)
+      .orderBy(desc(qaResult.createdAt))
+      .limit(4),
+    db
+      .select({
+        live: sql<number>`(
+          select count(*) from ${call} where ${call.status} in ('live','ringing','waiting_tool')
+        )`.mapWith(Number),
+        review: sql<number>`(
+          select count(*) from ${qaResult} where ${qaResult.reviewerId} is null
+        )`.mapWith(Number),
+        degraded: sql<number>`(
+          select count(*) from ${integrationConnection}
+          where ${integrationConnection.health} in ('degraded','failed')
+        )`.mapWith(Number),
+      })
+      .from(sql`(select 1) as t`),
+  ])
+
+  return {
+    queue: queue.map((q) => ({ ...q, flags: (q.flags ?? []) as string[] })),
+    counts: counts[0] ?? { live: 0, review: 0, degraded: 0 },
+  }
 }
 
 /** Client names for the trust row — only businesses that are actually live. */

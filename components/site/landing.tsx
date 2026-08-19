@@ -21,6 +21,7 @@ import { CALL_OUTCOME_LABEL, clock } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
 import { buildRecordItems } from '@/lib/record'
 import {
+  getConsolePreview,
   getDemoCalls,
   getHeroCall,
   getIndustryPacks,
@@ -33,13 +34,14 @@ export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
-  const [proof, hero, demos, packs, integrations, clients] = await Promise.all([
+  const [proof, hero, demos, packs, integrations, clients, consolePreview] = await Promise.all([
     getPlatformProof(),
     getHeroCall(),
     getDemoCalls(),
     getIndustryPacks(),
     getLiveIntegrations(),
     getReferenceClients(),
+    getConsolePreview(),
   ])
 
   const heroItems = hero ? buildRecordItems(hero.turns, hero.tools, hero.durationSeconds) : []
@@ -50,16 +52,6 @@ export async function Landing({ locale }: { locale: Locale }) {
             ? `تم الحجز — ${hero.booking.service}`
             : `Booked — ${hero.booking.service}`,
         detail: clock(hero.booking.scheduledAt),
-      }
-    : null
-
-  const record = hero
-    ? {
-        title: copy.hero.recordTitle,
-        meta: `${hero.workspaceName} · ${copy.hero.recordMeta}`,
-        items: heroItems,
-        outcome: heroOutcome,
-        totalSeconds: hero.durationSeconds,
       }
     : null
 
@@ -87,7 +79,7 @@ export async function Landing({ locale }: { locale: Locale }) {
 
             <div className="hero__actions">
               <LinkButton
-                href={localePath(locale, '/sign-in')}
+                href={localePath(locale, '/contact')}
                 variant="primary"
                 size="lg"
                 trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
@@ -104,14 +96,14 @@ export async function Landing({ locale }: { locale: Locale }) {
             <ProofStrip copy={copy} proof={proof} />
           </div>
 
-          {record ? (
+          {hero ? (
             <CallRecord
               locale={locale}
-              title={record.title}
-              meta={record.meta}
-              items={record.items}
-              outcome={record.outcome}
-              totalSeconds={record.totalSeconds}
+              title={copy.hero.recordTitle}
+              meta={`${hero.workspaceName} · ${copy.hero.recordMeta}`}
+              items={heroItems}
+              outcome={heroOutcome}
+              totalSeconds={hero.durationSeconds}
             />
           ) : null}
         </div>
@@ -173,7 +165,12 @@ export async function Landing({ locale }: { locale: Locale }) {
         providers={integrations.map((i) => ({ provider: i.provider, label: i.label }))}
       />
 
-      <ConsolePreview locale={locale} copy={copy} record={record} />
+      <ConsolePreview
+        locale={locale}
+        copy={copy}
+        queue={consolePreview.queue}
+        counts={consolePreview.counts}
+      />
 
       <Security copy={copy} />
 
