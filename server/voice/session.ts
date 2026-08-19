@@ -1,0 +1,143 @@
+import 'server-only'
+
+import { and, eq } from 'drizzle-orm'
+import { db } from '@/server/db'
+import {
+  agent,
+  agentVersion,
+  knowledgeItem,
+  phoneNumber,
+  pronunciation,
+  voiceProfile,
+  workspace,
+} from '@/server/db/schema'
+import { compilePrompt } from '@/server/voice/prompt'
+import { toolsFor } from '@/server/voice/tools'
+
+/**
+ * Builds the Realtime session for an inbound call.
+ *
+ * The dialled number is the only thing an incoming webhook gives us, so it is
+ * the key: number -> agent -> published version -> compiled instructions.
+ * A number with no published version is never answered by a draft; the call is
+ * refused so it can fall back to the human line rather than reach an untested
+ * agent (Bible §23).
+ */
+
+/** Launch default — Bible §28. One model, audio to audio, no cascade. */
+export const VOICE_MODEL = 'gpt-realtime-2.1'
+
+const VOICE_BY_DIALECT: Record<string, string> = {
+  saudi: 'cedar',
+  gulf: 'cedar',
+  egyptian: 'marin',
+  msa: 'marin',
+}
+
+export type ResolvedAgent = {
+  workspaceId: string
+  workspaceName: string
+  agentId: string
+  agentName: string
+  versionId: string
+  versionNumber: number
+  instructions: string
+  tools: ReturnType<typeof toolsFor>
+  voice: string
+  transferTo: string | null
+  phoneNumberId: string
+}
+
+/** Resolves the dialled number to a published agent, or null if none. */
+export async function resolveAgentForNumber(dialled: string): Promise<ResolvedAgent | null> {
+  const e164 = dialled.trim().replace(/[^\d+]/g, '')
+
+  const [row] = await db
+    .select({
+      phone: phoneNumber,
+      ws: workspace,
+      ag: agent,
+    })
+    .from(phoneNumber)
+    .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
+    .leftJoin(agent, eq(phoneNumber.agentId, agent.id))
+    .where(eq(phoneNumber.e164, e164))
+    .limit(1)
+
+  if (!row?.ag?.liveVersionId) return null
+
+  const [version] = await db
+    .select()
+    .from(agentVersion)
+    .where(and(eq(agentVersion.id, row.ag.liveVersionId), eq(agentVersion.status, 'published')))
+    .limit(1)
+
+  // A draft must never answer a real caller.
+  if (!version) return null
+
+  const [profile, knowledge, words] = await Promise.all([
+    version.voiceProfileId
+      ? db.select().from(voiceProfile).where(eq(voiceProfile.id, version.voiceProfileId)).limit(1)
+      : Promise.resolve([]),
+    db.select().from(knowledgeItem).where(eq(knowledgeItem.workspaceId, row.ws.id)),
+    db.select().from(pronunciation).where(eq(pronunciation.workspaceId, row.ws.id)),
+  ])
+
+  const resolvedProfile = profile[0] ?? null
+  const bindings = ((version.toolBindings ?? []) as string[]).filter(Boolean)
+  const rules = (version.businessRules ?? {}) as { transferTo?: string }
+
+  return {
+    workspaceId: row.ws.id,
+    workspaceName: row.ws.name,
+    agentId: row.ag.id,
+    agentName: row.ag.name,
+    versionId: version.id,
+    versionNumber: version.versionNumber,
+    instructions: compilePrompt({
+      workspace: row.ws,
+      version,
+      agentName: row.ag.name,
+      profile: resolvedProfile,
+      knowledge,
+      pronunciations: words,
+    }),
+    tools: toolsFor(bindings),
+    voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',
+    transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
+    phoneNumberId: row.phone.id,
+  }
+}
+
+/**
+ * The payload sent to POST /v1/realtime/calls/{call_id}/accept.
+ *
+ * Server VAD with a slightly long silence window: Arabic callers pause mid
+ * sentence more than the default 500ms allows, and cutting them off is the
+ * fastest way to make an agent feel robotic.
+ */
+export function buildAcceptPayload(resolved: ResolvedAgent) {
+  return {
+    type: 'realtime',
+    model: VOICE_MODEL,
+    instructions: resolved.instructions,
+    audio: {
+      input: {
+        format: { type: 'audio/pcmu' },
+        turn_detection: {
+          type: 'server_vad',
+          threshold: 0.55,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 700,
+          interrupt_response: true,
+        },
+      },
+      output: {
+        format: { type: 'audio/pcmu' },
+        voice: resolved.voice,
+      },
+    },
+    tools: resolved.tools,
+    tool_choice: 'auto',
+  }
+}

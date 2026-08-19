@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { CallRecord } from '@/components/site/call-record'
+import { CallPlayer } from '@/components/site/call-player'
 import { Industries } from '@/components/site/industries'
 import {
   Capabilities,
@@ -42,7 +42,13 @@ export async function Landing({ locale }: { locale: Locale }) {
     getConsolePreview(),
   ])
 
-  const heroItems = hero ? buildRecordItems(hero.turns, hero.tools, hero.durationSeconds) : []
+  // Tool executions carry an absolute time; place them on the call's own clock
+  // so the player fires them at the moment they actually ran.
+  const heroToolEvents = hero
+    ? buildRecordItems(hero.turns, hero.tools, hero.durationSeconds)
+        .filter((i): i is Extract<typeof i, { kind: 'tool' }> => i.kind === 'tool')
+        .map((i) => ({ name: i.name, success: i.success, latencyMs: i.latencyMs, at: i.at }))
+    : []
   const heroOutcome = hero?.booking?.service
     ? {
         label:
@@ -95,13 +101,14 @@ export async function Landing({ locale }: { locale: Locale }) {
           </div>
 
           {hero ? (
-            <CallRecord
+            <CallPlayer
               locale={locale}
               title={copy.hero.recordTitle}
               meta={`${hero.workspaceName} · ${copy.hero.recordMeta}`}
-              items={heroItems}
-              outcome={heroOutcome}
-              totalSeconds={hero.durationSeconds}
+              turns={hero.turns}
+              tools={heroToolEvents}
+              totalSeconds={hero.durationSeconds ?? 60}
+              outcome={heroOutcome ?? undefined}
             />
           ) : null}
         </div>

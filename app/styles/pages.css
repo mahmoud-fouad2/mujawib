@@ -4,11 +4,22 @@
  * generic layout.
  */
 
-/* ─── page hero media ──────────────────────────────────────────────────── */
+/* ─── page shell ───────────────────────────────────────────────────────── */
+
+/**
+ * Content pages are narrower than the app shell. At the full 1440px a column of
+ * prose and three small cards read as debris floating in space, which is what
+ * made these pages feel unfinished.
+ */
+.page-hero .container,
+.page-scope .container {
+  inline-size: min(100% - var(--s-6) * 2, 1160px);
+}
 
 .page-hero {
   position: relative;
   overflow: hidden;
+  padding-block: clamp(var(--s-7), 6vw, 96px) clamp(var(--s-5), 3vw, var(--s-7));
 }
 
 .page-hero__aurora {
@@ -23,8 +34,8 @@
 
 .page-hero__media {
   position: relative;
-  margin-block-start: clamp(var(--s-6), 4vw, var(--s-8));
-  block-size: clamp(260px, 34vw, 420px);
+  margin-block-start: clamp(var(--s-5), 3vw, var(--s-7));
+  block-size: clamp(240px, 30vw, 380px);
 }
 /* ─── contact channels ─────────────────────────────────────────────────── */
 
@@ -36,17 +47,41 @@
 }
 
 .channel {
+  position: relative;
   display: grid;
   gap: var(--s-2);
   align-content: start;
-  padding: var(--s-5);
+  padding: var(--s-6);
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: var(--surface);
+  overflow: hidden;
   transition:
     border-color var(--t-base) var(--ease),
     transform var(--t-base) var(--ease),
     box-shadow var(--t-base) var(--ease);
+}
+
+/* A quiet wash that only appears on hover, so the card reads as a target. */
+.channel::after {
+  content: "";
+  position: absolute;
+  inset-block-start: -40%;
+  inset-inline-end: -30%;
+  inline-size: 220px;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, var(--signal-soft) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--t-slow) var(--ease);
+  pointer-events: none;
+}
+
+.channel:hover::after {
+  opacity: 1;
+}
+
+.channel > * {
+  position: relative;
 }
 
 .channel:hover {
@@ -58,11 +93,21 @@
 .channel__icon {
   display: grid;
   place-items: center;
-  inline-size: 40px;
-  block-size: 40px;
-  border-radius: 11px;
+  inline-size: 46px;
+  block-size: 46px;
+  margin-block-end: var(--s-2);
+  border-radius: 13px;
   background: var(--signal-soft);
   color: var(--signal);
+  transition:
+    background var(--t-base) var(--ease),
+    transform var(--t-base) var(--ease);
+}
+
+.channel:hover .channel__icon {
+  background: var(--signal);
+  color: var(--text-on-signal);
+  transform: scale(1.06);
 }
 
 .channel__label {
@@ -71,8 +116,9 @@
 }
 
 .channel__value {
-  font-size: var(--step-1);
+  font-size: var(--step-2);
   font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .channel__note {
@@ -83,8 +129,13 @@
 
 /* ─── what to expect ───────────────────────────────────────────────────── */
 
+/* The steps sit on a panel so the page has a second surface, rather than
+   prose drifting under the cards. */
 .expect {
-  max-inline-size: 72ch;
+  padding: clamp(var(--s-5), 4vw, var(--s-7));
+  border: 1px solid var(--line);
+  border-radius: var(--r-hero);
+  background: var(--raised);
 }
 
 .expect h2 {
@@ -96,6 +147,7 @@
 .expect ol {
   display: grid;
   gap: var(--s-5);
+  max-inline-size: 78ch;
 }
 
 .expect li {

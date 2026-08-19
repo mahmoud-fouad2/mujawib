@@ -1,0 +1,279 @@
+/**
+ * Call player. Replays a stored transcript on its own clock; the same chrome
+ * drives a real recording the moment one exists.
+ */
+
+.player {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-hero);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+
+/* ─── head ─────────────────────────────────────────────────────────────── */
+
+.player__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-block-end: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.player__play {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--signal);
+  color: var(--text-on-signal);
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.player__play:hover {
+  background: var(--signal-hover);
+  transform: scale(1.05);
+}
+
+.player__play:active {
+  transform: scale(0.97);
+}
+
+.player__title {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.player__title strong {
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.player__title span {
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+}
+
+.player__speak {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-inline-start: auto;
+  padding: 7px var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: all var(--t-fast) var(--ease);
+}
+
+.player__speak[aria-pressed="true"] {
+  border-color: var(--signal-line);
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+@media (max-width: 560px) {
+  .player__speak span {
+    display: none;
+  }
+}
+
+/* ─── scrubber ─────────────────────────────────────────────────────────── */
+
+.player__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) 0;
+}
+
+.player__time {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  flex: none;
+}
+
+.player__scrub {
+  position: relative;
+  flex: 1;
+  block-size: 6px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  /* Time runs left to right regardless of page direction. */
+  direction: ltr;
+}
+
+.player__scrub input {
+  position: absolute;
+  inset: -8px 0;
+  inline-size: 100%;
+  block-size: 22px;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.player__fill {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--r-pill);
+  background: var(--signal);
+  pointer-events: none;
+}
+
+.player__scrub:hover .player__fill {
+  background: var(--signal-hover);
+}
+
+/* ─── waveform ─────────────────────────────────────────────────────────── */
+
+.player__wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  block-size: 46px;
+  padding: var(--s-3) var(--s-5);
+  direction: ltr;
+}
+
+.player__wave i {
+  flex: 1;
+  min-inline-size: 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition:
+    background var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
+}
+
+.player__wave i[data-past="true"] {
+  background: var(--signal);
+}
+
+.player__wave i[data-active="true"] {
+  transform: scaleY(1.25);
+  background: var(--signal-hover);
+}
+
+/* ─── transcript ───────────────────────────────────────────────────────── */
+
+.player__body {
+  display: grid;
+  gap: var(--s-1);
+  max-block-size: 320px;
+  overflow-y: auto;
+  padding: var(--s-3) var(--s-5) var(--s-4);
+  scroll-behavior: smooth;
+}
+
+.player__hint {
+  padding-block: var(--s-5);
+  text-align: center;
+  font-size: var(--step--1);
+  color: var(--text-faint);
+}
+
+.pline {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding-block: var(--s-2);
+  animation: pline-in 260ms var(--ease) both;
+}
+
+@keyframes pline-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pline {
+    animation: none;
+  }
+}
+
+.pline__at {
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+  padding-block-start: 0.3em;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.pline__who {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-block-end: 2px;
+}
+
+.pline--agent .pline__who {
+  color: var(--signal);
+}
+
+.pline p {
+  font-size: var(--step--1);
+  line-height: 1.65;
+}
+
+.pline__tool {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: 6px var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--raised);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.pline__tool code {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* ─── outcome + note ───────────────────────────────────────────────────── */
+
+.player__outcome {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-block-start: 1px solid var(--line);
+  background: var(--good-soft);
+  color: var(--good);
+  font-size: var(--step--1);
+  font-weight: 600;
+  animation: pline-in 300ms var(--ease) both;
+}
+
+.player__outcome .mono {
+  margin-inline-start: auto;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* States plainly that this is a transcript replay, not a recording. */
+.player__note {
+  padding: var(--s-3) var(--s-5);
+  border-block-start: 1px solid var(--line-faint);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-faint);
+}

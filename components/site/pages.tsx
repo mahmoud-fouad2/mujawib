@@ -72,9 +72,21 @@ export function ContactPage({ locale }: { locale: Locale }) {
 
   return (
     <>
-      <PageHero eyebrow={ar ? 'تواصل' : 'Contact'} title={p.title} lead={p.lead} />
+      <PageHero
+        eyebrow={ar ? 'تواصل' : 'Contact'}
+        title={p.title}
+        lead={p.lead}
+        media={{
+          src: '/images/generated/console-signal-2027.webp',
+          alt: '',
+          caption: ar ? 'نبدأ بمكالمة، لا بنموذج' : 'We start with a call, not a form',
+          sub: ar
+            ? 'عشرون دقيقة نفهم فيها من يتصل بك وماذا يطلب — ثم نبني عليها.'
+            : 'Twenty minutes to understand who calls you and what they ask for.',
+        }}
+      />
 
-      <section className="section">
+      <section className="section page-scope">
         <div className="container">
           <div className="channels reveal-group">
             {p.channels.map((c, i) => {

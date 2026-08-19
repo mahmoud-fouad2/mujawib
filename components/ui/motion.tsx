@@ -11,15 +11,20 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
  * ~40 lines against ~30 kB, and it degrades to the final value if the browser
  * has no IntersectionObserver or the reader prefers reduced motion.
  */
+const NUMBER_FORMAT = new Intl.NumberFormat('ar-SA-u-nu-latn')
+
 export function Counter({
   value,
   duration = 1100,
-  format,
   suffix,
 }: {
   value: number
   duration?: number
-  format?: (n: number) => string
+  /**
+   * Formatting happens here rather than through a passed function: a Server
+   * Component cannot hand a function across the client boundary, which is what
+   * `format={num}` was doing.
+   */
   suffix?: string
 }) {
   const ref = useRef<HTMLSpanElement>(null)
@@ -64,7 +69,7 @@ export function Counter({
 
   return (
     <span ref={ref} className="counter">
-      {format ? format(shown) : shown}
+      {NUMBER_FORMAT.format(shown)}
       {suffix}
     </span>
   )

@@ -603,7 +603,7 @@ export function ProofStrip({
             <strong>
               {/* Counts up once on entry — these are real platform figures, so
                   drawing the eye to them is the point of the strip. */}
-              <Counter value={i.n} format={num} suffix={i.suffix} />
+              <Counter value={i.n} suffix={i.suffix} />
             </strong>
             <span>{i.label}</span>
           </div>
