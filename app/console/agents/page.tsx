@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { AgentRowActions } from '@/components/console/agent-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { Pill } from '@/components/ui/primitives'
@@ -58,7 +59,9 @@ export default async function AgentsPage() {
                 const blockers = (a.draft?.blockers ?? []) as string[]
                 return (
                   <tr key={a.id}>
-                    <td style={{ fontWeight: 500 }}>{a.name}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      <Link href={`/console/agents/${a.id}`}>{a.name}</Link>
+                    </td>
                     <td className="muted">{a.workspaceName}</td>
                     <td>
                       {a.live ? (

@@ -74,7 +74,9 @@ export default async function ClientsPage() {
                 }
                 return (
                   <tr key={c.id}>
-                    <td style={{ fontWeight: 500 }}>{c.name}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      <Link href={`/console/clients/${c.slug}`}>{c.name}</Link>
+                    </td>
                     <td>
                       <Pill tone={workspaceTone(c.status)}>
                         {WORKSPACE_STATUS_LABEL[c.status] ?? c.status}

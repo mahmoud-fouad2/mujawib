@@ -11,6 +11,7 @@ import {
   callEvent,
   changeRequest,
   customer,
+  flow,
   industryTemplate,
   integrationConnection,
   knowledgeItem,
@@ -381,6 +382,74 @@ export async function getCallTrend(days = 14) {
   return rows
 }
 
+/**
+ * Seven-day series behind each headline figure, so a number on the home screen
+ * always carries a direction rather than sitting there alone.
+ */
+export async function getMetricTrends() {
+  const since = daysBack(7)
+
+  const [calls, bookings, reviews] = await Promise.all([
+    db
+      .select({
+        day: sql<string>`to_char(date_trunc('day', ${call.startedAt}), 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)`.mapWith(Number),
+        resolved:
+          sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+            Number,
+          ),
+      })
+      .from(call)
+      .where(gte(call.startedAt, since))
+      .groupBy(sql`date_trunc('day', ${call.startedAt})`)
+      .orderBy(sql`date_trunc('day', ${call.startedAt})`),
+    db
+      .select({
+        day: sql<string>`to_char(date_trunc('day', ${booking.createdAt}), 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(booking)
+      .where(gte(booking.createdAt, since))
+      .groupBy(sql`date_trunc('day', ${booking.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${booking.createdAt})`),
+    db
+      .select({
+        day: sql<string>`to_char(date_trunc('day', ${qaResult.createdAt}), 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(qaResult)
+      .where(gte(qaResult.createdAt, since))
+      .groupBy(sql`date_trunc('day', ${qaResult.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${qaResult.createdAt})`),
+  ])
+
+  // A day with no rows is absent from a GROUP BY, which would draw a shorter
+  // line rather than a dip. Fill the gaps so every series has seven points.
+  const days: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    days.push(d.toISOString().slice(0, 10))
+  }
+  const series = (rows: { day: string; n: number }[]) => {
+    const by = new Map(rows.map((r) => [r.day, r.n]))
+    return days.map((d) => by.get(d) ?? 0)
+  }
+
+  const resolvedRate = days.map((d) => {
+    const row = calls.find((c) => c.day === d)
+    if (!row || row.n === 0) return 0
+    return Math.round((row.resolved / row.n) * 100)
+  })
+
+  return {
+    calls: series(calls),
+    bookings: series(bookings),
+    reviews: series(reviews),
+    resolvedRate,
+  }
+}
+
 /* ─── Clients ────────────────────────────────────────────────────────────── */
 
 export async function getClients() {
@@ -428,6 +497,192 @@ export async function getClients() {
 export async function getClientBySlug(slug: string) {
   const [row] = await db.select().from(workspace).where(eq(workspace.slug, slug)).limit(1)
   return row ?? null
+}
+
+/** Everything one client detail screen needs, in a single round of queries. */
+export async function getClientDetail(slug: string) {
+  const ws = await getClientBySlug(slug)
+  if (!ws) return null
+
+  const since = daysBack(30)
+
+  const [totals, agents, numbers, integrations, requests, knowledge, recentCalls, trend] =
+    await Promise.all([
+      db
+        .select({
+          calls: sql<number>`count(*)`.mapWith(Number),
+          resolved:
+            sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+              Number,
+            ),
+          closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(Number),
+          transfers: sql<number>`count(*) filter (where ${call.outcome} = 'transfer')`.mapWith(
+            Number,
+          ),
+          afterHours:
+            sql<number>`count(*) filter (where (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
+              Number,
+            ),
+        })
+        .from(call)
+        .where(and(eq(call.workspaceId, ws.id), gte(call.startedAt, since))),
+      db
+        .select({
+          id: agent.id,
+          name: agent.name,
+          liveVersionId: agent.liveVersionId,
+          updatedAt: agent.updatedAt,
+        })
+        .from(agent)
+        .where(eq(agent.workspaceId, ws.id)),
+      db.select().from(phoneNumber).where(eq(phoneNumber.workspaceId, ws.id)),
+      db.select().from(integrationConnection).where(eq(integrationConnection.workspaceId, ws.id)),
+      db
+        .select()
+        .from(changeRequest)
+        .where(eq(changeRequest.workspaceId, ws.id))
+        .orderBy(desc(changeRequest.createdAt))
+        .limit(6),
+      db
+        .select({ category: knowledgeItem.category, n: sql<number>`count(*)`.mapWith(Number) })
+        .from(knowledgeItem)
+        .where(eq(knowledgeItem.workspaceId, ws.id))
+        .groupBy(knowledgeItem.category),
+      db
+        .select({
+          id: call.id,
+          callerNumber: call.callerNumber,
+          intent: call.intent,
+          outcome: call.outcome,
+          status: call.status,
+          durationSeconds: call.durationSeconds,
+          startedAt: call.startedAt,
+        })
+        .from(call)
+        .where(eq(call.workspaceId, ws.id))
+        .orderBy(desc(call.startedAt))
+        .limit(10),
+      db
+        .select({
+          day: sql<string>`to_char(date_trunc('day', ${call.startedAt}), 'YYYY-MM-DD')`,
+          total: sql<number>`count(*)`.mapWith(Number),
+          resolved:
+            sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+              Number,
+            ),
+        })
+        .from(call)
+        .where(and(eq(call.workspaceId, ws.id), gte(call.startedAt, daysBack(14))))
+        .groupBy(sql`date_trunc('day', ${call.startedAt})`)
+        .orderBy(sql`date_trunc('day', ${call.startedAt})`),
+    ])
+
+  const t = totals[0] ?? { calls: 0, resolved: 0, closed: 0, transfers: 0, afterHours: 0 }
+
+  return {
+    workspace: ws,
+    totals: {
+      ...t,
+      resolvedRate: t.closed > 0 ? Math.round((t.resolved / t.closed) * 100) : 0,
+    },
+    agents,
+    numbers,
+    integrations,
+    requests,
+    knowledge,
+    recentCalls,
+    trend,
+  }
+}
+
+/** One agent, its version history and the scenario runs that gate release. */
+export async function getAgentDetail(agentId: string) {
+  const [row] = await db
+    .select({
+      agent,
+      workspaceName: workspace.name,
+      workspaceSlug: workspace.slug,
+    })
+    .from(agent)
+    .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+    .where(eq(agent.id, agentId))
+    .limit(1)
+
+  if (!row) return null
+
+  const versions = await db
+    .select()
+    .from(agentVersion)
+    .where(eq(agentVersion.agentId, agentId))
+    .orderBy(desc(agentVersion.versionNumber))
+
+  const liveVersion = versions.find((v) => v.id === row.agent.liveVersionId) ?? null
+  const draft = versions.find((v) => v.status === 'draft') ?? null
+
+  const [profile, flows, runs, callStats] = await Promise.all([
+    liveVersion?.voiceProfileId
+      ? db
+          .select()
+          .from(voiceProfile)
+          .where(eq(voiceProfile.id, liveVersion.voiceProfileId))
+          .limit(1)
+      : Promise.resolve([]),
+    liveVersion
+      ? db
+          .select()
+          .from(flow)
+          .where(eq(flow.agentVersionId, liveVersion.id))
+          .orderBy(flow.sortOrder)
+      : Promise.resolve([]),
+    liveVersion
+      ? db
+          .select({
+            name: scenarioTest.name,
+            category: scenarioTest.category,
+            isCritical: scenarioTest.isCritical,
+            passed: scenarioRun.passed,
+            score: scenarioRun.score,
+            ranAt: scenarioRun.ranAt,
+          })
+          .from(scenarioRun)
+          .innerJoin(scenarioTest, eq(scenarioRun.scenarioId, scenarioTest.id))
+          .where(eq(scenarioRun.agentVersionId, liveVersion.id))
+          .orderBy(desc(scenarioRun.ranAt))
+      : Promise.resolve([]),
+    liveVersion
+      ? db
+          .select({
+            calls: sql<number>`count(*)`.mapWith(Number),
+            resolved:
+              sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+                Number,
+              ),
+            closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(
+              Number,
+            ),
+          })
+          .from(call)
+          .where(and(eq(call.agentVersionId, liveVersion.id), gte(call.startedAt, daysBack(30))))
+      : Promise.resolve([]),
+  ])
+
+  const stats = callStats[0] ?? { calls: 0, resolved: 0, closed: 0 }
+
+  return {
+    ...row.agent,
+    workspaceName: row.workspaceName,
+    workspaceSlug: row.workspaceSlug,
+    versions,
+    liveVersion,
+    draft,
+    voiceProfile: profile[0] ?? null,
+    flows,
+    runs,
+    stats: {
+      ...stats,
+      resolvedRate: stats.closed > 0 ? Math.round((stats.resolved / stats.closed) * 100) : 0,
+    },
+  }
 }
 
 /* ─── Agents ─────────────────────────────────────────────────────────────── */

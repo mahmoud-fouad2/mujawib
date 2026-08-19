@@ -1,6 +1,8 @@
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import { MetricStrip, PageHead, Section, StatusStrip, VolumeBars } from '@/components/console/ui'
+import { DailyBars, Ratio, ShareBars, Sparkline } from '@/components/console/charts'
+import { PageHead, Section, StatusStrip } from '@/components/console/ui'
+import { Equaliser } from '@/components/ui/motion'
 import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
@@ -18,6 +20,7 @@ import {
   getCallTrend,
   getClientsAtRisk,
   getLiveCalls,
+  getMetricTrends,
   getNeedsAttention,
   getOperationsSummary,
   getPlatformStatus,
@@ -27,60 +30,99 @@ import {
 export const dynamic = 'force-dynamic'
 
 function delta(current: number, prior: number) {
-  if (prior === 0) return undefined
-  return { value: Math.round(((current - prior) / prior) * 100) }
+  if (prior === 0) return null
+  return Math.round(((current - prior) / prior) * 100)
+}
+
+function Delta({ value }: { value: number | null }) {
+  if (value === null) return null
+  const dir = value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
+  return (
+    <span className="metric__delta" data-dir={dir}>
+      {value > 0 ? '+' : ''}
+      {num(value)}% عن أمس
+    </span>
+  )
 }
 
 export default async function ConsoleHomePage() {
-  const [summary, signals, attention, live, risk, trend, activity] = await Promise.all([
+  const [summary, signals, attention, live, risk, trend, activity, trends] = await Promise.all([
     getOperationsSummary(),
     getPlatformStatus(),
-    getNeedsAttention(7),
+    getNeedsAttention(6),
     getLiveCalls(),
     getClientsAtRisk(),
     getCallTrend(14),
     getRecentActivity(6),
+    getMetricTrends(),
   ])
+
+  const now = Date.now()
 
   return (
     <>
-      <PageHead title="مركز التشغيل" sub={`${fullDate(new Date())} · تُحدَّث الأرقام مع كل تحميل`} />
+      <PageHead title="مركز التشغيل" sub={fullDate(new Date())} />
 
       <StatusStrip signals={signals} />
 
-      <MetricStrip
-        metrics={[
-          {
-            label: 'مباشر الآن',
-            value: num(summary.liveNow),
-            hint: summary.liveNow > 0 ? 'مكالمات جارية' : 'لا مكالمات جارية',
-          },
-          {
-            label: 'مكالمات اليوم',
-            value: num(summary.callsToday),
-            delta: delta(summary.callsToday, summary.callsPriorDay),
-          },
-          {
-            label: 'حجوزات اليوم',
-            value: num(summary.bookingsToday),
-            delta: delta(summary.bookingsToday, summary.bookingsPriorDay),
-          },
-          {
-            label: 'أُغلقت بدون تدخل',
-            value: `${summary.resolvedRate}%`,
-            hint: `${num(summary.needsReview)} بانتظار المراجعة`,
-          },
-        ]}
-      />
+      {/* Every figure carries its own seven-day line: a number without a
+          direction does not tell an operator anything. */}
+      <div className="metrics">
+        <div className="metric">
+          <span className="metric__label">مباشر الآن</span>
+          <span className="metric__value">
+            {summary.liveNow > 0 ? (
+              <span className="live-row">
+                {num(summary.liveNow)}
+                <Equaliser bars={4} className="live-row__eq" />
+              </span>
+            ) : (
+              num(0)
+            )}
+          </span>
+          <span className="metric__delta" data-dir="flat">
+            {summary.liveNow > 0 ? 'مكالمات على الخط' : 'لا مكالمات جارية'}
+          </span>
+        </div>
+
+        <div className="metric">
+          <span className="metric__label">مكالمات اليوم</span>
+          <span className="metric__value">{num(summary.callsToday)}</span>
+          <Delta value={delta(summary.callsToday, summary.callsPriorDay)} />
+          <span className="metric__spark">
+            <Sparkline points={trends.calls} tone="signal" />
+          </span>
+        </div>
+
+        <div className="metric">
+          <span className="metric__label">حجوزات اليوم</span>
+          <span className="metric__value">{num(summary.bookingsToday)}</span>
+          <Delta value={delta(summary.bookingsToday, summary.bookingsPriorDay)} />
+          <span className="metric__spark">
+            <Sparkline points={trends.bookings} tone="good" />
+          </span>
+        </div>
+
+        <div className="metric">
+          <span className="metric__label">تحتاج مراجعة</span>
+          <span className="metric__value">{num(summary.needsReview)}</span>
+          <span className="metric__delta" data-dir={summary.needsReview > 0 ? 'down' : 'flat'}>
+            في طابور الجودة
+          </span>
+          <span className="metric__spark">
+            <Sparkline points={trends.reviews} tone="warn" />
+          </span>
+        </div>
+      </div>
 
       <div className="split">
-        {/* The queue is the page's centre of gravity, not a chart. */}
+        {/* The queue is the centre of gravity, not a chart. */}
         <Section
           title="يحتاج انتباهك"
-          meta={`${num(summary.needsReview)} مكالمة في طابور المراجعة`}
+          meta={`${num(summary.needsReview)} في الطابور`}
           action={
             <Link href="/console/qa" className="btn btn--quiet btn--sm">
-              فتح الطابور
+              افتح الطابور
               <ArrowLeft size={14} className="arrow" aria-hidden="true" />
             </Link>
           }
@@ -126,42 +168,42 @@ export default async function ConsoleHomePage() {
         </Section>
 
         <div className="stack">
-          <Section title="حجم المكالمات" meta="آخر 14 يومًا · الملوّن أُغلق بدون تدخل" flush>
-            <VolumeBars
-              data={trend}
-              fromLabel={dayMonth(trend[0]?.day ?? new Date())}
-              toLabel={dayMonth(trend.at(-1)?.day ?? new Date())}
-            />
+          <Section
+            title="أُغلقت بدون تدخل"
+            meta="اليوم"
+            action={
+              <span className="muted" style={{ fontSize: '0.75rem' }}>
+                {num(summary.afterHours)} خارج الدوام
+              </span>
+            }
+          >
+            <div className="ratio-row">
+              <Ratio
+                value={summary.resolvedRate}
+                label="نسبة الإغلاق بدون تدخل"
+                tone={summary.resolvedRate >= 75 ? 'good' : 'warn'}
+              />
+              <div className="ratio-row__note">
+                <p>
+                  من المكالمات المنتهية اليوم أُغلقت دون أن يتدخل موظف. الباقي إمّا تحويل أو معاودة
+                  اتصال.
+                </p>
+                <Sparkline points={trends.resolvedRate} tone="good" width={140} height={32} />
+              </div>
+            </div>
           </Section>
 
-          <Section title="عملاء يحتاجون متابعة" flush>
-            {risk.length === 0 ? (
-              <div className="empty">
-                <p>لا مؤشرات خطر هذا الأسبوع.</p>
-              </div>
-            ) : (
-              <div className="queue">
-                {risk.map((r) => (
-                  <div key={r.workspaceId} className="queue__row">
-                    <div>
-                      <div className="queue__title">{r.name}</div>
-                      <div className="queue__meta">
-                        <span>تحويل {r.transferRate}%</span>
-                        <span aria-hidden="true">·</span>
-                        <span>غير محلولة {r.unresolvedRate}%</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="mono">{num(r.calls7d)} مكالمة</span>
-                      </div>
-                    </div>
-                    {r.degradedIntegrations > 0 ? (
-                      <Pill tone="bad">{num(r.degradedIntegrations)} ربط متعثر</Pill>
-                    ) : (
-                      <Pill tone="warn">متابعة</Pill>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+          <Section title="حجم المكالمات" meta="آخر 14 يومًا" flush>
+            <DailyBars
+              points={trend.map((t) => ({
+                label: dayMonth(t.day),
+                value: t.total,
+                secondary: t.resolved,
+              }))}
+              fromLabel={dayMonth(trend[0]?.day ?? new Date())}
+              toLabel={dayMonth(trend.at(-1)?.day ?? new Date())}
+              legend={{ total: 'إجمالي المكالمات', filled: 'أُغلقت بدون تدخل' }}
+            />
           </Section>
         </div>
       </div>
@@ -169,7 +211,7 @@ export default async function ConsoleHomePage() {
       <div className="split">
         <Section
           title="مكالمات مباشرة"
-          meta={live.length > 0 ? `${num(live.length)} جارية الآن` : undefined}
+          meta={live.length > 0 ? `${num(live.length)} على الخط` : undefined}
           action={
             <Link href="/console/live" className="btn btn--quiet btn--sm">
               الكل
@@ -197,16 +239,21 @@ export default async function ConsoleHomePage() {
                   {live.map((c) => {
                     const secs = Math.max(
                       0,
-                      Math.round((Date.now() - new Date(c.startedAt).getTime()) / 1000),
+                      Math.round((now - new Date(c.startedAt).getTime()) / 1000),
                     )
                     return (
                       <tr key={c.id}>
                         <td className="mono">{maskPhone(c.callerNumber)}</td>
                         <td>{c.workspaceName}</td>
                         <td>
-                          <Pill tone={statusTone(c.status)} live={c.status === 'live'}>
-                            {CALL_STATUS_LABEL[c.status] ?? c.status}
-                          </Pill>
+                          <span className="live-row">
+                            {c.status === 'live' ? (
+                              <Equaliser bars={3} className="live-row__eq" />
+                            ) : null}
+                            <Pill tone={statusTone(c.status)}>
+                              {CALL_STATUS_LABEL[c.status] ?? c.status}
+                            </Pill>
+                          </span>
                         </td>
                         <td className="muted">{c.intent ?? '—'}</td>
                         <td className="mono">{duration(secs)}</td>
@@ -219,28 +266,45 @@ export default async function ConsoleHomePage() {
           )}
         </Section>
 
-        <Section title="آخر ما جرى" flush>
-          <div className="queue">
-            {activity.map((a) => (
-              <div key={a.id} className="queue__row">
-                <div>
-                  <div className="queue__title">
-                    {(a.metadata as { note?: string })?.note ?? a.action}
-                  </div>
-                  <div className="queue__meta">
-                    <span className="mono">{a.action}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{a.workspaceName ?? 'المنصة'}</span>
-                  </div>
-                </div>
-                <span className="muted" style={{ fontSize: '0.75rem' }}>
-                  {relative(a.createdAt)}
-                </span>
-              </div>
-            ))}
-          </div>
+        <Section title="عملاء يحتاجون متابعة" meta="آخر 7 أيام" flush>
+          {risk.length === 0 ? (
+            <div className="empty">
+              <p>لا مؤشرات خطر هذا الأسبوع.</p>
+            </div>
+          ) : (
+            <ShareBars
+              tone="warn"
+              rows={risk.map((r) => ({
+                label: r.name,
+                value: r.transferRate + r.unresolvedRate,
+                note: `تحويل ${r.transferRate}% · غير محلولة ${r.unresolvedRate}%`,
+              }))}
+            />
+          )}
         </Section>
       </div>
+
+      <Section title="آخر ما جرى" meta="سجل التدقيق" flush>
+        <div className="queue">
+          {activity.map((a) => (
+            <div key={a.id} className="queue__row">
+              <div>
+                <div className="queue__title">
+                  {(a.metadata as { note?: string })?.note ?? a.action}
+                </div>
+                <div className="queue__meta">
+                  <span className="mono">{a.action}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{a.workspaceName ?? 'المنصة'}</span>
+                </div>
+              </div>
+              <span className="muted" style={{ fontSize: '0.75rem' }}>
+                {relative(a.createdAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Section>
     </>
   )
 }

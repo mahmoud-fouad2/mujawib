@@ -10,6 +10,7 @@ import './styles/pages.css'
 import './styles/motion.css'
 import './styles/marquee.css'
 import './styles/app-shell.css'
+import './styles/charts.css'
 import './styles/auth.css'
 import './styles/actions.css'
 

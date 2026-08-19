@@ -10,7 +10,8 @@ export function PageHead({
   actions,
 }: {
   title: string
-  sub?: string
+  /** Node rather than string: detail pages put a link to the parent here. */
+  sub?: ReactNode
   actions?: ReactNode
 }) {
   return (

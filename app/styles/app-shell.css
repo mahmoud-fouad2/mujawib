@@ -1041,3 +1041,13 @@
   color: var(--signal);
   font-weight: 500;
 }
+
+/* ─── detail back link ─────────────────────────────────────────────────── */
+
+.detail-back {
+  margin-block-end: var(--s-3);
+}
+
+.detail-back .btn {
+  padding-inline: 0;
+}
