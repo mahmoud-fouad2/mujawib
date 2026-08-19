@@ -1,0 +1,135 @@
+/**
+ * Pieces that sit on top of the motion layer: the marquee's inner sets, the
+ * capability list that replaced the six-card grid, and the flow terminator
+ * under the integrations band.
+ */
+
+.marquee__set {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding-inline-end: var(--s-3);
+}
+
+/* ─── integration chip ─────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 11px var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.chip:hover {
+  border-color: var(--signal-line);
+  color: var(--text);
+}
+
+.chip img {
+  inline-size: 20px;
+  block-size: 20px;
+  object-fit: contain;
+}
+
+/* ─── flow terminator ──────────────────────────────────────────────────── */
+
+.flow-end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-3);
+  margin-block-start: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--good-soft);
+  color: var(--good);
+  font-size: var(--step--1);
+}
+
+.flow-end strong {
+  font-weight: 600;
+}
+
+.flow-end span {
+  color: var(--text-muted);
+}
+
+/* ─── capability list (replaced the six-card grid) ─────────────────────── */
+
+.caps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-5) clamp(var(--s-6), 5vw, var(--s-8));
+}
+
+.cap {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+  padding-block-end: var(--s-5);
+  border-block-end: 1px solid var(--line);
+}
+
+.cap__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 38px;
+  block-size: 38px;
+  border-radius: 10px;
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+.cap strong {
+  display: block;
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.cap p {
+  margin-block-start: 5px;
+  font-size: var(--step--1);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+/* ─── trust band ───────────────────────────────────────────────────────── */
+
+.trust-name {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ─── trust head row ───────────────────────────────────────────────────── */
+
+.trust__head-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin-block-end: var(--s-4);
+}
+
+.trust__head-row p {
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+}

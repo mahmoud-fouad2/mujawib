@@ -6,12 +6,10 @@ import {
   CloseCta,
   ConsolePreview,
   DemoCalls,
-  Deployment,
   IntegrationWires,
   Pricing,
   ProofStrip,
   Results,
-  Security,
   TrustRow,
   WhyRows,
 } from '@/components/site/sections'
@@ -132,7 +130,7 @@ export async function Landing({ locale }: { locale: Locale }) {
 
       <WhyRows copy={copy} />
 
-      <section className="section section--tinted" id="industries">
+      <section className="section section--tinted reveal" id="industries">
         <div className="container">
           <header className="section__head">
             <span className="section__label">{copy.industries.label}</span>
@@ -157,8 +155,6 @@ export async function Landing({ locale }: { locale: Locale }) {
 
       <Results copy={copy} />
 
-      <Deployment copy={copy} />
-
       <IntegrationWires
         locale={locale}
         copy={copy}
@@ -171,8 +167,6 @@ export async function Landing({ locale }: { locale: Locale }) {
         queue={consolePreview.queue}
         counts={consolePreview.counts}
       />
-
-      <Security copy={copy} />
 
       <Pricing locale={locale} copy={copy} />
 

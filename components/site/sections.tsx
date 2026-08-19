@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import { LinkButton } from '@/components/ui/button'
+import { Counter, Marquee } from '@/components/ui/motion'
 import type { SiteCopy } from '@/lib/content/site'
 import { duration, num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
@@ -48,19 +49,25 @@ export function TrustRow({
   names: string[]
 }) {
   if (names.length === 0) return null
+  // Repeat until the track is long enough for the loop to look continuous.
+  const band = [...names, ...names, ...names]
+
   return (
     <section className="trust">
-      <div className="container trust__inner">
-        <div className="trust__head">
-          <span className="trust__label">{label}</span>
-          <p>{caption}</p>
-        </div>
-        <div className="trust__names">
-          {names.map((n) => (
-            <span key={n}>{n}</span>
-          ))}
-        </div>
+      <div className="container trust__head-row">
+        <span className="trust__label">{label}</span>
+        <p>{caption}</p>
       </div>
+      <Marquee duration={46} reverse>
+        {band.map((n, i) => (
+          // The band repeats the same names to fill the loop, so position is
+          // the only thing that distinguishes one copy from the next.
+          // biome-ignore lint/suspicious/noArrayIndexKey: repeated marquee set
+          <span key={`${n}-${i}`} className="trust-name">
+            {n}
+          </span>
+        ))}
+      </Marquee>
     </section>
   )
 }
@@ -93,9 +100,9 @@ export function DemoCalls({
     <section className="section" id="calls">
       <div className="container">
         <SectionHead label={copy.demo.label} title={copy.demo.title} lead={copy.demo.lead} />
-        <div className="demos">
+        <div className="demos reveal-group">
           {calls.map((c) => (
-            <article key={c.id} className="demo">
+            <article key={c.id} className="demo lift">
               <div className="demo__head">
                 <span className="demo__wave" aria-hidden="true">
                   {[0, 1, 2, 3, 4, 5, 6].map((i) => (
@@ -140,20 +147,24 @@ export function Capabilities({ copy }: { copy: SiteCopy }) {
     <section className="section section--tinted" id="can">
       <div className="container">
         <SectionHead label={copy.can.label} title={copy.can.title} lead={copy.can.lead} />
-        <div className="cans">
+        {/* A list, not cards. Six bordered boxes of body text was the "card
+            soup" that made this page read as filler. */}
+        <ul className="caps reveal-group">
           {copy.can.items.map((item, i) => {
             const Icon = CAN_ICONS[i % CAN_ICONS.length] ?? Languages
             return (
-              <article key={item.title} className="can">
-                <span className="can__icon">
-                  <Icon size={18} aria-hidden="true" />
+              <li key={item.title} className="cap">
+                <span className="cap__icon">
+                  <Icon size={17} aria-hidden="true" />
                 </span>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.body}</p>
+                </div>
+              </li>
             )
           })}
-        </div>
+        </ul>
       </div>
     </section>
   )
@@ -166,7 +177,7 @@ export function WhyRows({ copy }: { copy: SiteCopy }) {
     <section className="section" id="quality">
       <div className="container">
         <SectionHead label={copy.why.label} title={copy.why.title} lead={copy.why.lead} />
-        <div className="rows">
+        <div className="rows reveal-group">
           {copy.why.rows.map((row) => (
             <article key={row.key} className="rows__item">
               <span className="rows__key">{row.key}</span>
@@ -205,7 +216,7 @@ export function Results({ copy }: { copy: SiteCopy }) {
           lead={copy.results.lead}
         />
 
-        <div className="ba">
+        <div className="ba reveal-group">
           <div className="ba__col ba__col--before">
             <h3>{copy.results.beforeTitle}</h3>
             <ul>
@@ -260,7 +271,7 @@ export function Deployment({ copy }: { copy: SiteCopy }) {
           lead={copy.deployment.lead}
         />
         {/* A genuine ordered sequence — the numbering carries real information. */}
-        <ol className="steps">
+        <ol className="steps reveal-group">
           {copy.deployment.steps.map((s) => (
             <li key={s.n} className="step">
               <span className="step__n">{s.n}</span>
@@ -312,6 +323,10 @@ export function IntegrationWires({
   const list = providers.filter((p) => PROVIDER_ACTION_LABEL[p.provider])
   if (list.length === 0) return null
 
+  // The band reads as continuous motion, so it needs more than four items to
+  // loop convincingly; repeat the connected set until it fills the track.
+  const band = [...list, ...list, ...list].slice(0, 12)
+
   return (
     <section className="section" id="integrations">
       <div className="container">
@@ -320,37 +335,47 @@ export function IntegrationWires({
           title={copy.integrations.title}
           lead={copy.integrations.lead}
         />
+      </div>
 
-        <div className="flowmap">
-          <div className="flowmap__node flowmap__node--start">
-            <Headphones size={18} aria-hidden="true" />
-            <strong>{locale === 'ar' ? 'الموظف الصوتي' : 'Voice agent'}</strong>
-          </div>
+      <Marquee duration={42}>
+        {band.map((p, i) => (
+          // Same repeated-set reasoning as the trust band above.
+          // biome-ignore lint/suspicious/noArrayIndexKey: repeated marquee set
+          <span key={`${p.provider}-${i}`} className="chip">
+            <Image
+              src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
+              alt=""
+              width={20}
+              height={20}
+            />
+            {p.label}
+          </span>
+        ))}
+      </Marquee>
 
-          <div className="flowmap__wires">
-            {list.map((p) => (
-              <article key={p.provider} className="wire">
-                <span className="wire__logo">
-                  <Image
-                    src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
-                    alt=""
-                    width={22}
-                    height={22}
-                  />
-                </span>
-                <strong>{p.label}</strong>
-                <span className="wire__action">{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
-              </article>
-            ))}
-          </div>
-
-          <div className="flowmap__node flowmap__node--end">
-            <Check size={18} aria-hidden="true" />
-            <strong>{copy.integrations.flowEnd}</strong>
-          </div>
+      <div className="container">
+        <div className="wires reveal-group">
+          {list.map((p) => (
+            <article key={p.provider} className="wire lift">
+              <span className="wire__logo">
+                <Image
+                  src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
+                  alt=""
+                  width={22}
+                  height={22}
+                />
+              </span>
+              <strong>{p.label}</strong>
+              <span className="wire__action">{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
+            </article>
+          ))}
         </div>
 
-        <p className="section__note">{copy.integrations.note}</p>
+        <div className="flow-end">
+          <Check size={16} aria-hidden="true" />
+          <strong>{copy.integrations.flowEnd}</strong>
+          <span>{copy.integrations.note}</span>
+        </div>
       </div>
     </section>
   )
@@ -367,7 +392,7 @@ export function Security({ copy }: { copy: SiteCopy }) {
           title={copy.security.title}
           lead={copy.security.lead}
         />
-        <div className="shields">
+        <div className="shields reveal-group">
           {copy.security.items.map((i) => (
             <article key={i.title} className="shield">
               <h3>{i.title}</h3>
@@ -393,7 +418,7 @@ export function Pricing({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
           title={copy.pricing.title}
           lead={copy.pricing.lead}
         />
-        <div className="pricing">
+        <div className="pricing reveal">
           <ul className="pricing__points">
             {copy.pricing.points.map((p) => (
               <li key={p}>
@@ -454,7 +479,7 @@ export function ConsolePreview({
           title={copy.console.title}
           lead={copy.console.lead}
         />
-        <div className="console-preview">
+        <div className="console-preview reveal">
           <ul className="console-preview__points">
             {copy.console.points.map((p) => (
               <li key={p}>
@@ -526,7 +551,7 @@ export function CloseCta({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
   return (
     <section className="section">
       <div className="container">
-        <div className="close-cta">
+        <div className="close-cta reveal">
           <div>
             <h2>{copy.cta.title}</h2>
             <p>{copy.cta.body}</p>
@@ -564,10 +589,10 @@ export function ProofStrip({
   proof: { callsHandled: number; bookings: number; resolvedRate: number; medianResponseMs: number }
 }) {
   const items = [
-    { value: `${num(proof.callsHandled)}+`, label: copy.proofLabels.calls },
-    { value: num(proof.bookings), label: copy.proofLabels.bookings },
-    { value: `${proof.resolvedRate}%`, label: copy.proofLabels.resolved },
-    { value: `${num(proof.medianResponseMs)}ms`, label: copy.proofLabels.response },
+    { n: proof.callsHandled, suffix: '+', label: copy.proofLabels.calls },
+    { n: proof.bookings, suffix: '', label: copy.proofLabels.bookings },
+    { n: proof.resolvedRate, suffix: '%', label: copy.proofLabels.resolved },
+    { n: proof.medianResponseMs, suffix: 'ms', label: copy.proofLabels.response },
   ]
 
   return (
@@ -575,7 +600,11 @@ export function ProofStrip({
       <div className="hero__proof-grid">
         {items.map((i) => (
           <div key={i.label}>
-            <strong>{i.value}</strong>
+            <strong>
+              {/* Counts up once on entry — these are real platform figures, so
+                  drawing the eye to them is the point of the strip. */}
+              <Counter value={i.n} format={num} suffix={i.suffix} />
+            </strong>
             <span>{i.label}</span>
           </div>
         ))}

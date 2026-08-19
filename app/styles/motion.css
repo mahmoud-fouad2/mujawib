@@ -1,0 +1,245 @@
+/**
+ * Motion layer.
+ *
+ * Built on CSS scroll-driven animations rather than a JS animation library:
+ * the work happens on the compositor, nothing ships in the bundle, and the
+ * page is fully readable if the feature is unsupported. Everything here is
+ * progressive — the base state is the finished state, and motion is added
+ * only where the browser can do it cheaply.
+ *
+ * Bible §4: 140–220ms, and movement only where it carries meaning.
+ */
+
+/* ─── scroll reveal ────────────────────────────────────────────────────── */
+
+/**
+ * Base state is visible. The animation is layered on inside @supports, so a
+ * browser without scroll timelines shows the content immediately instead of a
+ * blank page — the failure mode of JS reveal libraries.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 8% cover 26%;
+    }
+
+    /* Children stagger by index, set inline as --i. */
+    .reveal-group > * {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 4% cover 30%;
+    }
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── marquee ──────────────────────────────────────────────────────────── */
+
+/**
+ * Infinite horizontal band. The track holds the list twice and translates by
+ * exactly -50%, so the loop is seamless without measuring anything in JS.
+ */
+.marquee {
+  --marquee-duration: 38s;
+  position: relative;
+  overflow: hidden;
+  padding-block: var(--s-2);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.marquee__track {
+  display: flex;
+  inline-size: max-content;
+  gap: var(--s-3);
+  /* Always LTR: the loop maths assume one direction, and a logo band has no
+     reading order to preserve. */
+  direction: ltr;
+  animation: marquee-slide var(--marquee-duration) linear infinite;
+}
+
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+
+.marquee--reverse .marquee__track {
+  animation-direction: reverse;
+}
+
+@keyframes marquee-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track {
+    animation: none;
+    flex-wrap: wrap;
+    inline-size: 100%;
+    justify-content: center;
+  }
+  .marquee {
+    mask-image: none;
+  }
+  /* The duplicate set is decorative once the loop stops. */
+  .marquee__track [data-marquee-clone="true"] {
+    display: none;
+  }
+}
+
+/* ─── live waveform ────────────────────────────────────────────────────── */
+
+/**
+ * The one ambient animation the product earns: a voice is a waveform, and it
+ * only moves while a call is actually live.
+ */
+.eq {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  block-size: 22px;
+}
+
+.eq i {
+  inline-size: 3px;
+  border-radius: 3px;
+  background: currentColor;
+  animation: eq-bar 1.15s var(--ease) infinite;
+}
+
+@keyframes eq-bar {
+  0%,
+  100% {
+    block-size: 5px;
+    opacity: 0.45;
+  }
+  50% {
+    block-size: 20px;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq i {
+    animation: none;
+    block-size: 11px;
+  }
+}
+
+/* ─── counter ──────────────────────────────────────────────────────────── */
+
+/* Reserves the final width so the layout does not jitter while counting. */
+.counter {
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+}
+
+/* ─── hover lift, applied by class rather than per component ───────────── */
+
+.lift {
+  transition:
+    transform var(--t-base) var(--ease),
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-panel);
+  }
+}
+
+/* ─── figure / media frame ─────────────────────────────────────────────── */
+
+/**
+ * Shared frame for every image on the marketing pages, so photography is
+ * treated consistently instead of each section inventing its own crop.
+ */
+.frame {
+  position: relative;
+  border-radius: var(--r-panel);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  isolation: isolate;
+}
+
+.frame img {
+  object-fit: cover;
+  transition: transform 700ms var(--ease);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .frame:hover img {
+    transform: scale(1.03);
+  }
+}
+
+.frame__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgb(11 13 16 / 88%) 0%, rgb(11 13 16 / 8%) 62%);
+  pointer-events: none;
+}
+
+.frame__caption {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  padding: var(--s-5);
+  color: #f4f6f8;
+}
+
+.frame__caption strong {
+  display: block;
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.frame__caption span {
+  display: block;
+  margin-block-start: 6px;
+  font-size: var(--step--1);
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+/* ─── aurora: one soft light source, used sparingly ────────────────────── */
+
+.aurora {
+  position: absolute;
+  inline-size: min(720px, 68vw);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, var(--signal-soft) 0%, transparent 68%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aurora {
+    animation: aurora-drift 18s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+}

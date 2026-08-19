@@ -4,6 +4,28 @@
  * generic layout.
  */
 
+/* ─── page hero media ──────────────────────────────────────────────────── */
+
+.page-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.page-hero__aurora {
+  inset-block-start: -30%;
+  inset-inline-start: -10%;
+}
+
+.page-hero__grid {
+  position: relative;
+  z-index: 1;
+}
+
+.page-hero__media {
+  position: relative;
+  margin-block-start: clamp(var(--s-6), 4vw, var(--s-8));
+  block-size: clamp(260px, 34vw, 420px);
+}
 /* ─── contact channels ─────────────────────────────────────────────────── */
 
 .channels {
