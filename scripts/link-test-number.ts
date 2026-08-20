@@ -12,7 +12,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { neon } from '@neondatabase/serverless'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/neon-http'
 import * as schema from '../server/db/schema/index.ts'
 
@@ -23,7 +23,8 @@ const db = drizzle({ client: neon(connectionString), schema })
 
 /* ─── the one route we are configuring ───────────────────────────────────── */
 
-const DID_E164 = '+18574444576'
+const DID_E164 = '+16513711782'
+const LEGACY_DID_E164 = '+18574444576'
 const CLIENT_SLUG = 'alfa-clinic'
 const AGENT_NAME = 'سارة'
 
@@ -50,72 +51,56 @@ async function main() {
   // ── agent ──────────────────────────────────────────────────────────────
   const agents = await db.select().from(schema.agent).where(eq(schema.agent.workspaceId, ws.id))
 
-  const agent = agents.find((a) => a.name === AGENT_NAME) ?? agents[0]
+  const agent = agents.find((candidate) => candidate.name === AGENT_NAME)
   if (!agent) {
-    console.error(`✗ client "${ws.name}" has no agent.`)
+    console.error(`✗ client "${ws.name}" has no agent named "${AGENT_NAME}".`)
     process.exit(1)
   }
   console.log(`· agent    ${agent.name}  (${agent.id})`)
 
   // ── published, tool-less version ───────────────────────────────────────
   // Tools cannot execute until the sideband is deployed, so this first version
-  // is conversation-only: an empty toolBindings array yields no tools at all.
+  // must use the explicitly selected live version and it must already be
+  // conversation-only. A published version is immutable here: this script
+  // never clears tools or silently substitutes another published row.
   const versions = await db
     .select()
     .from(schema.agentVersion)
     .where(eq(schema.agentVersion.agentId, agent.id))
 
-  const published = versions.find((v) => v.status === 'published')
-  let versionId: string
-  let versionNumber: number
-
-  if (published) {
-    versionId = published.id
-    versionNumber = published.versionNumber
-    await db
-      .update(schema.agentVersion)
-      .set({ toolBindings: [], blockers: [], updatedAt: now })
-      .where(eq(schema.agentVersion.id, versionId))
-    console.log(`· version  v${versionNumber} (existing, tools cleared for milestone 1)`)
-  } else {
-    versionNumber = Math.max(0, ...versions.map((v) => v.versionNumber)) + 1
-    versionId = id('av')
-    await db.insert(schema.agentVersion).values({
-      id: versionId,
-      agentId: agent.id,
-      versionNumber,
-      status: 'published',
-      identity: {
-        role: `موظف استقبال صوتي لدى ${ws.name}`,
-        goals: ['الترحيب بالمتصل', 'الإجابة عن الأسئلة من المعرفة المسجّلة'],
-        restricted: ['لا يؤكد أي حجز أو تعديل — لا يملك أدوات بعد'],
-      },
-      voiceProfileId: versions[0]?.voiceProfileId ?? null,
-      businessRules: (versions[0]?.businessRules ?? {}) as Record<string, unknown>,
-      flows: [],
-      toolBindings: [],
-      routing: { afterHours: 'callback' },
-      readinessScore: 100,
-      blockers: [],
-      publishedAt: now,
-      publishedById: 'voice-milestone-1',
-      createdAt: now,
-      updatedAt: now,
-    })
-    console.log(`· version  v${versionNumber} (created, published, no tools)`)
+  const published = versions.find((version) => version.id === agent.liveVersionId)
+  if (published?.status !== 'published') {
+    console.error('✗ the explicitly selected live AgentVersion is not published.')
+    process.exit(1)
   }
 
-  await db
-    .update(schema.agent)
-    .set({ liveVersionId: versionId, updatedAt: now })
-    .where(eq(schema.agent.id, agent.id))
+  const bindings = ((published.toolBindings ?? []) as unknown[]).filter(Boolean)
+  if (bindings.length > 0) {
+    console.error(
+      '✗ the live AgentVersion has tool bindings; publish a conversation-only version first.',
+    )
+    process.exit(1)
+  }
+
+  const versionId = published.id
+  const versionNumber = published.versionNumber
+  console.log(`· version  v${versionNumber} (published, conversation-only, unchanged)`)
 
   // ── phone route ────────────────────────────────────────────────────────
-  const [existing] = await db
-    .select()
+  const routes = await db
+    .select({ id: schema.phoneNumber.id, e164: schema.phoneNumber.e164 })
     .from(schema.phoneNumber)
-    .where(eq(schema.phoneNumber.e164, DID_E164))
-    .limit(1)
+    .where(inArray(schema.phoneNumber.e164, [DID_E164, LEGACY_DID_E164]))
+
+  const existing = routes.find((route) => route.e164 === DID_E164)
+  const legacy = routes.find((route) => route.e164 === LEGACY_DID_E164)
+
+  if (existing && legacy) {
+    console.error(
+      '✗ both the new and legacy DID exist; refusing to choose or delete a route implicitly.',
+    )
+    process.exit(1)
+  }
 
   if (existing) {
     await db
@@ -130,6 +115,20 @@ async function main() {
       })
       .where(eq(schema.phoneNumber.id, existing.id))
     console.log(`· number   ${DID_E164} (updated → ${ws.name} / ${agent.name})`)
+  } else if (legacy) {
+    await db
+      .update(schema.phoneNumber)
+      .set({
+        e164: DID_E164,
+        workspaceId: ws.id,
+        agentId: agent.id,
+        label: 'DID اختبار المكالمة الأولى',
+        mode: 'all_calls',
+        sipStatus: 'pending',
+        updatedAt: now,
+      })
+      .where(eq(schema.phoneNumber.id, legacy.id))
+    console.log(`· number   ${LEGACY_DID_E164} replaced by ${DID_E164}`)
   } else {
     await db.insert(schema.phoneNumber).values({
       id: id('phone'),
@@ -166,7 +165,7 @@ async function main() {
     .where(eq(schema.phoneNumber.e164, DID_E164))
     .limit(1)
 
-  if (!check) {
+  if (!check || check.live !== versionId) {
     console.error('\n✗ route did NOT verify — the webhook would reject this call.')
     process.exit(1)
   }

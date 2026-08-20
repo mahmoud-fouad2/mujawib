@@ -21,14 +21,23 @@ export type DidCandidate = {
   raw: string
 }
 
+/** Source-party headers must never be mistaken for the number being called. */
+const CALLER_IDENTITY_HEADERS = new Set([
+  'contact',
+  'from',
+  'p-asserted-identity',
+  'p-preferred-identity',
+  'remote-party-id',
+])
+
 /**
  * Extracts every phone-number-shaped token from a header value.
  *
  * Handles the shapes SIP actually uses:
- *   <sip:+18574444576@host;user=phone>
- *   "Reception" <sip:18574444576@host>
- *   tel:+18574444576
- *   +18574444576
+ *   <sip:+16513711782@host;user=phone>
+ *   "Reception" <sip:16513711782@host>
+ *   tel:+16513711782
+ *   +16513711782
  */
 function numbersIn(value: string): string[] {
   const found: string[] = []
@@ -74,6 +83,8 @@ export function didCandidates(headers: SipHeader[] | undefined): DidCandidate[] 
   const candidates: DidCandidate[] = []
 
   for (const header of headers) {
+    if (CALLER_IDENTITY_HEADERS.has(header.name.trim().toLowerCase())) continue
+
     for (const token of numbersIn(header.value)) {
       const e164 = toE164(token)
       if (!e164) continue

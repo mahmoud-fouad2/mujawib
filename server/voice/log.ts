@@ -27,6 +27,7 @@ export type VoiceStage =
   | 'CALL_ACCEPTED'
   | 'CALL_REJECTED'
   | 'CALL_RECORDED'
+  | 'PHONE_STATE'
   | 'ERROR'
 
 /** Header names whose values may carry personal data or credentials. */

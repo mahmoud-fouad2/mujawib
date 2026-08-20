@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { auditLog, call } from '@/server/db/schema'
 import { maskNumber, sanitizeSipHeaders, voiceError, voiceLog } from '@/server/voice/log'
+import { markPhoneAnswered, markPhoneReached } from '@/server/voice/phone'
 import { buildAcceptPayload, resolveAgentFromCandidates } from '@/server/voice/session'
 import { callerFrom, didCandidates, type SipHeader } from '@/server/voice/sip'
 
@@ -115,10 +116,11 @@ export async function POST(req: NextRequest) {
   voiceLog('SIP_HEADERS', sanitizeSipHeaders(headers))
 
   const candidates = didCandidates(headers)
-  voiceLog(
-    'DID_CANDIDATES',
-    candidates.map((c) => ({ header: c.header, e164: c.e164 })),
-  )
+  const safeCandidates = candidates.map((candidate) => ({
+    header: candidate.header,
+    e164: maskNumber(candidate.e164),
+  }))
+  voiceLog('DID_CANDIDATES', safeCandidates)
 
   const resolved = await resolveAgentFromCandidates(candidates)
 
@@ -126,12 +128,12 @@ export async function POST(req: NextRequest) {
     // No default client, no first-row fallback. An unknown DID stays unknown.
     voiceLog('PHONE_ROUTE_NOT_RESOLVED', {
       callId,
-      triedCandidates: candidates.map((c) => `${c.header}=${c.e164}`),
+      triedCandidates: safeCandidates.map((candidate) => `${candidate.header}=${candidate.e164}`),
       hint: 'no configured phone_number matched any candidate',
     })
     await rejectCall(callId, 'no configured route')
     return NextResponse.json(
-      { accepted: false, reason: 'no configured route', candidates },
+      { accepted: false, reason: 'no configured route', candidates: safeCandidates },
       { status: 200 },
     )
   }
@@ -175,6 +177,10 @@ export async function POST(req: NextRequest) {
   if (!accept?.ok) {
     const detail = accept ? await accept.text() : 'request failed'
     voiceError('ERROR', `accept rejected: ${detail.slice(0, 500)}`)
+    // The call did reach us on this number and did resolve to an agent, so the
+    // carrier side is proven even though we failed to answer. Recording that
+    // separates "the number never rang here" from "we could not pick up".
+    await markPhoneReached(resolved.phoneNumberId)
     return NextResponse.json({ accepted: false }, { status: 502 })
   }
 
@@ -193,11 +199,24 @@ export async function POST(req: NextRequest) {
       externalCallId: callId,
       callerNumber: caller,
       status: 'live',
+      // A real caller on a real number — not part of the generated dataset the
+      // console is otherwise full of.
+      origin: 'live',
       transcript: [],
       metadata: {
-        dialled: resolved.matchedE164,
-        matchedHeader: resolved.matchedHeader,
+        phoneNumber: resolved.matchedE164,
+        clientId: resolved.workspaceId,
+        clientName: resolved.workspaceName,
+        agentId: resolved.agentId,
         agentName: resolved.agentName,
+        agentVersionId: resolved.versionId,
+        agentVersionNumber: resolved.versionNumber,
+        openAiCallId: callId,
+        routingMethod: 'explicit_phone_number',
+        sip: {
+          matchedHeader: resolved.matchedHeader,
+          headers: sanitizeSipHeaders(headers),
+        },
       },
       startedAt: now,
       createdAt: now,
@@ -217,6 +236,17 @@ export async function POST(req: NextRequest) {
     })
 
     voiceLog('CALL_RECORDED', { id, caller: maskNumber(caller) })
+
+    // The number is now proven end to end, by this call rather than by
+    // configuration. Nothing else in the system is allowed to set this.
+    await markPhoneAnswered(resolved.phoneNumberId, {
+      matchedHeader: resolved.matchedHeader,
+      matchedE164: resolved.matchedE164,
+      externalCallId: callId,
+      callId: id,
+      agentVersionId: resolved.versionId,
+      observedAt: now.toISOString(),
+    })
   } catch (error) {
     // The call is already answered; failing to record it must not end it.
     voiceError('ERROR', `could not record call: ${String(error)}`)
@@ -229,6 +259,7 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     endpoint: 'voice/incoming',
+    revision: 'first-twilio-call-v1',
     apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
     webhookSecretConfigured: Boolean(process.env.OPENAI_WEBHOOK_SECRET),
   })

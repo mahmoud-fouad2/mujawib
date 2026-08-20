@@ -151,6 +151,12 @@ export async function resolveAgentFromCandidates(
  * fastest way to make an agent feel robotic.
  */
 export function buildAcceptPayload(resolved: ResolvedAgent) {
+  // Tools are omitted entirely rather than sent as an empty array: a version
+  // with no bindings is conversation-only, and an empty list plus
+  // `tool_choice: auto` is a contradiction to hand a strict validator.
+  const toolFields =
+    resolved.tools.length > 0 ? { tools: resolved.tools, tool_choice: 'auto' as const } : {}
+
   return {
     type: 'realtime',
     model: VOICE_MODEL,
@@ -171,7 +177,6 @@ export function buildAcceptPayload(resolved: ResolvedAgent) {
         voice: resolved.voice,
       },
     },
-    tools: resolved.tools,
-    tool_choice: 'auto',
+    ...toolFields,
   }
 }

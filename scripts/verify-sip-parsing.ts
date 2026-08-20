@@ -10,7 +10,7 @@
  */
 import { callerFrom, didCandidates, toE164 } from '../server/voice/sip.ts'
 
-const DID = '+18574444576'
+const DID = '+16513711782'
 
 let failures = 0
 
@@ -25,9 +25,9 @@ function check(label: string, actual: unknown, expected: unknown) {
 }
 
 console.log('E.164 normalisation')
-check('spaced international', toE164('+1 857 444 4576'), DID)
-check('punctuated', toE164('+1 (857) 444-4576'), DID)
-check('no plus stays bare', toE164('18574444576'), '18574444576')
+check('spaced international', toE164('+1 651 371 1782'), DID)
+check('punctuated', toE164('+1 (651) 371-1782'), DID)
+check('no plus stays bare', toE164('16513711782'), '16513711782')
 check('too short is rejected', toE164('4576'), null)
 check('non-numeric is rejected', toE164('reception'), null)
 
@@ -54,7 +54,7 @@ const shapes: { label: string; headers: { name: string; value: string }[]; expec
     label: 'DID in P-Called-Party-ID without a plus',
     headers: [
       { name: 'To', value: '<sip:proj_abc123@sip.api.openai.com>' },
-      { name: 'P-Called-Party-ID', value: '<sip:18574444576@provider.example;user=phone>' },
+      { name: 'P-Called-Party-ID', value: '<sip:16513711782@provider.example;user=phone>' },
     ],
     expect: ['P-Called-Party-ID'],
   },
@@ -63,6 +63,15 @@ const shapes: { label: string; headers: { name: string; value: string }[]; expec
     headers: [
       { name: 'To', value: '<sip:proj_abc123@sip.api.openai.com>' },
       { name: 'From', value: '<sip:+201234567890@provider.example>' },
+    ],
+    expect: [],
+  },
+  {
+    label: 'caller identity is never a DID candidate',
+    headers: [
+      { name: 'From', value: `<sip:${DID}@provider.example>` },
+      { name: 'P-Asserted-Identity', value: `<tel:${DID}>` },
+      { name: 'To', value: '<sip:proj_abc123@sip.api.openai.com>' },
     ],
     expect: [],
   },
