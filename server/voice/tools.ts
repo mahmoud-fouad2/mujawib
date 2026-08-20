@@ -118,7 +118,21 @@ export type ToolResult =
  * call it and then have to walk the promise back.
  */
 export function toolsFor(bindings: string[]) {
-  const has = (p: string) => bindings.some((b) => b.includes(p))
+  const active = bindings.filter(Boolean)
+
+  /**
+   * A version with no bindings gets no tools at all — not even the callback and
+   * transfer fallbacks.
+   *
+   * Executing a tool call requires the sideband connection, which is not
+   * deployed yet. Offering a tool the model can call but nothing can answer
+   * would leave the caller in silence waiting for a result that never arrives,
+   * which is worse than an agent that simply talks. So an unbound version is
+   * conversation-only by construction.
+   */
+  if (active.length === 0) return []
+
+  const has = (p: string) => active.some((b) => b.includes(p))
   const enabled = new Set<ToolName>(['create_callback', 'transfer_to_human'])
 
   if (has('calendar') || has('microsoft')) {

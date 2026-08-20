@@ -35,6 +35,9 @@ const VOICE_BY_DIALECT: Record<string, string> = {
 }
 
 export type ResolvedAgent = {
+  /** Which SIP header and number actually matched a configured route. */
+  matchedHeader: string
+  matchedE164: string
   workspaceId: string
   workspaceName: string
   agentId: string
@@ -48,9 +51,20 @@ export type ResolvedAgent = {
   phoneNumberId: string
 }
 
-/** Resolves the dialled number to a published agent, or null if none. */
-export async function resolveAgentForNumber(dialled: string): Promise<ResolvedAgent | null> {
+/**
+ * Resolves one E.164 number to its published agent.
+ *
+ * Matches only an explicitly configured `phone_number` row. There is no
+ * default client and no first-row fallback: an unknown DID must stay
+ * unresolved so the call can be rejected rather than answered by whichever
+ * agent happened to be created first.
+ */
+export async function resolveAgentForNumber(
+  dialled: string,
+  matchedHeader = 'To',
+): Promise<ResolvedAgent | null> {
   const e164 = dialled.trim().replace(/[^\d+]/g, '')
+  if (!e164) return null
 
   const [row] = await db
     .select({
@@ -88,6 +102,8 @@ export async function resolveAgentForNumber(dialled: string): Promise<ResolvedAg
   const rules = (version.businessRules ?? {}) as { transferTo?: string }
 
   return {
+    matchedHeader,
+    matchedE164: e164,
     workspaceId: row.ws.id,
     workspaceName: row.ws.name,
     agentId: row.ag.id,
@@ -107,6 +123,24 @@ export async function resolveAgentForNumber(dialled: string): Promise<ResolvedAg
     transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
     phoneNumberId: row.phone.id,
   }
+}
+
+/**
+ * Tries every DID candidate found in the SIP headers against the configured
+ * routes, returning the first that resolves to a published agent.
+ *
+ * The provider's choice of header is discovered here rather than assumed: the
+ * resolved value records which header matched, so the first real call tells us
+ * what to narrow to.
+ */
+export async function resolveAgentFromCandidates(
+  candidates: { header: string; e164: string }[],
+): Promise<ResolvedAgent | null> {
+  for (const candidate of candidates) {
+    const resolved = await resolveAgentForNumber(candidate.e164, candidate.header)
+    if (resolved) return resolved
+  }
+  return null
 }
 
 /**

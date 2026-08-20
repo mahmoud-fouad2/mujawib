@@ -2,19 +2,23 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { auditLog, call } from '@/server/db/schema'
-import { buildAcceptPayload, resolveAgentForNumber } from '@/server/voice/session'
+import { maskNumber, sanitizeSipHeaders, voiceError, voiceLog } from '@/server/voice/log'
+import { buildAcceptPayload, resolveAgentFromCandidates } from '@/server/voice/session'
+import { callerFrom, didCandidates, type SipHeader } from '@/server/voice/sip'
 
 /**
  * Inbound call webhook — Product Bible §27, call path steps 4 and 5.
  *
- * Flow:
- *   caller → carrier → SIP trunk → sip:{project}@sip.api.openai.com
+ *   caller → PSTN → ingress provider → sip:{project}@sip.api.openai.com
  *   → OpenAI posts `realtime.call.incoming` here
- *   → we identify the dialled number, resolve its published agent
- *   → we accept the call with that agent's compiled session
+ *   → we find which configured DID this call arrived on
+ *   → we accept it with that route's published agent
  *
- * A number with no published agent is refused rather than answered by a draft,
- * so the carrier can fail over to the human line.
+ * Provider-neutral by design: nothing below knows or cares which carrier sent
+ * the call. The dialled number is discovered from the SIP headers and matched
+ * against explicitly configured routes.
+ *
+ * An unrecognised DID is rejected, never answered by a default client.
  */
 
 export const runtime = 'nodejs'
@@ -26,14 +30,13 @@ const OPENAI_API = 'https://api.openai.com/v1'
  * Verifies the Standard Webhooks signature OpenAI sends.
  *
  * Without this, anyone who learns the URL can make the platform answer calls
- * on a client's behalf. Skipped only when no secret is configured, which is
- * logged loudly so it cannot pass unnoticed into production.
+ * on a client's behalf.
  */
 function verifySignature(req: NextRequest, raw: string): boolean {
   const secret = process.env.OPENAI_WEBHOOK_SECRET
   if (!secret) {
-    console.warn('[voice] OPENAI_WEBHOOK_SECRET is not set — webhook is UNVERIFIED')
-    return true
+    voiceError('SIGNATURE_REJECTED', 'OPENAI_WEBHOOK_SECRET is not set — refusing to verify')
+    return false
   }
 
   const id = req.headers.get('webhook-id')
@@ -60,64 +63,100 @@ function verifySignature(req: NextRequest, raw: string): boolean {
 
 type IncomingEvent = {
   type: string
-  data?: {
-    call_id?: string
-    sip_headers?: { name: string; value: string }[]
-  }
+  data?: { call_id?: string; sip_headers?: SipHeader[] }
 }
 
-/** OpenAI forwards the SIP headers; To/From carry the numbers we need. */
-function sipHeader(event: IncomingEvent, name: string): string | null {
-  const header = event.data?.sip_headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())
-  if (!header) return null
-  // `"Name" <sip:+966...@host>` → +966...
-  const match = header.value.match(/sip:([^@;>]+)/)
-  return match?.[1] ?? header.value
+/** Ends a call we will not answer. Never refers it back to the dialled DID. */
+async function rejectCall(callId: string, reason: string) {
+  voiceLog('CALL_REJECTED', { callId, reason })
+  await fetch(`${OPENAI_API}/realtime/calls/${callId}/reject`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status_code: 486 }),
+  }).catch((error) => voiceError('ERROR', `reject failed: ${String(error)}`))
 }
 
 export async function POST(req: NextRequest) {
   const raw = await req.text()
+  voiceLog('WEBHOOK_RECEIVED', { bytes: raw.length })
 
   if (!verifySignature(req, raw)) {
+    voiceError('SIGNATURE_REJECTED', 'signature did not validate')
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
+  voiceLog('SIGNATURE_VERIFIED')
 
   let event: IncomingEvent
   try {
     event = JSON.parse(raw)
   } catch {
+    voiceError('ERROR', 'payload was not JSON')
     return NextResponse.json({ error: 'invalid payload' }, { status: 400 })
   }
 
   if (event.type !== 'realtime.call.incoming') {
-    // Other event types are acknowledged so OpenAI stops retrying them.
+    voiceLog('EVENT_IGNORED', event.type)
     return NextResponse.json({ received: true })
   }
 
   const callId = event.data?.call_id
-  if (!callId) return NextResponse.json({ error: 'missing call_id' }, { status: 400 })
+  if (!callId) {
+    voiceError('ERROR', 'event carried no call_id')
+    return NextResponse.json({ error: 'missing call_id' }, { status: 400 })
+  }
+  voiceLog('CALL_ID', callId)
 
-  const dialled = sipHeader(event, 'To')
-  const caller = sipHeader(event, 'From')
-  if (!dialled) return NextResponse.json({ error: 'missing To header' }, { status: 400 })
+  // Logged before anything can fail on them: the first real call exists to
+  // show which header this provider uses for the originally dialled DID.
+  const headers = event.data?.sip_headers
+  voiceLog('SIP_HEADERS', sanitizeSipHeaders(headers))
 
-  const resolved = await resolveAgentForNumber(dialled)
+  const candidates = didCandidates(headers)
+  voiceLog(
+    'DID_CANDIDATES',
+    candidates.map((c) => ({ header: c.header, e164: c.e164 })),
+  )
+
+  const resolved = await resolveAgentFromCandidates(candidates)
 
   if (!resolved) {
-    // Refusing lets the carrier fail over. Answering with a draft would put an
-    // untested agent in front of a real customer.
-    console.warn(`[voice] no published agent for ${dialled} — refusing call ${callId}`)
-    await fetch(`${OPENAI_API}/realtime/calls/${callId}/refer`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ target_uri: `tel:${dialled}` }),
-    }).catch(() => undefined)
-
-    return NextResponse.json({ accepted: false, reason: 'no published agent' }, { status: 200 })
+    // No default client, no first-row fallback. An unknown DID stays unknown.
+    voiceLog('PHONE_ROUTE_NOT_RESOLVED', {
+      callId,
+      triedCandidates: candidates.map((c) => `${c.header}=${c.e164}`),
+      hint: 'no configured phone_number matched any candidate',
+    })
+    await rejectCall(callId, 'no configured route')
+    return NextResponse.json(
+      { accepted: false, reason: 'no configured route', candidates },
+      { status: 200 },
+    )
   }
+
+  voiceLog('PHONE_ROUTE_RESOLVED', {
+    matchedHeader: resolved.matchedHeader,
+    matchedE164: resolved.matchedE164,
+  })
+  voiceLog('CLIENT_RESOLVED', { workspaceId: resolved.workspaceId, name: resolved.workspaceName })
+  voiceLog('AGENT_VERSION_RESOLVED', {
+    agent: resolved.agentName,
+    versionId: resolved.versionId,
+    version: resolved.versionNumber,
+    voice: resolved.voice,
+    toolCount: resolved.tools.length,
+  })
+
+  const caller = callerFrom(headers)
+  const payload = buildAcceptPayload(resolved)
+
+  voiceLog('ACCEPT_REQUEST_STARTED', {
+    callId,
+    model: payload.model,
+    instructionChars: payload.instructions.length,
+  })
 
   const accept = await fetch(`${OPENAI_API}/realtime/calls/${callId}/accept`, {
     method: 'POST',
@@ -125,54 +164,72 @@ export async function POST(req: NextRequest) {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(buildAcceptPayload(resolved)),
+    body: JSON.stringify(payload),
+  }).catch((error) => {
+    voiceError('ERROR', `accept threw: ${String(error)}`)
+    return null
   })
 
-  if (!accept.ok) {
-    const detail = await accept.text()
-    console.error(`[voice] accept failed for ${callId}: ${accept.status} ${detail}`)
+  voiceLog('ACCEPT_RESPONSE_STATUS', accept ? accept.status : 'no response')
+
+  if (!accept?.ok) {
+    const detail = accept ? await accept.text() : 'request failed'
+    voiceError('ERROR', `accept rejected: ${detail.slice(0, 500)}`)
     return NextResponse.json({ accepted: false }, { status: 502 })
   }
 
-  // Record the call immediately so it appears in the console while it runs.
+  voiceLog('CALL_ACCEPTED', { callId, agent: resolved.agentName })
+
+  // Recorded immediately so the call appears in the console while it runs.
   const now = new Date()
   const id = `call_${randomUUID().replaceAll('-', '').slice(0, 16)}`
 
-  await db.insert(call).values({
-    id,
-    workspaceId: resolved.workspaceId,
-    agentVersionId: resolved.versionId,
-    phoneNumberId: resolved.phoneNumberId,
-    externalCallId: callId,
-    callerNumber: caller,
-    status: 'live',
-    transcript: [],
-    metadata: { dialled, agentName: resolved.agentName },
-    startedAt: now,
-    createdAt: now,
-  })
+  try {
+    await db.insert(call).values({
+      id,
+      workspaceId: resolved.workspaceId,
+      agentVersionId: resolved.versionId,
+      phoneNumberId: resolved.phoneNumberId,
+      externalCallId: callId,
+      callerNumber: caller,
+      status: 'live',
+      transcript: [],
+      metadata: {
+        dialled: resolved.matchedE164,
+        matchedHeader: resolved.matchedHeader,
+        agentName: resolved.agentName,
+      },
+      startedAt: now,
+      createdAt: now,
+    })
 
-  await db.insert(auditLog).values({
-    id: `audit_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
-    workspaceId: resolved.workspaceId,
-    actorId: 'voice',
-    action: 'call.accepted',
-    resourceType: 'call',
-    resourceId: id,
-    metadata: {
-      note: `مكالمة واردة على ${dialled} — ${resolved.agentName} v${resolved.versionNumber}`,
-    },
-    createdAt: now,
-  })
+    await db.insert(auditLog).values({
+      id: `audit_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
+      workspaceId: resolved.workspaceId,
+      actorId: 'voice',
+      action: 'call.accepted',
+      resourceType: 'call',
+      resourceId: id,
+      metadata: {
+        note: `مكالمة واردة على ${resolved.matchedE164} — ${resolved.agentName} v${resolved.versionNumber}`,
+      },
+      createdAt: now,
+    })
+
+    voiceLog('CALL_RECORDED', { id, caller: maskNumber(caller) })
+  } catch (error) {
+    // The call is already answered; failing to record it must not end it.
+    voiceError('ERROR', `could not record call: ${String(error)}`)
+  }
 
   return NextResponse.json({ accepted: true, callId: id })
 }
 
-/** Lets you confirm the endpoint is reachable before pointing OpenAI at it. */
+/** Confirms the endpoint is reachable and configured, before pointing OpenAI at it. */
 export async function GET() {
   return NextResponse.json({
     endpoint: 'voice/incoming',
-    ready: Boolean(process.env.OPENAI_API_KEY),
-    signatureVerification: Boolean(process.env.OPENAI_WEBHOOK_SECRET),
+    apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+    webhookSecretConfigured: Boolean(process.env.OPENAI_WEBHOOK_SECRET),
   })
 }

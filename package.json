@@ -20,7 +20,9 @@
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
-    "user:create": "tsx --env-file=.env.local scripts/create-user.ts"
+    "user:create": "tsx --env-file=.env.local scripts/create-user.ts",
+    "voice:link-number": "tsx --env-file=.env.local scripts/link-test-number.ts",
+    "voice:verify-sip": "tsx scripts/verify-sip-parsing.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

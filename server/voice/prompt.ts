@@ -173,11 +173,17 @@ ${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: $
     )
   }
 
-  layers.push(
-    layer(
-      '06',
-      'الأدوات وسياسة التأكيد',
-      `هذه أهم قاعدة لديك:
+  // Layer 06 only applies when the version actually binds tools. Telling an
+  // agent with no tools never to confirm before a tool succeeds would make it
+  // refuse to say anything useful at all.
+  const hasTools = ((version.toolBindings ?? []) as string[]).filter(Boolean).length > 0
+
+  if (hasTools) {
+    layers.push(
+      layer(
+        '06',
+        'الأدوات وسياسة التأكيد',
+        `هذه أهم قاعدة لديك:
 
 **لا تؤكد أي إجراء تجاري قبل أن ترجع الأداة بنجاح فعلي.**
 
@@ -187,8 +193,22 @@ ${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: $
 - لا تخبر المتصل بأسماء الأدوات ولا بتفاصيل تقنية. تحدث بلغة العمل فقط.
 
 أثناء انتظار الأداة، قل جملة قصيرة مثل «لحظة أتحقق لك» ولا تصمت.`,
-    ),
-  )
+      ),
+    )
+  } else {
+    layers.push(
+      layer(
+        '06',
+        'حدود ما تستطيع فعله',
+        `لا تملك حاليًا أي وسيلة للحجز أو التعديل أو الإرسال.
+
+- أجب عن الأسئلة من معرفتك أعلاه فقط.
+- إذا طلب المتصل حجزًا أو تعديلًا أو إلغاءً، قل بوضوح إنك ستسجّل طلبه ليتواصل
+  معه الفريق، ولا تدّعِ أنك نفّذته.
+- لا تقل «تم» عن أي إجراء إطلاقًا.`,
+      ),
+    )
+  }
 
   const approved = pronunciations.filter((p) => p.status === 'approved')
   if (approved.length) {
