@@ -323,8 +323,8 @@ export function IntegrationWires({
   const list = providers.filter((p) => PROVIDER_ACTION_LABEL[p.provider])
   if (list.length === 0) return null
 
-  // The band reads as continuous motion, so it needs more than four items to
-  // loop convincingly; repeat the connected set until it fills the track.
+  // Repeat the connected set until the track is long enough to loop without a
+  // visible seam.
   const band = [...list, ...list, ...list].slice(0, 12)
 
   return (
@@ -337,40 +337,29 @@ export function IntegrationWires({
         />
       </div>
 
-      <Marquee duration={42}>
+      {/* The band carries the provider AND what it does, so there is no second
+          grid repeating the same logos underneath. */}
+      <Marquee duration={48}>
         {band.map((p, i) => (
-          // Same repeated-set reasoning as the trust band above.
           // biome-ignore lint/suspicious/noArrayIndexKey: repeated marquee set
-          <span key={`${p.provider}-${i}`} className="chip">
-            <Image
-              src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
-              alt=""
-              width={20}
-              height={20}
-            />
-            {p.label}
+          <span key={`${p.provider}-${i}`} className="wirechip">
+            <span className="wirechip__logo">
+              <Image
+                src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
+                alt=""
+                width={22}
+                height={22}
+              />
+            </span>
+            <span className="wirechip__text">
+              <strong>{p.label}</strong>
+              <span>{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
+            </span>
           </span>
         ))}
       </Marquee>
 
       <div className="container">
-        <div className="wires reveal-group">
-          {list.map((p) => (
-            <article key={p.provider} className="wire lift">
-              <span className="wire__logo">
-                <Image
-                  src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
-                  alt=""
-                  width={22}
-                  height={22}
-                />
-              </span>
-              <strong>{p.label}</strong>
-              <span className="wire__action">{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
-            </article>
-          ))}
-        </div>
-
         <div className="flow-end">
           <Check size={16} aria-hidden="true" />
           <strong>{copy.integrations.flowEnd}</strong>

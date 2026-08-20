@@ -7,7 +7,6 @@ import {
   ConsolePreview,
   DemoCalls,
   IntegrationWires,
-  Pricing,
   ProofStrip,
   Results,
   TrustRow,
@@ -174,8 +173,6 @@ export async function Landing({ locale }: { locale: Locale }) {
         queue={consolePreview.queue}
         counts={consolePreview.counts}
       />
-
-      <Pricing locale={locale} copy={copy} />
 
       <CloseCta locale={locale} copy={copy} />
     </>

@@ -13,7 +13,12 @@ services:
   - type: web
     name: mujawib-web
     runtime: node
-    region: frankfurt # closest Render region to the Gulf
+    # Must match the Neon region. The database is in us-east-2, so running the
+    # app in Frankfurt put the Atlantic between every query and the data —
+    # which is what produced the ETIMEDOUT failures. Latency to Gulf users is
+    # paid once per request; latency to the database is paid on every query in
+    # the page, so co-locating with Neon wins by a wide margin.
+    region: ohio
     plan: starter
     branch: main
 

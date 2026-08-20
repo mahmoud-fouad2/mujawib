@@ -229,8 +229,8 @@ export function CallPlayer({
           // reshuffle on every render.
           const h = 22 + ((i * 37) % 60)
           return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed 48-bar waveform
             <i
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed decorative bar set
               key={`bar-${i}-${h}`}
               data-past={past}
               data-active={playing && Math.abs(at - t) < total / 48}

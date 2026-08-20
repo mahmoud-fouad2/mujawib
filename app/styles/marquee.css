@@ -133,3 +133,65 @@
   font-size: 0.8125rem;
   color: var(--text-faint);
 }
+
+/* ─── integration chip carrying its own action ─────────────────────────── */
+
+/**
+ * One element states the provider and what it does, so the section does not
+ * need a second grid repeating the same logos underneath the band.
+ */
+.wirechip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  white-space: nowrap;
+  transition:
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.wirechip:hover {
+  border-color: var(--signal-line);
+  box-shadow: var(--shadow-panel);
+}
+
+.wirechip__logo {
+  display: grid;
+  place-items: center;
+  inline-size: 42px;
+  block-size: 42px;
+  flex: none;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.wirechip__logo img {
+  inline-size: 22px;
+  block-size: 22px;
+  object-fit: contain;
+}
+
+.wirechip__text {
+  display: grid;
+  gap: 3px;
+}
+
+.wirechip__text strong {
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.wirechip__text span {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* A wider fade, so items enter and leave the band instead of being chopped. */
+.marquee {
+  mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent);
+}
