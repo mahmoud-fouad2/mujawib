@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
 import {
   agent,
@@ -72,6 +73,8 @@ function slugify(name: string) {
 }
 
 export async function provisionWorkspace(input: OnboardingInput): Promise<OnboardingResult> {
+  const access = await authorizeOperator('client.manage')
+  if (!access) return { ok: false, error: 'لا تملك صلاحية إضافة عميل.' }
   const parsed = schema.safeParse(input)
   if (!parsed.success) {
     const first = parsed.error.issues[0]

@@ -18,8 +18,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { type ReactNode, useEffect, useState } from 'react'
 import { Logo } from '@/components/brand/logo'
+import { NotificationCenter } from '@/components/notifications/notification-center'
 import { Pill } from '@/components/ui/primitives'
 import { useTheme } from '@/components/ui/theme'
+import type { NotificationFeed } from '@/lib/notifications'
 
 const NAV = [
   { href: '/portal', label: 'نظرة عامة', Icon: Home },
@@ -34,19 +36,25 @@ const NAV = [
 
 export function PortalShell({
   children,
+  workspaceId,
   workspaceName,
   health,
+  notifications,
 }: {
   children: ReactNode
+  workspaceId: string
   workspaceName: string
   health: { state: 'excellent' | 'needs_attention'; label: string }
+  notifications: NotificationFeed
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
   const [open, setOpen] = useState(false)
 
   // Close the mobile drawer whenever the route changes.
-  useEffect(() => setOpen(false), [])
+  useEffect(() => {
+    if (pathname) setOpen(false)
+  }, [pathname])
 
   return (
     <div className="shell">
@@ -100,6 +108,7 @@ export function PortalShell({
           <strong style={{ fontSize: 'var(--step-0)' }}>{workspaceName}</strong>
 
           <div className="topbar__right">
+            <NotificationCenter feed={notifications} scopeWorkspaceId={workspaceId} />
             <button type="button" className="icon-btn" onClick={toggle} aria-label="تبديل الوضع">
               {mode === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>

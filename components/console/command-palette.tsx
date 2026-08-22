@@ -3,6 +3,7 @@
 import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { canOperator } from '@/lib/access'
 import { CONSOLE_NAV_FLAT } from '@/lib/console-nav'
 
 export type CommandIndex = {
@@ -31,10 +32,12 @@ export function CommandPalette({
   open,
   onClose,
   index,
+  role,
 }: {
   open: boolean
   onClose: () => void
   index: CommandIndex
+  role: string
 }) {
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -43,7 +46,11 @@ export function CommandPalette({
 
   const entries = useMemo<Entry[]>(
     () => [
-      ...CONSOLE_NAV_FLAT.map((n) => ({
+      ...CONSOLE_NAV_FLAT.filter(
+        (item) =>
+          (!item.ownerOnly || role === 'owner') &&
+          (!item.requiredPermission || canOperator(role, item.requiredPermission)),
+      ).map((n) => ({
         group: 'التنقل',
         label: n.label,
         hint: n.href,
@@ -68,7 +75,7 @@ export function CommandPalette({
         href: '/console/phone',
       })),
     ],
-    [index],
+    [index, role],
   )
 
   const results = useMemo(() => {
@@ -77,10 +84,16 @@ export function CommandPalette({
       (e) =>
         matches(e.label, q) ||
         matches(e.hint, q) ||
-        CONSOLE_NAV_FLAT.some((n) => n.href === e.href && n.keywords.some((k) => matches(k, q))),
+        CONSOLE_NAV_FLAT.some(
+          (n) =>
+            (!n.ownerOnly || role === 'owner') &&
+            (!n.requiredPermission || canOperator(role, n.requiredPermission)) &&
+            n.href === e.href &&
+            n.keywords.some((k) => matches(k, q)),
+        ),
     )
     return filtered.slice(0, 24)
-  }, [entries, query])
+  }, [entries, query, role])
 
   useEffect(() => {
     if (open) {

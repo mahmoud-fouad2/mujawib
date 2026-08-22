@@ -26,12 +26,13 @@ import {
   getPlatformProof,
   getReferenceClients,
 } from '@/server/data/marketing'
+import { isDatabaseUnavailable } from '@/server/db'
 
 export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
-  const [proof, hero, demos, packs, integrations, clients, consolePreview] = await Promise.all([
+  const data = await Promise.all([
     getPlatformProof(),
     getHeroCall(),
     getDemoCalls(),
@@ -39,7 +40,21 @@ export async function Landing({ locale }: { locale: Locale }) {
     getLiveIntegrations(),
     getReferenceClients(),
     getConsolePreview(),
-  ])
+  ]).catch((error: unknown) => {
+    if (!isDatabaseUnavailable(error)) throw error
+    console.error('[marketing] operational data unavailable')
+    return null
+  })
+  const proof = data?.[0] ?? null
+  const hero = data?.[1] ?? null
+  const demos = data?.[2] ?? []
+  const packs = data?.[3] ?? []
+  const integrations = data?.[4] ?? []
+  const clients = data?.[5] ?? []
+  const consolePreview = data?.[6] ?? {
+    queue: [],
+    counts: { live: 0, review: 0, degraded: 0 },
+  }
 
   // Tool executions carry an absolute time; place them on the call's own clock
   // so the player fires them at the moment they actually ran.
@@ -96,7 +111,7 @@ export async function Landing({ locale }: { locale: Locale }) {
 
             <p className="hero__note">{copy.hero.note}</p>
 
-            <ProofStrip copy={copy} proof={proof} />
+            {proof ? <ProofStrip copy={copy} proof={proof} /> : null}
           </div>
 
           {hero ? (
@@ -136,36 +151,40 @@ export async function Landing({ locale }: { locale: Locale }) {
 
       <WhyRows copy={copy} />
 
-      <section className="section section--tinted reveal" id="industries">
-        <div className="container">
-          <header className="section__head">
-            <span className="section__label">{copy.industries.label}</span>
-            <div>
-              <h2 className="section__title">{copy.industries.title}</h2>
-              <p className="section__lead">{copy.industries.lead}</p>
-            </div>
-          </header>
-          <Industries
-            locale={locale}
-            copy={copy}
-            packs={packs.map((p) => ({
-              packKey: p.packKey,
-              name: p.name,
-              version: p.version,
-              clients: p.clients,
-              flows: (p.defaultFlows ?? []) as string[],
-            }))}
-          />
-        </div>
-      </section>
+      {packs.length > 0 ? (
+        <section className="section section--tinted reveal" id="industries">
+          <div className="container">
+            <header className="section__head">
+              <span className="section__label">{copy.industries.label}</span>
+              <div>
+                <h2 className="section__title">{copy.industries.title}</h2>
+                <p className="section__lead">{copy.industries.lead}</p>
+              </div>
+            </header>
+            <Industries
+              locale={locale}
+              copy={copy}
+              packs={packs.map((p) => ({
+                packKey: p.packKey,
+                name: p.name,
+                version: p.version,
+                clients: p.clients,
+                flows: (p.defaultFlows ?? []) as string[],
+              }))}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <Results copy={copy} />
 
-      <IntegrationWires
-        locale={locale}
-        copy={copy}
-        providers={integrations.map((i) => ({ provider: i.provider, label: i.label }))}
-      />
+      {integrations.length > 0 ? (
+        <IntegrationWires
+          locale={locale}
+          copy={copy}
+          providers={integrations.map((i) => ({ provider: i.provider, label: i.label }))}
+        />
+      ) : null}
 
       <ConsolePreview
         locale={locale}

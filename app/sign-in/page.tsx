@@ -7,12 +7,26 @@ import { clock } from '@/lib/format'
 import { buildRecordItems } from '@/lib/record'
 import { GOOGLE_ENABLED } from '@/server/auth'
 import { getHeroCall } from '@/server/data/marketing'
+import { isDatabaseUnavailable } from '@/server/db'
 
 export const metadata: Metadata = { title: 'تسجيل الدخول' }
 export const dynamic = 'force-dynamic'
 
-export default async function SignInPage() {
-  const hero = await getHeroCall()
+function safeReturnTo(value: string | undefined) {
+  return value?.startsWith('/') && !value.startsWith('//') ? value : '/auth/continue'
+}
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
+  const returnTo = safeReturnTo((await searchParams).next)
+  const hero = await getHeroCall().catch((error: unknown) => {
+    if (!isDatabaseUnavailable(error)) throw error
+    console.error('[sign-in] operational preview unavailable')
+    return null
+  })
   const items = hero ? buildRecordItems(hero.turns, hero.tools, hero.durationSeconds) : []
 
   return (
@@ -27,7 +41,7 @@ export default async function SignInPage() {
           <p>ادخل لمتابعة المكالمات المباشرة، طابور المراجعة، وحالة الربط والأرقام.</p>
         </div>
 
-        <SignInForm googleEnabled={GOOGLE_ENABLED} />
+        <SignInForm googleEnabled={GOOGLE_ENABLED} returnTo={returnTo} />
       </div>
 
       <aside className="auth__aside on-ink">
@@ -43,7 +57,7 @@ export default async function SignInPage() {
           <CallRecord
             locale="ar"
             title="سجل المكالمة"
-            meta={`${hero.workspaceName} · انتهت بحجز مؤكد`}
+            meta={`${hero.workspaceName} · مسار حجز نموذجي`}
             items={items}
             outcome={
               hero.booking?.service

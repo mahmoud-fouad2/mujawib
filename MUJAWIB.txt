@@ -182,6 +182,8 @@ Timeline	Ring → answered → turns → tool calls → transfer/end. Latency ba
 Conversation	Transcript ثنائي الأطراف، markers للـinterruptions وunclear audio وtool responses.
 Inspector	Outcome, caller, booking, QA flags, agent version, integration execution, cost internal-only.
 Review actions	Mark good / pronunciation issue / knowledge gap / flow issue / tool issue / false flag.
+Post-call intelligence	بعد الإغلاق النظيف يُنتج ملخص عربي بعقد Structured Output: حاجة المتصل، ما حدث، والخطوة التالية. لا يغيّر outcome ولا يثبت أي business action بلا Booking/Lead/ToolExecution مؤكد.
+Client view	العميل يرى النتيجة ثم الحوار بصياغة أعمال فقط؛ بيانات seed وprovider/model/SIP لا تدخل هذا السطح.
 
  
 11. Agent Factory — تجربة الإعداد التي تتفوق على المنافسين
@@ -443,9 +445,17 @@ Client	Manager	calls/bookings/insights + requests
 Client	Reviewer	calls/QA flags فقط
 Client	Read-only	view reports
 
+قرار V1: الهوية والجلسة يديرهما Better Auth، والوصول الفعلي يُربط صراحةً عبر WorkspaceAccess. لا fallback إلى أول عميل، ولا صلاحية لمجرد تسجيل الدخول. نفس policy تحكم القائمة، فتح المسار، وServer Actions، مع منع إزالة آخر Owner.
+
+دورة الانضمام: Owner ينشئ WorkspaceInvitation لبريد + Workspace + Role محددين. الرمز عشوائي أحادي الاستخدام، لا يُحفظ إلا SHA-256 digest، وينتقل داخل URL fragment حتى لا يظهر في request logs أو referrers. التسجيل العام وGoogle sign-up مغلقان. صاحب الدعوة إما يدخل بحساب مطابق، أو ينشئ هوية جديدة داخل Server Action يتحقق من الرمز والبريد والدور ثم يكتب Credential + WorkspaceAccess + Audit Log معًا. إعادة الدعوة تلغي الرابط السابق، ويمكن للمالك إلغاء الدعوة المعلقة. بعد الدخول يقرر /auth/continue الوجهة من الصلاحية الفعلية، ولا يرسل المستخدم افتراضيًا إلى Console.
+
+استعادة كلمة المرور: Better Auth يصدر رمزًا أحادي الاستخدام لمدة ساعة، Resend يرسل الرابط عند ضبطه، والواجهة لا تكشف هل البريد موجود. نجاح التغيير يلغي الجلسات القديمة.
+
 26. Core Data Model
 Entity	أهم العلاقات
 Workspace/Client	owns users, agents, numbers, integrations
+WorkspaceAccess	user + workspace + typed role; authorization boundary للـOperator والـClient
+WorkspaceInvitation	email + workspace + role + hashed one-time token + expiry/acceptance state
 Agent	belongs client; many AgentVersions
 AgentVersion	compiled prompt + profile + flows + tool bindings
 VoiceProfile	country/dialect/style/language policy
@@ -465,11 +475,11 @@ Booking/Lead	business outcome links
 27. Technical Architecture — قليلة الكود ومتسقة
 Layer	الاختيار	لماذا
 Frontend	Next.js	Operator + Client portals في codebase واحد
-Auth/DB	Supabase / PostgreSQL	multi-tenant relational data + managed auth
+Auth/DB	Better Auth / PostgreSQL	identity/session منفصلان عن workspace authorization الصريح
 Voice Model	GPT-Realtime-2.1	موديل صوتي واحد، quality-first
 Telephony	Local SIP trunk/DID provider	نترك شبكة الهاتف للمختصين
 Realtime transport	OpenAI SIP for phone	لا custom RTP/media server
-Control	Node sideband WebSocket service	instructions + events + tool calls
+Control	Node sideband connection in the web runtime (V1)	private events + tool calls بلا media proxy أو runtime ثانٍ
 Knowledge	PostgreSQL structured + pgvector only when needed	أسعار/ساعات/فروع لا تعتمد على RAG
 Integrations	Direct REST adapters + optional n8n for long-tail	لا vendor يحكم قلب المنتج
 Storage	Object storage	recordings/docs حسب policy
@@ -499,7 +509,8 @@ Launch default: GPT-Realtime-2.1 مع reasoning منخفض لمعظم مكالم
 29. Security, Privacy & Operational Controls
 •  Tenant isolation في قاعدة البيانات وسياسات الوصول.
 •  Credentials لا تظهر في client UI؛ secrets في managed secret store.
-•  Audit log لكل Publish / integration change / phone route / user permission.
+•  Audit log لكل Publish / integration change / phone route / user permission / invitation lifecycle.
+•  دعوات الوصول أحادية الاستخدام، محددة المدة والدور والبريد، والرمز الخام لا يُخزّن في القاعدة أو Audit Log.
 •  Recording/transcription configurable per client and jurisdiction; يحتاج مراجعة قانونية محلية قبل الإطلاق في كل دولة.
 •  Retention policy per workspace: calls/events/recordings/docs.
 •  Optional PII masking في analytics/export.
@@ -652,3 +663,21 @@ Appendix A — مصادر Benchmark الحالية (2026)
 •  Anthropic — Claude Artifacts / dedicated right-side work window.
 •  Google — Gemini Neural Expressive design direction (2026).
 ملاحظة: واجهة “2027” هنا اتجاه تصميم مستقبلي مبني على أنماط 2026 الناضجة، وليست ادعاءً بمعرفة شكل منتجات 2027 قبل صدورها.
+
+43. Operational Truth & Readiness Contract — V1
+•  بيانات التشغيل الحقيقية وبيانات العرض مجالان منفصلان. Operator Home وClients وQA وCalls تعرض origin=live افتراضيًا، وDemo لا يظهر إلا باختيار صريح.
+•  «مباشر الآن» حالة عرض زمنية وليست تعديلًا لسجل التدقيق؛ لا تُعرض مكالمة قديمة كمباشرة لمجرد بقاء status بلا حدث إنهاء.
+•  Go Live قرار مبني على أدلة مشتركة بين الواجهة والخادم: بيانات النشاط، Published AgentVersion محددة، هاتف مثبت بمكالمة حقيقية، تكاملات مطلوبة فقط، وQA بلا فشل حرج.
+•  لا تستخدم Draft في routing حي، ولا تختار latest version عشوائيًا، ولا يوجد Client أو Agent fallback عام.
+•  Call Summary لا يثبت booking أو lead أو tool success إلا بسجل مرتبط في قاعدة البيانات.
+•  عند غياب endedAt أو transcript أو outcome، تظهر المكالمة Pending مع بيان الدليل الناقص؛ ممنوع توليد نتيجة تجميلية.
+•  Transcript يمر عبر normalization typed ويتجاهل السجلات غير الصالحة بدل عرض JSON خام.
+•  إغلاق المكالمة وملء transcript والنتيجة النهائية يتطلبان call-end/sideband evidence؛ قبول webhook وحده لا يعني نجاح المكالمة.
+•  الموقع العام يطبق القاعدة نفسها: proof metrics من origin=live فقط، وأي seed transcript يُعرّف صراحة كسيناريو Demo لا كشهادة عميل أو مكالمة حقيقية.
+•  بعد قبول المكالمة يفتح web runtime قناة تحكم واحدة إلى OpenAI باستخدام call_id؛ الصوت يبقى على مسار SIP ولا يمر عبر MUJAWIB.
+•  تحفظ القناة transcript المنفذ، CallEvent، وToolExecution بمعرّفات ثابتة تمنع تكرار business action عند إعادة الحدث.
+•  الإغلاق النظيف للقناة دليل نهاية يملأ endedAt والمدة. انقطاع control socket غير النظيف لا يُعلن المكالمة فاشلة ولا يخترع outcome.
+•  نجاح transfer لا يسجل قبل نجاح OpenAI SIP REFER، ونجاح booking لا يسجل قبل إنشاء السجل المؤكد من التكامل.
+•  معالجة ما بعد المكالمة تعمل بعد نهاية الخط ولا تؤخر المتصل، تستخدم نموذجًا مثبت النسخة وStructured Output، وتحفظ store=false. فشل التلخيص لا يمس سجل المكالمة ويمكن إعادة المحاولة من الكونسول.
+•  الملخص المولد يصف الحوار فقط؛ لا يكتب outcome ولا يعتبر كلام الموظف الصوتي دليل تنفيذ. الدليل يبقى Booking/Lead/ToolExecution المرتبط بالمكالمة.
+•  بوابة العميل تعرض المكالمات والمؤشرات والحجوزات والمتصلين من origin=live فقط، وتمنع اختلاط بيانات العرض بالقرار التشغيلي.

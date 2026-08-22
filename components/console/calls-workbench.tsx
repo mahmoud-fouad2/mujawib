@@ -1,5 +1,6 @@
-import { Check, X } from 'lucide-react'
+import { Check, MessageSquareText, UserRound, X } from 'lucide-react'
 import Link from 'next/link'
+import { CallIntelligenceStatus } from '@/components/console/call-intelligence-status'
 import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
@@ -25,6 +26,7 @@ export const CALL_FILTERS = [
   { id: 'resolved', label: 'أُنجزت' },
   { id: 'transferred', label: 'محوّلة' },
   { id: 'failed', label: 'لم تُحل' },
+  { id: 'demo', label: 'بيانات تجريبية' },
 ] as const
 
 function hrefFor(filter: string, callId?: string, search?: string) {
@@ -46,11 +48,13 @@ export function CallsWorkbench({
   selected,
   filter,
   search,
+  canRetrySummary,
 }: {
   rows: CallRow[]
   selected: CallDetail | null
   filter: string
   search?: string
+  canRetrySummary: boolean
 }) {
   return (
     <div className="workbench">
@@ -98,6 +102,7 @@ export function CallsWorkbench({
                 <span>{r.workspaceName}</span>
                 <span aria-hidden="true">·</span>
                 <span>{relative(r.startedAt)}</span>
+                {r.origin === 'seed' ? <Pill>تجريبية</Pill> : null}
               </div>
             </Link>
           ))
@@ -105,7 +110,11 @@ export function CallsWorkbench({
       </div>
 
       <div className="workbench__detail">
-        {selected ? <CallDetailView call={selected} /> : <NoSelection />}
+        {selected ? (
+          <CallDetailView call={selected} canRetrySummary={canRetrySummary} />
+        ) : (
+          <NoSelection />
+        )}
       </div>
 
       <aside className="workbench__inspector">
@@ -126,19 +135,22 @@ function NoSelection() {
 
 /* ─── detail ─────────────────────────────────────────────────────────────── */
 
-function CallDetailView({ call }: { call: CallDetail }) {
+function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetrySummary: boolean }) {
   const start = new Date(call.startedAt).getTime()
 
   return (
     <>
       <header className="detail-head">
         <div>
-          <h2 className="mono">{call.callerNumber ?? '—'}</h2>
+          <h2 className="mono">{maskPhone(call.callerNumber)}</h2>
           <div className="detail-head__sub">
             {call.workspaceName} · {fullDate(call.startedAt)} · {clock(call.startedAt)}
           </div>
         </div>
-        <span style={{ marginInlineStart: 'auto' }}>
+        <span className="detail-head__status">
+          <Pill tone={call.origin === 'live' ? 'signal' : 'neutral'}>
+            {call.origin === 'live' ? 'مكالمة حقيقية' : 'بيانات تجريبية'}
+          </Pill>
           <Pill tone={call.outcome ? outcomeTone(call.outcome) : statusTone(call.status)}>
             {call.outcome
               ? (CALL_OUTCOME_LABEL[call.outcome] ?? call.outcome)
@@ -147,14 +159,88 @@ function CallDetailView({ call }: { call: CallDetail }) {
         </span>
       </header>
 
+      <section className="call-brief">
+        <div className="call-brief__head">
+          <div>
+            <span className="detail-section-label">الملخص التشغيلي</span>
+            <h3>{call.summary.headline}</h3>
+          </div>
+          <div className="call-brief__controls">
+            <Pill tone={call.summary.source === 'pending' ? 'warn' : 'neutral'}>
+              {call.summary.source === 'recorded'
+                ? 'محفوظ مع السجل'
+                : call.summary.source === 'pending'
+                  ? 'غير نهائي'
+                  : 'مستخلص من السجل'}
+            </Pill>
+            <CallIntelligenceStatus
+              callId={call.id}
+              state={call.intelligence}
+              stale={call.intelligenceStale}
+              canProcess={
+                canRetrySummary &&
+                call.origin === 'live' &&
+                Boolean(call.endedAt) &&
+                call.transcript.length > 0
+              }
+            />
+          </div>
+        </div>
+        <dl className="call-brief__facts">
+          <div>
+            <dt>ما احتاجه المتصل</dt>
+            <dd>{call.summary.callerNeed ?? 'لم تتوفر معلومات كافية.'}</dd>
+          </div>
+          <div>
+            <dt>ما حدث</dt>
+            <dd>{call.summary.resolution}</dd>
+          </div>
+          <div>
+            <dt>الإجراء التالي</dt>
+            <dd>{call.summary.nextAction ?? 'لا توجد متابعة مطلوبة.'}</dd>
+          </div>
+        </dl>
+
+        {call.summary.callerHighlights.length || call.summary.agentHighlights.length ? (
+          <div className="call-highlights">
+            <div>
+              <span>
+                <UserRound size={14} /> قال المتصل
+              </span>
+              {call.summary.callerHighlights.map((text) => (
+                <p key={text}>{text}</p>
+              ))}
+            </div>
+            <div>
+              <span>
+                <MessageSquareText size={14} /> رد الموظف الصوتي
+              </span>
+              {call.summary.agentHighlights.map((text) => (
+                <p key={text}>{text}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {call.summary.warnings.length ? (
+          <ul className="call-brief__warnings">
+            {call.summary.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
       <section>
         <div className="detail-section-label">الحوار</div>
         <div className="transcript">
           {call.transcript.length === 0 ? (
-            <p className="muted">لا يوجد نص محفوظ لهذه المكالمة.</p>
+            <p className="muted">
+              لم يصل نص الحوار لهذه المكالمة. السجل الحالي يثبت الاستقبال والقبول فقط.
+            </p>
           ) : (
             call.transcript.map((t) => (
-              <div key={`${t.role}-${t.at}`} className={`turn turn--${t.role}`}>
+              <div key={`${t.role}-${t.at}-${t.text}`} className={`turn turn--${t.role}`}>
                 <span className="turn__at">{duration(t.at)}</span>
                 <div>
                   <span className="turn__who">{t.role === 'agent' ? 'مُجاوِب' : 'المتصل'}</span>
@@ -169,6 +255,9 @@ function CallDetailView({ call }: { call: CallDetail }) {
       <section>
         <div className="detail-section-label">مسار التنفيذ</div>
         <div className="timeline">
+          {call.events.length === 0 && call.tools.length === 0 ? (
+            <p className="muted">لا توجد أحداث تفصيلية محفوظة لهذه المكالمة بعد.</p>
+          ) : null}
           {call.events.map((e) => {
             const at = Math.max(0, Math.round((new Date(e.occurredAt).getTime() - start) / 1000))
             const tone =
@@ -206,7 +295,6 @@ function CallDetailView({ call }: { call: CallDetail }) {
                 </span>
                 <div className="tl-row__body">
                   <span>{TOOL_LABEL[t.toolName] ?? t.toolName}</span>
-                  <code>{t.toolName}</code>
                   {ok ? (
                     <Check size={13} style={{ color: 'var(--good)' }} aria-hidden="true" />
                   ) : (
@@ -258,6 +346,21 @@ function CallInspector({ call }: { call: CallDetail }) {
             value={<span className="mono">{duration(call.durationSeconds)}</span>}
           />
           {meta.branch ? <Row label="الفرع" value={meta.branch} /> : null}
+          {call.summary.urgency ? (
+            <Row
+              label="الأولوية"
+              value={
+                call.summary.urgency === 'high'
+                  ? 'مرتفعة'
+                  : call.summary.urgency === 'medium'
+                    ? 'متوسطة'
+                    : 'عادية'
+              }
+            />
+          ) : null}
+          {call.summary.followUpRequired !== null ? (
+            <Row label="تحتاج متابعة" value={call.summary.followUpRequired ? 'نعم' : 'لا'} />
+          ) : null}
         </dl>
       </div>
 
@@ -337,7 +440,10 @@ function CallInspector({ call }: { call: CallDetail }) {
             label="وجهة التحويل"
             value={<span className="mono">{call.transferDestination ?? '—'}</span>}
           />
-          <Row label="معرّف المكالمة" value={<span className="mono">{call.externalCallId}</span>} />
+          <Row
+            label="نوع السجل"
+            value={call.origin === 'live' ? 'مكالمة حقيقية' : 'بيانات تجريبية'}
+          />
         </dl>
       </div>
     </>

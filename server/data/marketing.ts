@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db } from '@/server/db'
 import {
   booking,
@@ -23,6 +23,10 @@ function daysBack(n: number) {
   const d = new Date()
   d.setDate(d.getDate() - n)
   return d
+}
+
+function liveCutoff() {
+  return new Date(Date.now() - 2 * 60 * 60 * 1000)
 }
 
 export type PlatformProof = {
@@ -51,12 +55,13 @@ export async function getPlatformProof(): Promise<PlatformProof> {
         ),
     })
     .from(call)
-    .where(gte(call.startedAt, since))
+    .where(and(gte(call.startedAt, since), eq(call.origin, 'live')))
 
   const [bookings] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(booking)
-    .where(gte(booking.createdAt, since))
+    .innerJoin(call, eq(booking.callId, call.id))
+    .where(and(gte(booking.createdAt, since), eq(call.origin, 'live')))
 
   const [latency] = await db
     .select({
@@ -65,12 +70,19 @@ export async function getPlatformProof(): Promise<PlatformProof> {
       ),
     })
     .from(callEvent)
-    .where(and(eq(callEvent.type, 'agent_turn'), gte(callEvent.occurredAt, since)))
+    .innerJoin(call, eq(callEvent.callId, call.id))
+    .where(
+      and(
+        eq(callEvent.type, 'agent_turn'),
+        gte(callEvent.occurredAt, since),
+        eq(call.origin, 'live'),
+      ),
+    )
 
   const [clients] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
-    .from(workspace)
-    .where(eq(workspace.type, 'client'))
+    .select({ n: sql<number>`count(distinct ${call.workspaceId})`.mapWith(Number) })
+    .from(call)
+    .where(and(gte(call.startedAt, since), eq(call.origin, 'live')))
 
   const closed = calls?.closed ?? 0
 
@@ -111,7 +123,9 @@ export async function getHeroCall(): Promise<HeroCall | null> {
     })
     .from(call)
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
-    .where(and(eq(call.outcome, 'booking'), eq(workspace.slug, 'alfa-clinic')))
+    .where(
+      and(eq(call.outcome, 'booking'), eq(call.origin, 'seed'), eq(workspace.slug, 'alfa-clinic')),
+    )
     .orderBy(desc(call.startedAt))
     .limit(1)
 
@@ -167,7 +181,13 @@ export async function getDemoCalls() {
     })
     .from(call)
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
-    .where(and(eq(call.status, 'completed'), sql`${call.outcome} in ('booking','resolved','lead')`))
+    .where(
+      and(
+        eq(call.status, 'completed'),
+        eq(call.origin, 'seed'),
+        sql`${call.outcome} in ('booking','resolved','lead')`,
+      ),
+    )
     .orderBy(desc(call.startedAt))
     .limit(60)
 
@@ -185,8 +205,12 @@ export async function getDemoCalls() {
 export async function getIndustryPacks() {
   const templates = await db.select().from(industryTemplate)
   const usage = await db
-    .select({ pack: workspace.industryPack, n: sql<number>`count(*)`.mapWith(Number) })
+    .select({
+      pack: workspace.industryPack,
+      n: sql<number>`count(distinct ${workspace.id})`.mapWith(Number),
+    })
     .from(workspace)
+    .innerJoin(call, and(eq(call.workspaceId, workspace.id), eq(call.origin, 'live')))
     .where(eq(workspace.type, 'client'))
     .groupBy(workspace.industryPack)
 
@@ -218,7 +242,7 @@ export async function getLiveIntegrations() {
  * otherwise the page states the same thing twice.
  */
 export async function getConsolePreview() {
-  const [queue, counts] = await Promise.all([
+  const [queue, liveRows, reviewRows, degradedRows] = await Promise.all([
     db
       .select({
         id: call.id,
@@ -231,28 +255,41 @@ export async function getConsolePreview() {
       .from(qaResult)
       .innerJoin(call, eq(qaResult.callId, call.id))
       .innerJoin(workspace, eq(call.workspaceId, workspace.id))
-      .where(sql`${qaResult.reviewerId} is null`)
+      .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live')))
       .orderBy(desc(qaResult.createdAt))
       .limit(4),
     db
-      .select({
-        live: sql<number>`(
-          select count(*) from ${call} where ${call.status} in ('live','ringing','waiting_tool')
-        )`.mapWith(Number),
-        review: sql<number>`(
-          select count(*) from ${qaResult} where ${qaResult.reviewerId} is null
-        )`.mapWith(Number),
-        degraded: sql<number>`(
-          select count(*) from ${integrationConnection}
-          where ${integrationConnection.health} in ('degraded','failed')
-        )`.mapWith(Number),
-      })
-      .from(sql`(select 1) as t`),
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(
+        and(
+          sql`${call.status} in ('live','ringing','waiting_tool')`,
+          eq(call.origin, 'live'),
+          gte(call.startedAt, liveCutoff()),
+        ),
+      ),
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(qaResult)
+      .innerJoin(call, eq(qaResult.callId, call.id))
+      .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live'))),
+    db
+      .select({ n: sql<number>`count(distinct ${integrationConnection.id})`.mapWith(Number) })
+      .from(integrationConnection)
+      .innerJoin(
+        call,
+        and(eq(call.workspaceId, integrationConnection.workspaceId), eq(call.origin, 'live')),
+      )
+      .where(inArray(integrationConnection.health, ['degraded', 'failed'])),
   ])
 
   return {
     queue: queue.map((q) => ({ ...q, flags: (q.flags ?? []) as string[] })),
-    counts: counts[0] ?? { live: 0, review: 0, degraded: 0 },
+    counts: {
+      live: liveRows[0]?.n ?? 0,
+      review: reviewRows[0]?.n ?? 0,
+      degraded: degradedRows[0]?.n ?? 0,
+    },
   }
 }
 
@@ -261,6 +298,8 @@ export async function getReferenceClients() {
   return db
     .select({ name: workspace.name, status: workspace.status })
     .from(workspace)
+    .innerJoin(call, and(eq(call.workspaceId, workspace.id), eq(call.origin, 'live')))
     .where(eq(workspace.type, 'client'))
+    .groupBy(workspace.name, workspace.status)
     .orderBy(workspace.name)
 }

@@ -1,10 +1,11 @@
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Check, CircleAlert, CircleDashed } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DailyBars, Ratio, Sparkline } from '@/components/console/charts'
 import { ClientRowActions } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
+import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
@@ -40,11 +41,29 @@ const KNOWLEDGE_LABEL: Record<string, string> = {
   document: 'مستندات',
 }
 
+const PHONE_STATUS: Record<string, { label: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }> = {
+  pending: { label: 'بانتظار أول مكالمة', tone: 'warn' },
+  verifying: { label: 'وصلت المكالمة', tone: 'warn' },
+  verified: { label: 'تم التحقق', tone: 'good' },
+  active: { label: 'نشط', tone: 'good' },
+  degraded: { label: 'يحتاج انتباهًا', tone: 'bad' },
+  disabled: { label: 'معطّل', tone: 'neutral' },
+}
+
 export default async function ClientDetailPage({ params }: Props) {
   const detail = await getClientDetail((await params).slug)
   if (!detail) notFound()
 
-  const { workspace: ws, totals, agents, numbers, integrations, requests, knowledge } = detail
+  const {
+    workspace: ws,
+    totals,
+    agents,
+    numbers,
+    integrations,
+    requests,
+    knowledge,
+    readiness,
+  } = detail
   const info = (ws.businessInfo ?? {}) as {
     city?: string
     hours?: { sun_thu?: string }
@@ -67,14 +86,21 @@ export default async function ClientDetailPage({ params }: Props) {
         title={ws.name}
         sub={`${info.city ?? '—'} · ${WORKSPACE_STATUS_LABEL[ws.status] ?? ws.status} · منذ ${relative(ws.createdAt)}`}
         actions={
-          <ClientRowActions
-            workspaceId={ws.id}
-            name={ws.name}
-            status={ws.status}
-            city={info.city ?? ''}
-            hoursWeekday={info.hours?.sun_thu ?? ''}
-            transferTo={info.transferTo ?? ''}
-          />
+          <div className="cluster">
+            {readiness?.nextStep ? (
+              <LinkButton href={readiness.nextStep.href} size="sm" variant="primary">
+                {readiness.nextStep.nextAction ?? 'راجع الجاهزية'}
+              </LinkButton>
+            ) : null}
+            <ClientRowActions
+              workspaceId={ws.id}
+              name={ws.name}
+              status={ws.status}
+              city={info.city ?? ''}
+              hoursWeekday={info.hours?.sun_thu ?? ''}
+              transferTo={info.transferTo ?? ''}
+            />
+          </div>
         }
       />
 
@@ -84,11 +110,70 @@ export default async function ClientDetailPage({ params }: Props) {
           { label: 'أُغلقت بدون تدخل', value: `${totals.resolvedRate}%`, tone: 'good' },
           { label: 'تحويل للفريق', value: num(totals.transfers) },
           { label: 'خارج ساعات العمل', value: num(totals.afterHours) },
+          ...(readiness
+            ? [
+                {
+                  label: 'جاهزية الإعداد',
+                  value: `${readiness.score}%`,
+                  tone: readiness.canGoLive ? ('good' as const) : ('warn' as const),
+                },
+              ]
+            : []),
           ...(unhealthy.length
             ? [{ label: 'ربط يحتاج تدخّل', value: num(unhealthy.length), tone: 'bad' as const }]
             : []),
         ]}
       />
+
+      {readiness ? (
+        <div className="setup-block">
+          <Section
+            title="رحلة الإعداد"
+            meta={`${readiness.completed} من ${readiness.total} خطوات مكتملة`}
+          >
+            <div
+              className="setup-progress"
+              role="progressbar"
+              aria-label="جاهزية العميل"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={readiness.score}
+            >
+              <span style={{ inlineSize: `${readiness.score}%` }} />
+            </div>
+            <ol className="setup-journey">
+              {readiness.steps.map((step, index) => (
+                <li key={step.key} className="setup-step" data-state={step.state}>
+                  <span className="setup-step__icon" aria-hidden="true">
+                    {step.state === 'complete' ? (
+                      <Check size={15} />
+                    ) : step.state === 'blocked' ? (
+                      <CircleAlert size={15} />
+                    ) : (
+                      <CircleDashed size={15} />
+                    )}
+                  </span>
+                  <span className="setup-step__copy">
+                    <strong>
+                      {index + 1}. {step.label}
+                    </strong>
+                    <small>{step.detail}</small>
+                  </span>
+                  <span className="setup-step__owner">{step.owner}</span>
+                  {step.nextAction ? (
+                    <Link href={step.href} className="setup-step__action">
+                      {step.nextAction}
+                      <ArrowLeft size={13} aria-hidden="true" />
+                    </Link>
+                  ) : (
+                    <span className="setup-step__done">مكتمل</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </Section>
+        </div>
+      ) : null}
 
       <div className="split">
         <Section title="حجم المكالمات" meta="آخر 14 يومًا" flush>
@@ -160,21 +245,24 @@ export default async function ClientDetailPage({ params }: Props) {
             <EmptyState title="لا رقم مربوط" body="اربط رقمًا لتبدأ المكالمات في الوصول." />
           ) : (
             <div className="queue">
-              {numbers.map((n) => (
-                <div key={n.id} className="queue__row">
-                  <div>
-                    <div className="queue__title mono">{n.e164}</div>
-                    <div className="queue__meta">
-                      <span>{n.label ?? '—'}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="mono">{n.transferDestination ?? 'بلا تحويل'}</span>
+              {numbers.map((n) => {
+                const state = PHONE_STATUS[n.sipStatus ?? 'pending'] ?? PHONE_STATUS.pending!
+                return (
+                  <Link key={n.id} href={`/console/phone/${n.id}`} className="queue__row">
+                    <div>
+                      <div className="queue__title mono">{n.e164}</div>
+                      <div className="queue__meta">
+                        <span>{n.label ?? '—'}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="mono">{n.transferDestination ?? 'بلا تحويل'}</span>
+                      </div>
                     </div>
-                  </div>
-                  <Pill tone={n.sipStatus === 'verified' ? 'good' : 'warn'} dot>
-                    {n.sipStatus === 'verified' ? 'موثّق' : 'بانتظار اختبار'}
-                  </Pill>
-                </div>
-              ))}
+                    <Pill tone={state.tone} dot>
+                      {state.label}
+                    </Pill>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </Section>

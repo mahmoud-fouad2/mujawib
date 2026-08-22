@@ -12,7 +12,7 @@ export function isRtl(locale: Locale) {
 }
 
 /** App surfaces that exist once and are never mirrored under /en. */
-const SHARED_PREFIXES = ['/sign-in', '/onboarding', '/console', '/portal', '/api']
+const SHARED_PREFIXES = ['/sign-in', '/invite', '/onboarding', '/console', '/portal', '/api']
 
 /**
  * Arabic lives at the root; English is prefixed with /en.

@@ -8,7 +8,17 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: '*',
         allow: '/',
         // Signed-in surfaces and auth endpoints carry no public content.
-        disallow: ['/console', '/portal', '/onboarding', '/sign-in', '/api/'],
+        disallow: [
+          '/console',
+          '/portal',
+          '/onboarding',
+          '/sign-in',
+          '/forgot-password',
+          '/reset-password',
+          '/access-pending',
+          '/invite',
+          '/api/',
+        ],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

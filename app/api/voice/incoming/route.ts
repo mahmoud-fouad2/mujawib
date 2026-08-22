@@ -1,11 +1,20 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { auditLog, call } from '@/server/db/schema'
-import { maskNumber, sanitizeSipHeaders, voiceError, voiceLog } from '@/server/voice/log'
+import {
+  maskIdentifier,
+  maskNumber,
+  sanitizeLogText,
+  sanitizeSipHeaders,
+  voiceError,
+  voiceLog,
+} from '@/server/voice/log'
 import { markPhoneAnswered, markPhoneReached } from '@/server/voice/phone'
 import { buildAcceptPayload, resolveAgentFromCandidates } from '@/server/voice/session'
-import { callerFrom, didCandidates, type SipHeader } from '@/server/voice/sip'
+import { startRealtimeSideband } from '@/server/voice/sideband'
+import { callerFrom, didCandidates, providerObserved, type SipHeader } from '@/server/voice/sip'
 
 /**
  * Inbound call webhook — Product Bible §27, call path steps 4 and 5.
@@ -69,7 +78,7 @@ type IncomingEvent = {
 
 /** Ends a call we will not answer. Never refers it back to the dialled DID. */
 async function rejectCall(callId: string, reason: string) {
-  voiceLog('CALL_REJECTED', { callId, reason })
+  voiceLog('CALL_REJECTED', { callId: maskIdentifier(callId), reason })
   await fetch(`${OPENAI_API}/realtime/calls/${callId}/reject`, {
     method: 'POST',
     headers: {
@@ -77,7 +86,7 @@ async function rejectCall(callId: string, reason: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ status_code: 486 }),
-  }).catch((error) => voiceError('ERROR', `reject failed: ${String(error)}`))
+  }).catch((error) => voiceError('ERROR', `reject failed: ${sanitizeLogText(String(error))}`))
 }
 
 export async function POST(req: NextRequest) {
@@ -108,12 +117,13 @@ export async function POST(req: NextRequest) {
     voiceError('ERROR', 'event carried no call_id')
     return NextResponse.json({ error: 'missing call_id' }, { status: 400 })
   }
-  voiceLog('CALL_ID', callId)
+  voiceLog('CALL_ID', maskIdentifier(callId))
 
   // Logged before anything can fail on them: the first real call exists to
   // show which header this provider uses for the originally dialled DID.
   const headers = event.data?.sip_headers
-  voiceLog('SIP_HEADERS', sanitizeSipHeaders(headers))
+  const safeHeaders = sanitizeSipHeaders(headers)
+  voiceLog('SIP_HEADERS', safeHeaders)
 
   const candidates = didCandidates(headers)
   const safeCandidates = candidates.map((candidate) => ({
@@ -127,7 +137,7 @@ export async function POST(req: NextRequest) {
   if (!resolved) {
     // No default client, no first-row fallback. An unknown DID stays unknown.
     voiceLog('PHONE_ROUTE_NOT_RESOLVED', {
-      callId,
+      callId: maskIdentifier(callId),
       triedCandidates: safeCandidates.map((candidate) => `${candidate.header}=${candidate.e164}`),
       hint: 'no configured phone_number matched any candidate',
     })
@@ -140,7 +150,7 @@ export async function POST(req: NextRequest) {
 
   voiceLog('PHONE_ROUTE_RESOLVED', {
     matchedHeader: resolved.matchedHeader,
-    matchedE164: resolved.matchedE164,
+    matchedE164: maskNumber(resolved.matchedE164),
   })
   voiceLog('CLIENT_RESOLVED', { workspaceId: resolved.workspaceId, name: resolved.workspaceName })
   voiceLog('AGENT_VERSION_RESOLVED', {
@@ -154,8 +164,35 @@ export async function POST(req: NextRequest) {
   const caller = callerFrom(headers)
   const payload = buildAcceptPayload(resolved)
 
+  // Standard Webhooks may retry delivery when the first response is delayed.
+  // A repeated event must resume observation of the same call, never accept a
+  // second session or create a duplicate customer record.
+  const [existingCall] = await db
+    .select()
+    .from(call)
+    .where(eq(call.externalCallId, callId))
+    .limit(1)
+  if (existingCall) {
+    if (existingCall.status === 'live' || existingCall.status === 'waiting_tool') {
+      startRealtimeSideband({
+        callRecordId: existingCall.id,
+        externalCallId: callId,
+        workspaceId: existingCall.workspaceId,
+        callerNumber: existingCall.callerNumber,
+        transferTo: resolved.transferTo,
+        startedAt: existingCall.startedAt,
+      })
+    }
+    voiceLog('CALL_RECORDED', {
+      id: existingCall.id,
+      caller: maskNumber(existingCall.callerNumber),
+      replay: true,
+    })
+    return NextResponse.json({ accepted: true, callId: existingCall.id, replay: true })
+  }
+
   voiceLog('ACCEPT_REQUEST_STARTED', {
-    callId,
+    callId: maskIdentifier(callId),
     model: payload.model,
     instructionChars: payload.instructions.length,
   })
@@ -168,7 +205,7 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify(payload),
   }).catch((error) => {
-    voiceError('ERROR', `accept threw: ${String(error)}`)
+    voiceError('ERROR', `accept threw: ${sanitizeLogText(String(error))}`)
     return null
   })
 
@@ -176,7 +213,7 @@ export async function POST(req: NextRequest) {
 
   if (!accept?.ok) {
     const detail = accept ? await accept.text() : 'request failed'
-    voiceError('ERROR', `accept rejected: ${detail.slice(0, 500)}`)
+    voiceError('ERROR', `accept rejected: ${sanitizeLogText(detail)}`)
     // The call did reach us on this number and did resolve to an agent, so the
     // carrier side is proven even though we failed to answer. Recording that
     // separates "the number never rang here" from "we could not pick up".
@@ -184,7 +221,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ accepted: false }, { status: 502 })
   }
 
-  voiceLog('CALL_ACCEPTED', { callId, agent: resolved.agentName })
+  voiceLog('CALL_ACCEPTED', { callId: maskIdentifier(callId), agent: resolved.agentName })
 
   // Recorded immediately so the call appears in the console while it runs.
   const now = new Date()
@@ -205,6 +242,7 @@ export async function POST(req: NextRequest) {
       transcript: [],
       metadata: {
         phoneNumber: resolved.matchedE164,
+        matchedE164: resolved.matchedE164,
         clientId: resolved.workspaceId,
         clientName: resolved.workspaceName,
         agentId: resolved.agentId,
@@ -213,16 +251,46 @@ export async function POST(req: NextRequest) {
         agentVersionNumber: resolved.versionNumber,
         openAiCallId: callId,
         routingMethod: 'explicit_phone_number',
+        providerObserved: sanitizeLogText(providerObserved(headers) ?? '') || null,
+        callerMasked: maskNumber(caller),
         sip: {
           matchedHeader: resolved.matchedHeader,
-          headers: sanitizeSipHeaders(headers),
+          headers: safeHeaders,
         },
       },
       startedAt: now,
       createdAt: now,
     })
+  } catch (error) {
+    // The call is already answered; failing to record it must not end it.
+    voiceError('ERROR', `could not record call: ${sanitizeLogText(String(error))}`)
+    return NextResponse.json({ accepted: true, recorded: false })
+  }
 
-    await db.insert(auditLog).values({
+  voiceLog('CALL_RECORDED', { id, caller: maskNumber(caller) })
+
+  // OpenAI keeps SIP audio on its media path. This server-side socket joins
+  // the accepted session only for private events, transcript and tool calls.
+  startRealtimeSideband({
+    callRecordId: id,
+    externalCallId: callId,
+    workspaceId: resolved.workspaceId,
+    callerNumber: caller,
+    transferTo: resolved.transferTo,
+    startedAt: now,
+  })
+
+  const evidence = {
+    matchedHeader: resolved.matchedHeader,
+    matchedE164: resolved.matchedE164,
+    externalCallId: callId,
+    callId: id,
+    agentVersionId: resolved.versionId,
+    observedAt: now.toISOString(),
+  }
+
+  const [auditResult, phoneResult] = await Promise.allSettled([
+    db.insert(auditLog).values({
       id: `audit_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
       workspaceId: resolved.workspaceId,
       actorId: 'voice',
@@ -233,23 +301,16 @@ export async function POST(req: NextRequest) {
         note: `مكالمة واردة على ${resolved.matchedE164} — ${resolved.agentName} v${resolved.versionNumber}`,
       },
       createdAt: now,
-    })
+    }),
+    // The number is proven by this real call, never by a configuration toggle.
+    markPhoneAnswered(resolved.phoneNumberId, evidence),
+  ])
 
-    voiceLog('CALL_RECORDED', { id, caller: maskNumber(caller) })
-
-    // The number is now proven end to end, by this call rather than by
-    // configuration. Nothing else in the system is allowed to set this.
-    await markPhoneAnswered(resolved.phoneNumberId, {
-      matchedHeader: resolved.matchedHeader,
-      matchedE164: resolved.matchedE164,
-      externalCallId: callId,
-      callId: id,
-      agentVersionId: resolved.versionId,
-      observedAt: now.toISOString(),
-    })
-  } catch (error) {
-    // The call is already answered; failing to record it must not end it.
-    voiceError('ERROR', `could not record call: ${String(error)}`)
+  if (auditResult.status === 'rejected') {
+    voiceError('ERROR', 'call was recorded but its audit entry was not')
+  }
+  if (phoneResult.status === 'rejected') {
+    voiceError('ERROR', 'call was recorded but phone evidence was not updated')
   }
 
   return NextResponse.json({ accepted: true, callId: id })
@@ -259,7 +320,7 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     endpoint: 'voice/incoming',
-    revision: 'first-twilio-call-v1',
+    revision: 'realtime-sideband-v1',
     apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
     webhookSecretConfigured: Boolean(process.env.OPENAI_WEBHOOK_SECRET),
   })

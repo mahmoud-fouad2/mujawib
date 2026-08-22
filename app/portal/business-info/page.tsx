@@ -7,6 +7,7 @@ import {
   ServiceRowActions,
 } from '@/components/portal/portal-actions'
 import { EmptyState } from '@/components/ui/primitives'
+import { canClient } from '@/lib/access'
 import { num } from '@/lib/format'
 import { getPortalBusinessInfo, getPortalWorkspace } from '@/server/data/portal'
 
@@ -35,6 +36,7 @@ export default async function PortalBusinessInfoPage() {
 
   const services = items.filter((i) => i.category === 'service')
   const others = items.filter((i) => i.category !== 'service')
+  const canManage = canClient(workspace.accessRole, 'business.manage')
 
   const byCategory = new Map<string, typeof others>()
   for (const item of others) {
@@ -53,11 +55,13 @@ export default async function PortalBusinessInfoPage() {
           title="ساعات العمل"
           meta="يعمل بها المُجاوِب فورًا"
           action={
-            <EditHoursButton
-              workspaceId={workspace.id}
-              hoursWeekday={info.hours?.sun_thu ?? '09:00–21:00'}
-              hoursWeekend={info.hours?.sat ?? ''}
-            />
+            canManage ? (
+              <EditHoursButton
+                workspaceId={workspace.id}
+                hoursWeekday={info.hours?.sun_thu ?? '09:00–21:00'}
+                hoursWeekend={info.hours?.sat ?? ''}
+              />
+            ) : undefined
           }
           flush
         >
@@ -110,7 +114,7 @@ export default async function PortalBusinessInfoPage() {
       <Section
         title="الخدمات وأسعارها"
         meta={`${num(services.length)} خدمة`}
-        action={<AddServiceButton workspaceId={workspace.id} />}
+        action={canManage ? <AddServiceButton workspaceId={workspace.id} /> : undefined}
         flush
       >
         {services.length === 0 ? (
@@ -138,7 +142,7 @@ export default async function PortalBusinessInfoPage() {
                       <td className="muted">{content.price ?? '—'}</td>
                       <td className="muted">{content.duration ?? '—'}</td>
                       <td>
-                        <ServiceRowActions id={item.id} title={item.title} />
+                        {canManage ? <ServiceRowActions id={item.id} title={item.title} /> : null}
                       </td>
                     </tr>
                   )

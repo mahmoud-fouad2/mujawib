@@ -17,12 +17,27 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "db:access-schema": "tsx --env-file=.env.local scripts/apply-access-schema.ts",
+    "db:notification-schema": "tsx --env-file=.env.local scripts/apply-notification-schema.ts",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit",
     "user:create": "tsx --env-file=.env.local scripts/create-user.ts",
+    "access:bootstrap": "tsx --env-file=.env.local scripts/bootstrap-access.ts",
+    "access:verify-policy": "tsx scripts/verify-access-policy.ts",
+    "access:verify-db": "tsx --env-file=.env.local scripts/verify-access-database.ts",
+    "access:verify-invitations": "node --conditions=react-server --import tsx scripts/verify-invitation-contract.ts",
+    "auth:verify-contract": "tsx scripts/verify-auth-contract.ts",
     "voice:link-number": "tsx --env-file=.env.local scripts/link-test-number.ts",
-    "voice:verify-sip": "tsx scripts/verify-sip-parsing.ts"
+    "voice:verify-sip": "tsx scripts/verify-sip-parsing.ts",
+    "voice:verify-privacy": "node --conditions=react-server --import tsx scripts/verify-voice-privacy.ts",
+    "voice:verify-realtime": "tsx scripts/verify-realtime-events.ts",
+    "voice:verify-session": "node --conditions=react-server --import tsx --env-file=.env.local scripts/verify-realtime-session.ts",
+    "calls:verify-presentation": "tsx scripts/verify-call-presentation.ts",
+    "calls:verify-intelligence": "tsx scripts/verify-call-intelligence.ts",
+    "integrations:verify-contract": "tsx scripts/verify-integration-contract.ts",
+    "notifications:verify": "node --conditions=react-server --import tsx --env-file=.env.local scripts/verify-notification-contract.ts",
+    "test-lab:verify": "tsx scripts/verify-test-lab-contract.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -38,6 +53,7 @@
     "react-dom": "19.2.8",
     "react-icons": "^5.7.0",
     "server-only": "^0.0.1",
+    "ws": "^8.21.3",
     "zod": "^4.0.17"
   },
   "devDependencies": {
@@ -45,6 +61,7 @@
     "@types/node": "^22.17.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.23.12",
     "typescript": "^5.9.2"

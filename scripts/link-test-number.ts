@@ -58,11 +58,9 @@ async function main() {
   }
   console.log(`· agent    ${agent.name}  (${agent.id})`)
 
-  // ── published, tool-less version ───────────────────────────────────────
-  // Tools cannot execute until the sideband is deployed, so this first version
-  // must use the explicitly selected live version and it must already be
-  // conversation-only. A published version is immutable here: this script
-  // never clears tools or silently substitutes another published row.
+  // ── explicitly selected published version ─────────────────────────────
+  // A published version is immutable here: this script never changes bindings
+  // or silently substitutes another published row.
   const versions = await db
     .select()
     .from(schema.agentVersion)
@@ -75,16 +73,9 @@ async function main() {
   }
 
   const bindings = ((published.toolBindings ?? []) as unknown[]).filter(Boolean)
-  if (bindings.length > 0) {
-    console.error(
-      '✗ the live AgentVersion has tool bindings; publish a conversation-only version first.',
-    )
-    process.exit(1)
-  }
-
   const versionId = published.id
   const versionNumber = published.versionNumber
-  console.log(`· version  v${versionNumber} (published, conversation-only, unchanged)`)
+  console.log(`· version  v${versionNumber} (published, ${bindings.length} bindings, unchanged)`)
 
   // ── phone route ────────────────────────────────────────────────────────
   const routes = await db
@@ -110,7 +101,6 @@ async function main() {
         agentId: agent.id,
         label: 'DID اختبار المكالمة الأولى',
         mode: 'all_calls',
-        sipStatus: 'pending',
         updatedAt: now,
       })
       .where(eq(schema.phoneNumber.id, existing.id))

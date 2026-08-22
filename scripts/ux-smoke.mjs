@@ -15,12 +15,18 @@ function loadPlaywright() {
 
 const { chromium } = loadPlaywright()
 
-const baseUrl = process.env.MUJAWIB_BASE_URL ?? 'http://127.0.0.1:3009'
+const baseUrl = process.env.MUJAWIB_BASE_URL ?? 'http://localhost:3009'
 const chromePath =
   process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 
 const routes = [
   '/',
+  '/sign-in',
+  '/forgot-password',
+  '/reset-password?error=INVALID_TOKEN',
+  '/auth/continue',
+  '/access-pending',
+  '/onboarding',
   '/console',
   '/console/live',
   '/console/clients',
@@ -28,16 +34,17 @@ const routes = [
   '/console/calls',
   '/console/qa',
   '/console/templates',
+  '/console/test-lab',
   '/console/voice-lab',
   '/console/integrations',
   '/console/phone',
-  '/console/site-content',
+  '/console/access',
   '/console/system',
   '/about',
   '/pricing',
   '/faq',
-  '/industries/clinics',
-  '/product/calls',
+  '/access-denied',
+  '/invite',
   '/portal',
   '/portal/calls',
   '/portal/bookings',
@@ -65,6 +72,17 @@ const forbiddenPortalTerms = [
 
 function routeUrl(route) {
   return new URL(route, baseUrl).toString()
+}
+
+function reachedAuthGate(page, route) {
+  return (
+    (route.startsWith('/console') ||
+      route.startsWith('/portal') ||
+      route.startsWith('/auth/continue') ||
+      route.startsWith('/access-pending') ||
+      route.startsWith('/onboarding')) &&
+    new URL(page.url()).pathname === '/sign-in'
+  )
 }
 
 async function gotoReady(page, route) {
@@ -145,8 +163,8 @@ async function runInteractionChecks(browser, failures) {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
     await gotoReady(page, '/')
-    await resilientClick(page.getByLabel('التبديل إلى الوضع الداكن'), 'theme toggle')
-    await page.waitForFunction(() => document.documentElement.dataset.colorMode === 'dark', {
+    await resilientClick(page.getByLabel('تبديل الوضع'), 'theme toggle')
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', {
       timeout: 10_000,
     })
     await assertNoHorizontalOverflow(page, '/', 'mobile dark-toggle')
@@ -161,12 +179,16 @@ async function runInteractionChecks(browser, failures) {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
     await gotoReady(page, '/console')
-    await resilientClick(page.locator('.mjw-command-trigger'), 'command trigger')
-    await assertVisible(page, '.mjw-command-dialog', 'command surface')
-    await page.keyboard.type('جودة')
-    await assertVisible(page, '.mjw-command-item', 'command result')
-    await page.keyboard.press('Escape')
-    console.log('ok interaction command-surface')
+    if (reachedAuthGate(page, '/console')) {
+      console.log('skip interaction command-surface (authenticated session required)')
+    } else {
+      await resilientClick(page.locator('.topbar__search'), 'command trigger')
+      await assertVisible(page, '.palette', 'command surface')
+      await page.keyboard.type('جودة')
+      await assertVisible(page, '.palette__item', 'command result')
+      await page.keyboard.press('Escape')
+      console.log('ok interaction command-surface')
+    }
     await page.close()
   } catch (error) {
     failures.push(
@@ -177,10 +199,14 @@ async function runInteractionChecks(browser, failures) {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
     await gotoReady(page, '/console/calls')
-    await resilientClick(page.locator('.mjw-inbox-row'), 'call inbox row')
-    await assertVisible(page, '.mjw-inspector', 'call inspector')
-    await assertNoHorizontalOverflow(page, '/console/calls', 'mobile inspector')
-    console.log('ok interaction call-inspector')
+    if (reachedAuthGate(page, '/console/calls')) {
+      console.log('skip interaction call-inspector (authenticated session required)')
+    } else {
+      await resilientClick(page.locator('.list-item'), 'call inbox row')
+      await assertVisible(page, '.workbench__inspector', 'call inspector')
+      await assertNoHorizontalOverflow(page, '/console/calls', 'mobile inspector')
+      console.log('ok interaction call-inspector')
+    }
     await page.close()
   } catch (error) {
     failures.push(
@@ -197,11 +223,10 @@ async function main() {
   const failures = []
 
   for (const viewport of viewports) {
-    const page = await browser.newPage({
-      viewport: { width: viewport.width, height: viewport.height },
-    })
-
     for (const route of routes) {
+      const page = await browser.newPage({
+        viewport: { width: viewport.width, height: viewport.height },
+      })
       try {
         const response = await gotoReady(page, route)
         if (!response?.ok()) {
@@ -209,15 +234,19 @@ async function main() {
         }
         await assertNoHorizontalOverflow(page, route, viewport.name)
         await assertPortalIsClientSafe(page, route)
-        console.log(`ok ${viewport.name} ${route}`)
+        console.log(
+          reachedAuthGate(page, route)
+            ? `ok ${viewport.name} auth-gate ${route}`
+            : `ok ${viewport.name} ${route}`,
+        )
       } catch (error) {
         failures.push(
           `${viewport.name} ${route}: ${error instanceof Error ? error.message : String(error)}`,
         )
+      } finally {
+        await page.close()
       }
     }
-
-    await page.close()
   }
 
   await runInteractionChecks(browser, failures)

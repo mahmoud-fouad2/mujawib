@@ -4,6 +4,7 @@ import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
+import { PasswordField } from '@/components/auth/password-field'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 
@@ -44,7 +45,13 @@ function messageFor(code: string | undefined, fallback: string) {
   }
 }
 
-export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
+export function SignInForm({
+  googleEnabled,
+  returnTo = '/console',
+}: {
+  googleEnabled: boolean
+  returnTo?: string
+}) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -56,10 +63,11 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
     setError(null)
     setPending('email')
 
+    const continuation = `/auth/continue?next=${encodeURIComponent(returnTo)}`
     const { error: authError } = await authClient.signIn.email({
       email: email.trim(),
       password,
-      callbackURL: '/console',
+      callbackURL: continuation,
     })
 
     if (authError) {
@@ -68,16 +76,17 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
       return
     }
 
-    router.push('/console')
+    router.push(continuation)
     router.refresh()
   }
 
   async function onGoogle() {
     setError(null)
     setPending('google')
+    const continuation = `/auth/continue?next=${encodeURIComponent(returnTo)}`
     const { error: authError } = await authClient.signIn.social({
       provider: 'google',
-      callbackURL: '/onboarding',
+      callbackURL: continuation,
     })
     if (authError) {
       setError('تعذر الاتصال بـ Google. حاول مرة أخرى.')
@@ -131,10 +140,8 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
 
         <div className="field">
           <label htmlFor="password">كلمة المرور</label>
-          <input
+          <PasswordField
             id="password"
-            className="input"
-            type="password"
             autoComplete="current-password"
             required
             minLength={10}
@@ -142,6 +149,9 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••••"
           />
+          <Link className="field__aside-link" href="/forgot-password">
+            نسيت كلمة المرور؟
+          </Link>
         </div>
 
         <Button

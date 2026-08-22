@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  FlaskConical,
   FolderTree,
   Home,
   LayoutGrid,
@@ -16,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   Sun,
+  UserRoundCog,
   Users,
   X,
 } from 'lucide-react'
@@ -24,9 +26,12 @@ import { usePathname } from 'next/navigation'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { type CommandIndex, CommandPalette } from '@/components/console/command-palette'
+import { NotificationCenter } from '@/components/notifications/notification-center'
 import { useTheme } from '@/components/ui/theme'
+import { canOperator } from '@/lib/access'
 import { CONSOLE_NAV, isNavActive, type NavIconKey } from '@/lib/console-nav'
 import { num } from '@/lib/format'
+import type { NotificationFeed } from '@/lib/notifications'
 
 const ICONS: Record<NavIconKey, typeof Home> = {
   home: Home,
@@ -37,8 +42,10 @@ const ICONS: Record<NavIconKey, typeof Home> = {
   agents: LayoutGrid,
   templates: FolderTree,
   voice: Settings,
+  test: FlaskConical,
   integrations: Plug,
   phone: Phone,
+  access: UserRoundCog,
   system: Settings,
 }
 
@@ -48,10 +55,14 @@ export function ConsoleShell({
   children,
   counts,
   index,
+  role,
+  notifications,
 }: {
   children: ReactNode
   counts: NavCounts
   index: CommandIndex
+  role: string
+  notifications: NotificationFeed
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
@@ -69,7 +80,9 @@ export function ConsoleShell({
   }, [])
 
   // Close the mobile drawer whenever the route changes.
-  useEffect(() => setMobileOpen(false), [])
+  useEffect(() => {
+    if (pathname) setMobileOpen(false)
+  }, [pathname])
 
   const openPalette = useCallback(() => setPaletteOpen(true), [])
 
@@ -105,26 +118,32 @@ export function ConsoleShell({
           {CONSOLE_NAV.map((group) => (
             <div key={group.title}>
               <div className="sidebar__group">{group.title}</div>
-              {group.items.map((item) => {
-                const Icon = ICONS[item.icon]
-                const active = isNavActive(pathname, item.href)
-                const count = item.badge ? counts[item.badge] : 0
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    className="nav-item"
-                    title={collapsed ? item.label : undefined}
-                    {...(active ? { 'aria-current': 'page' as const } : {})}
-                  >
-                    <Icon size={16} aria-hidden="true" />
-                    <span>{item.label}</span>
-                    {item.badge && count > 0 ? (
-                      <span className="nav-item__count">{num(count)}</span>
-                    ) : null}
-                  </Link>
+              {group.items
+                .filter(
+                  (item) =>
+                    (!item.ownerOnly || role === 'owner') &&
+                    (!item.requiredPermission || canOperator(role, item.requiredPermission)),
                 )
-              })}
+                .map((item) => {
+                  const Icon = ICONS[item.icon]
+                  const active = isNavActive(pathname, item.href)
+                  const count = item.badge ? counts[item.badge] : 0
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className="nav-item"
+                      title={collapsed ? item.label : undefined}
+                      {...(active ? { 'aria-current': 'page' as const } : {})}
+                    >
+                      <Icon size={16} aria-hidden="true" />
+                      <span>{item.label}</span>
+                      {item.badge && count > 0 ? (
+                        <span className="nav-item__count">{num(count)}</span>
+                      ) : null}
+                    </Link>
+                  )
+                })}
             </div>
           ))}
         </nav>
@@ -155,6 +174,7 @@ export function ConsoleShell({
           </button>
 
           <div className="topbar__right">
+            <NotificationCenter feed={notifications} />
             <button type="button" className="icon-btn" onClick={toggle} aria-label="تبديل الوضع">
               {mode === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>
@@ -173,7 +193,12 @@ export function ConsoleShell({
         />
       ) : null}
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} index={index} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        index={index}
+        role={role}
+      />
     </div>
   )
 }

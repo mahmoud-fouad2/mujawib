@@ -30,6 +30,20 @@ const CALLER_IDENTITY_HEADERS = new Set([
   'remote-party-id',
 ])
 
+/** Known transport/session headers cannot describe the business DID. */
+const NON_DESTINATION_HEADERS = new Set([
+  'allow',
+  'call-id',
+  'content-length',
+  'content-type',
+  'cseq',
+  'max-forwards',
+  'record-route',
+  'route',
+  'user-agent',
+  'via',
+])
+
 /**
  * Extracts every phone-number-shaped token from a header value.
  *
@@ -83,7 +97,8 @@ export function didCandidates(headers: SipHeader[] | undefined): DidCandidate[] 
   const candidates: DidCandidate[] = []
 
   for (const header of headers) {
-    if (CALLER_IDENTITY_HEADERS.has(header.name.trim().toLowerCase())) continue
+    const name = header.name.trim().toLowerCase()
+    if (CALLER_IDENTITY_HEADERS.has(name) || NON_DESTINATION_HEADERS.has(name)) continue
 
     for (const token of numbersIn(header.value)) {
       const e164 = toE164(token)
@@ -117,4 +132,16 @@ export function callerFrom(headers: SipHeader[] | undefined): string | null {
   if (!from) return null
   const [first] = numbersIn(from.value)
   return first ? toE164(first) : null
+}
+
+/** Provider evidence, when the ingress supplied a generic User-Agent header. */
+export function providerObserved(headers: SipHeader[] | undefined): string | null {
+  const userAgent = headers?.find((header) => header.name.toLowerCase() === 'user-agent')
+  if (!userAgent) return null
+  return (
+    userAgent.value
+      .replace(/[\r\n\t]+/g, ' ')
+      .trim()
+      .slice(0, 80) || null
+  )
 }

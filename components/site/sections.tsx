@@ -49,8 +49,28 @@ export function TrustRow({
   names: string[]
 }) {
   if (names.length === 0) return null
+  const uniqueNames = [...new Set(names)]
+
+  if (uniqueNames.length < 3) {
+    return (
+      <section className="trust">
+        <div className="container trust__inner">
+          <div className="trust__head">
+            <span className="trust__label">{label}</span>
+            <p>{caption}</p>
+          </div>
+          <div className="trust__names">
+            {uniqueNames.map((name) => (
+              <span key={name}>{name}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   // Repeat until the track is long enough for the loop to look continuous.
-  const band = [...names, ...names, ...names]
+  const band = [...uniqueNames, ...uniqueNames, ...uniqueNames]
 
   return (
     <section className="trust">

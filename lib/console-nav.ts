@@ -1,3 +1,5 @@
+import type { OperatorPermission } from '@/lib/access'
+
 /**
  * Console navigation — Bible §5A.
  *
@@ -15,8 +17,10 @@ export type NavIconKey =
   | 'agents'
   | 'templates'
   | 'voice'
+  | 'test'
   | 'integrations'
   | 'phone'
+  | 'access'
   | 'system'
 
 export type NavItem = {
@@ -26,6 +30,8 @@ export type NavItem = {
   icon: NavIconKey
   /** Which live count, if any, belongs on this row. */
   badge?: 'live' | 'review'
+  ownerOnly?: boolean
+  requiredPermission?: OperatorPermission
   keywords: string[]
 }
 
@@ -63,6 +69,7 @@ export const CONSOLE_NAV: NavGroup[] = [
         href: '/console/qa',
         icon: 'qa',
         badge: 'review',
+        requiredPermission: 'qa.review',
         keywords: ['qa', 'review', 'جودة', 'مراجعة'],
       },
     ],
@@ -75,6 +82,7 @@ export const CONSOLE_NAV: NavGroup[] = [
         label: 'العملاء',
         href: '/console/clients',
         icon: 'clients',
+        requiredPermission: 'client.manage',
         keywords: ['clients', 'عملاء'],
       },
       {
@@ -82,6 +90,7 @@ export const CONSOLE_NAV: NavGroup[] = [
         label: 'الموظفون الصوتيون',
         href: '/console/agents',
         icon: 'agents',
+        requiredPermission: 'agent.publish',
         keywords: ['agents', 'موظفين'],
       },
       {
@@ -89,13 +98,23 @@ export const CONSOLE_NAV: NavGroup[] = [
         label: 'القوالب',
         href: '/console/templates',
         icon: 'templates',
+        requiredPermission: 'client.manage',
         keywords: ['templates', 'packs', 'قوالب'],
+      },
+      {
+        id: 'test-lab',
+        label: 'مختبر الاختبار',
+        href: '/console/test-lab',
+        icon: 'test',
+        requiredPermission: 'test.manage',
+        keywords: ['test', 'regression', 'سيناريو', 'اختبار'],
       },
       {
         id: 'voice-lab',
         label: 'مختبر الصوت',
         href: '/console/voice-lab',
         icon: 'voice',
+        requiredPermission: 'voice.manage',
         keywords: ['voice', 'pronunciation', 'صوت', 'نطق'],
       },
     ],
@@ -108,6 +127,7 @@ export const CONSOLE_NAV: NavGroup[] = [
         label: 'الربط',
         href: '/console/integrations',
         icon: 'integrations',
+        requiredPermission: 'integration.manage',
         keywords: ['integrations', 'ربط', 'تكامل'],
       },
       {
@@ -115,13 +135,24 @@ export const CONSOLE_NAV: NavGroup[] = [
         label: 'الهاتف',
         href: '/console/phone',
         icon: 'phone',
+        requiredPermission: 'phone.manage',
         keywords: ['phone', 'sip', 'هاتف'],
+      },
+      {
+        id: 'access',
+        label: 'الوصول',
+        href: '/console/access',
+        icon: 'access',
+        ownerOnly: true,
+        requiredPermission: 'access.manage',
+        keywords: ['access', 'roles', 'صلاحيات', 'وصول'],
       },
       {
         id: 'system',
         label: 'النظام',
         href: '/console/system',
         icon: 'system',
+        requiredPermission: 'system.view',
         keywords: ['system', 'audit', 'نظام'],
       },
     ],

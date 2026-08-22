@@ -155,7 +155,15 @@ export function buildAcceptPayload(resolved: ResolvedAgent) {
   // with no bindings is conversation-only, and an empty list plus
   // `tool_choice: auto` is a contradiction to hand a strict validator.
   const toolFields =
-    resolved.tools.length > 0 ? { tools: resolved.tools, tool_choice: 'auto' as const } : {}
+    resolved.tools.length > 0
+      ? {
+          tools: resolved.tools,
+          tool_choice: 'auto' as const,
+          // Business mutations are intentionally serialized. A transfer and a
+          // booking must never race to write two incompatible call outcomes.
+          parallel_tool_calls: false,
+        }
+      : {}
 
   return {
     type: 'realtime',
@@ -164,6 +172,13 @@ export function buildAcceptPayload(resolved: ResolvedAgent) {
     audio: {
       input: {
         format: { type: 'audio/pcmu' },
+        // Input transcription is asynchronous and is used for the operator
+        // record; the speech-to-speech model still listens to the audio itself.
+        transcription: {
+          model: 'gpt-4o-transcribe',
+          language: 'ar',
+          prompt: 'مكالمة خدمة عملاء عربية. قد تتضمن أسماء أشخاص وشركات ومصطلحات إنجليزية.',
+        },
         turn_detection: {
           type: 'server_vad',
           threshold: 0.55,

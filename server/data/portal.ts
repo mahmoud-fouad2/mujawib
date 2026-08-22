@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { getPortalAccess, getPortalWorkspacesForCurrentUser } from '@/server/auth/access'
+import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
 import { db } from '@/server/db'
 import {
   booking,
@@ -11,6 +13,7 @@ import {
   knowledgeItem,
   lead,
   qaResult,
+  toolExecution,
   workspace,
 } from '@/server/db/schema'
 
@@ -26,32 +29,14 @@ function daysBack(n: number) {
   return d
 }
 
-/** The portal is scoped to one workspace; today that is the busiest live client. */
+/** The portal resolves only a workspace explicitly granted to the current identity. */
 export async function getPortalWorkspace(slug?: string) {
-  if (slug) {
-    const [row] = await db.select().from(workspace).where(eq(workspace.slug, slug)).limit(1)
-    if (row) return row
-  }
-  const [row] = await db
-    .select()
-    .from(workspace)
-    .where(and(eq(workspace.type, 'client'), eq(workspace.status, 'live')))
-    .orderBy(workspace.createdAt)
-    .limit(1)
-  return row ?? null
+  const access = await getPortalAccess(slug)
+  return access ? { ...access.workspace, accessRole: access.role } : null
 }
 
 export async function getPortalWorkspaces() {
-  return db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      slug: workspace.slug,
-      status: workspace.status,
-    })
-    .from(workspace)
-    .where(eq(workspace.type, 'client'))
-    .orderBy(workspace.name)
+  return getPortalWorkspacesForCurrentUser()
 }
 
 export type PortalSummary = {
@@ -94,7 +79,7 @@ export async function getPortalSummary(workspaceId: string): Promise<PortalSumma
         ),
     })
     .from(call)
-    .where(eq(call.workspaceId, workspaceId))
+    .where(and(eq(call.workspaceId, workspaceId), eq(call.origin, 'live')))
 
   const [bookings] = await db
     .select({
@@ -107,12 +92,16 @@ export async function getPortalSummary(workspaceId: string): Promise<PortalSumma
         ),
     })
     .from(booking)
-    .where(eq(booking.workspaceId, workspaceId))
+    .innerJoin(call, eq(booking.callId, call.id))
+    .where(and(eq(booking.workspaceId, workspaceId), eq(call.origin, 'live')))
 
   const [leads] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(lead)
-    .where(and(eq(lead.workspaceId, workspaceId), gte(lead.createdAt, since)))
+    .innerJoin(call, eq(lead.callId, call.id))
+    .where(
+      and(eq(lead.workspaceId, workspaceId), eq(call.origin, 'live'), gte(lead.createdAt, since)),
+    )
 
   const closed = calls?.closed ?? 0
 
@@ -133,7 +122,13 @@ export async function getTopReasons(workspaceId: string) {
   const rows = await db
     .select({ intent: call.intent, n: sql<number>`count(*)`.mapWith(Number) })
     .from(call)
-    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(30))))
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        gte(call.startedAt, daysBack(30)),
+      ),
+    )
     .groupBy(call.intent)
     .orderBy(desc(sql`count(*)`))
     .limit(6)
@@ -215,16 +210,96 @@ export async function getPortalCalls(workspaceId: string, limit = 40) {
       metadata: call.metadata,
     })
     .from(call)
-    .where(eq(call.workspaceId, workspaceId))
+    .where(and(eq(call.workspaceId, workspaceId), eq(call.origin, 'live')))
     .orderBy(desc(call.startedAt))
     .limit(limit)
 }
 
+/** Client-safe detail: business result and conversation, never provider internals. */
+export async function getPortalCallDetail(workspaceId: string, callId: string) {
+  const [row] = await db
+    .select({
+      id: call.id,
+      callerNumber: call.callerNumber,
+      intent: call.intent,
+      outcome: call.outcome,
+      status: call.status,
+      durationSeconds: call.durationSeconds,
+      transcript: call.transcript,
+      metadata: call.metadata,
+      startedAt: call.startedAt,
+      endedAt: call.endedAt,
+    })
+    .from(call)
+    .where(and(eq(call.id, callId), eq(call.workspaceId, workspaceId), eq(call.origin, 'live')))
+    .limit(1)
+
+  if (!row) return null
+
+  const [relatedBooking, relatedLead, tools] = await Promise.all([
+    db.select().from(booking).where(eq(booking.callId, callId)).limit(1),
+    db.select().from(lead).where(eq(lead.callId, callId)).limit(1),
+    db
+      .select({ toolName: toolExecution.toolName, success: toolExecution.success })
+      .from(toolExecution)
+      .where(eq(toolExecution.callId, callId)),
+  ])
+  const transcript = normalizeTranscript(row.transcript)
+  const bookingRecord = relatedBooking[0] ?? null
+  const leadRecord = relatedLead[0] ?? null
+  const metadata = row.metadata ?? {}
+
+  return {
+    id: row.id,
+    callerNumber: row.callerNumber,
+    intent: row.intent,
+    outcome: row.outcome,
+    status: row.status,
+    durationSeconds: row.durationSeconds,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    branch: typeof metadata.branch === 'string' ? metadata.branch : null,
+    transcript,
+    summary: buildCallSummary({
+      status: row.status,
+      outcome: row.outcome,
+      intent: row.intent,
+      endedAt: row.endedAt,
+      metadata,
+      transcript,
+      booking: bookingRecord,
+      lead: leadRecord,
+      tools,
+    }),
+    booking: bookingRecord
+      ? {
+          service: bookingRecord.service,
+          scheduledAt: bookingRecord.scheduledAt,
+          status: bookingRecord.status,
+        }
+      : null,
+    lead: leadRecord ? { interest: leadRecord.interest, status: leadRecord.status } : null,
+  }
+}
+
 export async function getPortalBookings(workspaceId: string, limit = 40) {
   return db
-    .select()
+    .select({
+      id: booking.id,
+      workspaceId: booking.workspaceId,
+      callId: booking.callId,
+      externalId: booking.externalId,
+      customerName: booking.customerName,
+      customerPhone: booking.customerPhone,
+      service: booking.service,
+      scheduledAt: booking.scheduledAt,
+      status: booking.status,
+      metadata: booking.metadata,
+      createdAt: booking.createdAt,
+    })
     .from(booking)
-    .where(eq(booking.workspaceId, workspaceId))
+    .innerJoin(call, eq(booking.callId, call.id))
+    .where(and(eq(booking.workspaceId, workspaceId), eq(call.origin, 'live')))
     .orderBy(desc(booking.scheduledAt))
     .limit(limit)
 }
@@ -239,15 +314,32 @@ export async function getPortalCustomers(workspaceId: string, limit = 40) {
       lastCallAt: customer.lastCallAt,
       calls: sql<number>`(
         select count(*) from ${call}
-        where ${call.workspaceId} = ${workspaceId} and ${call.callerNumber} = ${customer.phone}
+        where ${call.workspaceId} = ${workspaceId}
+          and ${call.callerNumber} = ${customer.phone}
+          and ${call.origin} = 'live'
       )`.mapWith(Number),
       bookings: sql<number>`(
         select count(*) from ${booking}
-        where ${booking.workspaceId} = ${workspaceId} and ${booking.customerPhone} = ${customer.phone}
+        where ${booking.workspaceId} = ${workspaceId}
+          and ${booking.customerPhone} = ${customer.phone}
+          and exists (
+            select 1 from ${call}
+            where ${call.id} = ${booking.callId} and ${call.origin} = 'live'
+          )
       )`.mapWith(Number),
     })
     .from(customer)
-    .where(eq(customer.workspaceId, workspaceId))
+    .where(
+      and(
+        eq(customer.workspaceId, workspaceId),
+        sql`exists (
+          select 1 from ${call}
+          where ${call.workspaceId} = ${workspaceId}
+            and ${call.callerNumber} = ${customer.phone}
+            and ${call.origin} = 'live'
+        )`,
+      ),
+    )
     .orderBy(desc(customer.lastCallAt))
     .limit(limit)
 }
@@ -262,7 +354,13 @@ export async function getPortalTrend(workspaceId: string, days = 30) {
       transfers: sql<number>`count(*) filter (where ${call.outcome} = 'transfer')`.mapWith(Number),
     })
     .from(call)
-    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(days))))
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        gte(call.startedAt, daysBack(days)),
+      ),
+    )
     .groupBy(sql`date_trunc('day', ${call.startedAt})`)
     .orderBy(sql`date_trunc('day', ${call.startedAt})`)
 }
@@ -275,7 +373,13 @@ export async function getPortalHourly(workspaceId: string) {
       n: sql<number>`count(*)`.mapWith(Number),
     })
     .from(call)
-    .where(and(eq(call.workspaceId, workspaceId), gte(call.startedAt, daysBack(30))))
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        gte(call.startedAt, daysBack(30)),
+      ),
+    )
     .groupBy(sql`extract(hour from ${call.startedAt})`)
     .orderBy(sql`extract(hour from ${call.startedAt})`)
 }
@@ -322,7 +426,13 @@ export async function getPortalAgentHealth(workspaceId: string) {
     })
     .from(qaResult)
     .innerJoin(call, eq(qaResult.callId, call.id))
-    .where(and(eq(call.workspaceId, workspaceId), gte(qaResult.createdAt, daysBack(30))))
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        gte(qaResult.createdAt, daysBack(30)),
+      ),
+    )
 
   const open = row?.open ?? 0
   return {

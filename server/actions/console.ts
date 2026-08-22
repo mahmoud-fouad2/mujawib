@@ -4,6 +4,14 @@ import { randomUUID } from 'node:crypto'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { OperatorPermission } from '@/lib/access'
+import {
+  capabilitiesForProvider,
+  credentialReference,
+  type IntegrationAction,
+  inspectOutboundUrl,
+} from '@/lib/integrations'
+import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
 import { db } from '@/server/db'
 import {
@@ -15,10 +23,13 @@ import {
   phoneNumber,
   pronunciation,
   qaResult,
-  scenarioRun,
-  scenarioTest,
   workspace,
 } from '@/server/db/schema'
+import { invokeIntegration } from '@/server/integrations/runtime'
+import { notifyWorkspaceMembers, tryNotify } from '@/server/notifications/service'
+import { getClientReadinessById } from '@/server/operations/client-readiness'
+import { getVersionTestGate } from '@/server/test-lab/gate'
+import { markPhoneActive, markPhoneDisabled } from '@/server/voice/phone'
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message: string } : { message: string; data: T }))
@@ -31,6 +42,13 @@ function id(prefix: string) {
 async function actor() {
   const user = await getCurrentUser()
   return user?.email ?? user?.id ?? 'ops'
+}
+
+async function requireActionPermission(
+  permission: OperatorPermission,
+): Promise<ActionResult | null> {
+  const access = await authorizeOperator(permission)
+  return access ? null : { ok: false, error: 'لا تملك صلاحية تنفيذ هذا الإجراء.' }
 }
 
 async function audit(input: {
@@ -78,6 +96,8 @@ const REVIEW_ACTION_LABEL: Record<string, string> = {
 
 /** Closes a review by recording who looked at it and what they concluded. */
 export async function resolveReview(input: z.input<typeof resolveSchema>): Promise<ActionResult> {
+  const denied = await requireActionPermission('qa.review')
+  if (denied) return denied
   const parsed = resolveSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: 'بيانات المراجعة غير مكتملة.' }
 
@@ -110,6 +130,8 @@ export async function resolveReview(input: z.input<typeof resolveSchema>): Promi
 
 /** Puts a closed review back in the queue. */
 export async function reopenReview(qaId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('qa.review')
+  if (denied) return denied
   const [row] = await db.select().from(qaResult).where(eq(qaResult.id, qaId)).limit(1)
   if (!row) return { ok: false, error: 'المراجعة غير موجودة.' }
 
@@ -133,10 +155,13 @@ export async function reopenReview(qaId: string): Promise<ActionResult> {
 /* ─── Agent versions ─────────────────────────────────────────────────────── */
 
 /**
- * Publishing is gated, not decorative — Bible §23. A draft with open blockers,
- * or with a failed critical scenario, cannot go live no matter who clicks.
+ * Publishing is gated, not decorative — Bible §23. Every configured scenario
+ * must have a trusted run after the version's latest edit, and critical
+ * scenarios must pass.
  */
 export async function publishVersion(versionId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
   const [version] = await db
     .select()
     .from(agentVersion)
@@ -150,21 +175,12 @@ export async function publishVersion(versionId: string): Promise<ActionResult> {
     return { ok: false, error: `لا يمكن النشر: ${blockers[0]}` }
   }
 
-  const failedCritical = await db
-    .select({ name: scenarioTest.name })
-    .from(scenarioRun)
-    .innerJoin(scenarioTest, eq(scenarioRun.scenarioId, scenarioTest.id))
-    .where(
-      and(
-        eq(scenarioRun.agentVersionId, versionId),
-        eq(scenarioRun.passed, 'false'),
-        eq(scenarioTest.isCritical, 'true'),
-      ),
-    )
-    .limit(1)
-
-  if (failedCritical.length > 0) {
-    return { ok: false, error: `سيناريو حرج لم يمر: ${failedCritical[0]?.name}` }
+  const testGate = await getVersionTestGate(versionId)
+  if (!testGate?.canPublish) {
+    return {
+      ok: false,
+      error: `لا يمكن النشر: ${testGate?.blockers[0] ?? 'تعذّر التحقق من نتائج الاختبار.'}`,
+    }
   }
 
   const [parent] = await db.select().from(agent).where(eq(agent.id, version.agentId)).limit(1)
@@ -197,12 +213,15 @@ export async function publishVersion(versionId: string): Promise<ActionResult> {
   })
 
   revalidatePath('/console/agents')
+  revalidatePath('/console/test-lab')
   revalidatePath('/console')
   return { ok: true, message: `نُشرت النسخة v${version.versionNumber}.` }
 }
 
 /** Returns the agent to its previous published version. */
 export async function rollbackAgent(agentId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
   const [parent] = await db.select().from(agent).where(eq(agent.id, agentId)).limit(1)
   if (!parent) return { ok: false, error: 'الموظف الصوتي غير موجود.' }
 
@@ -254,12 +273,87 @@ export async function rollbackAgent(agentId: string): Promise<ActionResult> {
 
 /* ─── Integrations ───────────────────────────────────────────────────────── */
 
-/**
- * Performs a genuine reachability check when the connection carries a testable
- * endpoint. It does not invent a success for providers that need OAuth we have
- * not completed — those return an explicit "not testable yet" instead.
- */
+const integrationUpdateSchema = z.object({
+  connectionId: z.string().min(1),
+  credentialsRef: z.string().trim().max(84).optional(),
+  endpoints: z.object({
+    health: z.string().trim().max(2_048).optional(),
+    availability: z.string().trim().max(2_048).optional(),
+    booking: z.string().trim().max(2_048).optional(),
+    message: z.string().trim().max(2_048).optional(),
+  }),
+})
+
+const URL_ISSUE_MESSAGE = {
+  invalid_url: 'العنوان غير صحيح.',
+  https_required: 'يجب أن يبدأ العنوان بـ https://.',
+  credentials_forbidden: 'لا تضع بيانات دخول داخل العنوان.',
+  port_forbidden: 'يسمح بمنفذ HTTPS القياسي فقط.',
+  private_host: 'لا يمكن الاتصال بعنوان داخلي أو محلي.',
+} as const
+
+export async function updateIntegrationConnection(
+  input: z.input<typeof integrationUpdateSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('integration.manage')
+  if (denied) return denied
+  const parsed = integrationUpdateSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'إعدادات الاتصال غير مكتملة.' }
+
+  const [row] = await db
+    .select()
+    .from(integrationConnection)
+    .where(eq(integrationConnection.id, parsed.data.connectionId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'الاتصال غير موجود.' }
+
+  const allowed = new Set(capabilitiesForProvider(row.provider))
+  const endpoints: Partial<Record<IntegrationAction, string>> = {}
+  for (const [action, rawValue] of Object.entries(parsed.data.endpoints) as [
+    IntegrationAction,
+    string | undefined,
+  ][]) {
+    const value = rawValue?.trim()
+    if (!value) continue
+    if (!allowed.has(action)) return { ok: false, error: 'هذا الإجراء غير مدعوم لهذا المزوّد.' }
+    const inspected = inspectOutboundUrl(value)
+    if (!inspected.ok) return { ok: false, error: URL_ISSUE_MESSAGE[inspected.issue] }
+    endpoints[action] = inspected.url.toString()
+  }
+
+  const rawReference = parsed.data.credentialsRef?.trim() ?? ''
+  const normalizedReference = credentialReference(rawReference)
+  if (rawReference && !normalizedReference) {
+    return { ok: false, error: 'مرجع المفتاح يجب أن يكون مثل env:CLIENT_CALENDAR_TOKEN.' }
+  }
+
+  await db
+    .update(integrationConnection)
+    .set({
+      config: { version: 1, endpoints },
+      credentialsRef: normalizedReference,
+      health: 'disconnected',
+      updatedAt: new Date(),
+    })
+    .where(eq(integrationConnection.id, row.id))
+
+  await audit({
+    workspaceId: row.workspaceId,
+    action: 'integration.configuration_updated',
+    resourceType: 'integration',
+    resourceId: row.id,
+    note: `تحديث إعداد ${row.label} — ${Object.keys(endpoints).length} مسارات تشغيل`,
+  })
+
+  revalidatePath('/console/integrations')
+  revalidatePath('/console')
+  return { ok: true, message: `حُفظ إعداد ${row.label}. اختبر الاتصال قبل الاعتماد عليه.` }
+}
+
+/** Performs a real, read-only health request through the guarded runtime. */
 export async function testIntegration(connectionId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('integration.manage')
+  if (denied) return denied
   const [row] = await db
     .select()
     .from(integrationConnection)
@@ -267,63 +361,31 @@ export async function testIntegration(connectionId: string): Promise<ActionResul
     .limit(1)
   if (!row) return { ok: false, error: 'الاتصال غير موجود.' }
 
-  const config = (row.config ?? {}) as { testUrl?: string }
-  const now = new Date()
-
-  if (!config.testUrl) {
-    await audit({
-      workspaceId: row.workspaceId,
-      action: 'integration.test_skipped',
-      resourceType: 'integration',
-      resourceId: row.id,
-      note: `تعذر اختبار ${row.label} — لا يوجد عنوان اختبار مضبوط`,
-    })
-    return {
-      ok: false,
-      error: `${row.label}: لا يوجد عنوان اختبار مضبوط بعد. يضبطه فريق التشغيل عند إتمام الربط.`,
-    }
-  }
-
-  const started = Date.now()
-  let reachable = false
-  let detail = ''
-
-  try {
-    const response = await fetch(config.testUrl, {
-      method: 'GET',
-      signal: AbortSignal.timeout(8000),
-    })
-    reachable = response.ok
-    detail = `HTTP ${response.status}`
-  } catch (error) {
-    detail = error instanceof Error ? error.message : 'تعذر الاتصال'
-  }
-
-  const latency = Date.now() - started
-
-  await db
-    .update(integrationConnection)
-    .set({
-      health: reachable ? 'connected' : 'failed',
-      ...(reachable ? { lastSuccessAt: now } : { lastErrorAt: now }),
-      updatedAt: now,
-    })
-    .where(eq(integrationConnection.id, connectionId))
+  const result = await invokeIntegration({ connection: row, action: 'health' })
 
   await audit({
     workspaceId: row.workspaceId,
-    action: reachable ? 'integration.test_passed' : 'integration.test_failed',
+    action: result.ok ? 'integration.test_passed' : 'integration.test_failed',
     resourceType: 'integration',
     resourceId: row.id,
-    note: `اختبار ${row.label} — ${detail} (${latency}ms)`,
+    note: result.ok
+      ? `نجح اختبار ${row.label} خلال ${result.latencyMs}ms`
+      : `تعذر اختبار ${row.label} — ${result.code}`,
   })
 
   revalidatePath('/console/integrations')
   revalidatePath('/console')
 
-  return reachable
-    ? { ok: true, message: `${row.label} متصل — ${detail} خلال ${latency}ms.` }
-    : { ok: false, error: `${row.label} لم يستجب — ${detail}.` }
+  if (result.ok) {
+    return { ok: true, message: `${row.label} متصل ويستجيب خلال ${result.latencyMs}ms.` }
+  }
+  if (result.code === 'not_configured') {
+    return { ok: false, error: `${row.label}: أضف عنوان فحص الاتصال أولًا.` }
+  }
+  if (result.code === 'credential_missing') {
+    return { ok: false, error: `${row.label}: مرجع المفتاح غير صالح أو غير موجود في بيئة التشغيل.` }
+  }
+  return { ok: false, error: `${row.label} غير متاح حاليًا. راجع عنوان الاتصال ثم أعد الاختبار.` }
 }
 
 /* ─── Phone ──────────────────────────────────────────────────────────────── */
@@ -333,6 +395,8 @@ export async function testIntegration(connectionId: string): Promise<ActionResul
  * request and tracks it, rather than stamping "verified" on an untested route.
  */
 export async function requestPhoneTest(phoneId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
   const [row] = await db.select().from(phoneNumber).where(eq(phoneNumber.id, phoneId)).limit(1)
   if (!row) return { ok: false, error: 'الرقم غير موجود.' }
 
@@ -363,16 +427,34 @@ export async function requestPhoneTest(phoneId: string): Promise<ActionResult> {
   return { ok: true, message: `سُجّل طلب اختبار للرقم ${row.e164}.` }
 }
 
-const routeSchema = z.object({
-  phoneId: z.string().min(1),
-  mode: z.enum(['all_calls', 'overflow', 'after_hours']),
-  transferDestination: z
-    .string()
-    .trim()
-    .regex(/^\+?[0-9\s-]{8,20}$/, 'رقم التحويل غير صحيح'),
-})
+const routeSchema = z
+  .object({
+    phoneId: z.string().min(1),
+    mode: z.enum(['all_calls', 'overflow', 'after_hours']),
+    agentId: z.string().min(1).optional(),
+    transferDestination: z.string().trim().max(20),
+    fallbackDisabled: z.boolean(),
+  })
+  .superRefine((value, context) => {
+    if (value.transferDestination && !/^\+?[0-9\s-]{8,20}$/.test(value.transferDestination)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['transferDestination'],
+        message: 'رقم التحويل غير صحيح',
+      })
+    }
+    if (!value.transferDestination && !value.fallbackDisabled) {
+      context.addIssue({
+        code: 'custom',
+        path: ['transferDestination'],
+        message: 'أضف وجهة تحويل، أو عطّل التحويل صراحةً لهذا الاختبار.',
+      })
+    }
+  })
 
 export async function updatePhoneRoute(input: z.input<typeof routeSchema>): Promise<ActionResult> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
   const parsed = routeSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات غير صحيحة.' }
@@ -385,11 +467,31 @@ export async function updatePhoneRoute(input: z.input<typeof routeSchema>): Prom
     .limit(1)
   if (!row) return { ok: false, error: 'الرقم غير موجود.' }
 
+  if (parsed.data.agentId) {
+    const [assigned] = await db
+      .select({ liveVersionId: agent.liveVersionId, status: agentVersion.status })
+      .from(agent)
+      .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+      .where(and(eq(agent.id, parsed.data.agentId), eq(agent.workspaceId, row.workspaceId)))
+      .limit(1)
+
+    if (!assigned) return { ok: false, error: 'الموظف الصوتي لا يتبع هذا العميل.' }
+    if (!assigned.liveVersionId || assigned.status !== 'published') {
+      return { ok: false, error: 'اختر موظفًا صوتيًا لديه نسخة منشورة.' }
+    }
+  }
+
+  const rules = (row.routingRules ?? {}) as Record<string, unknown>
+
   await db
     .update(phoneNumber)
     .set({
       mode: parsed.data.mode,
-      transferDestination: parsed.data.transferDestination.replaceAll(' ', ''),
+      agentId: parsed.data.agentId ?? row.agentId,
+      transferDestination: parsed.data.transferDestination
+        ? parsed.data.transferDestination.replaceAll(' ', '')
+        : null,
+      routingRules: { ...rules, fallbackDisabled: parsed.data.fallbackDisabled },
       updatedAt: new Date(),
     })
     .where(eq(phoneNumber.id, parsed.data.phoneId))
@@ -403,7 +505,80 @@ export async function updatePhoneRoute(input: z.input<typeof routeSchema>): Prom
   })
 
   revalidatePath('/console/phone')
+  revalidatePath(`/console/phone/${row.id}`)
   return { ok: true, message: `حُدّث توجيه ${row.e164}.` }
+}
+
+const phoneStateSchema = z.object({
+  phoneId: z.string().min(1),
+  action: z.enum(['activate', 'disable']),
+})
+
+export async function updatePhoneState(
+  input: z.input<typeof phoneStateSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
+  const parsed = phoneStateSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'إجراء الهاتف غير صحيح.' }
+
+  const [row] = await db
+    .select({
+      id: phoneNumber.id,
+      e164: phoneNumber.e164,
+      workspaceId: phoneNumber.workspaceId,
+      agentId: phoneNumber.agentId,
+      transferDestination: phoneNumber.transferDestination,
+      routingRules: phoneNumber.routingRules,
+      verifiedAt: phoneNumber.verifiedAt,
+      liveVersionId: agent.liveVersionId,
+      liveVersionStatus: agentVersion.status,
+    })
+    .from(phoneNumber)
+    .leftJoin(agent, eq(agent.id, phoneNumber.agentId))
+    .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+    .where(eq(phoneNumber.id, parsed.data.phoneId))
+    .limit(1)
+
+  if (!row) return { ok: false, error: 'الرقم غير موجود.' }
+
+  if (parsed.data.action === 'disable') {
+    await markPhoneDisabled(row.id)
+    await audit({
+      workspaceId: row.workspaceId,
+      action: 'phone.disabled',
+      resourceType: 'phone_number',
+      resourceId: row.id,
+      note: `تعطيل مسار ${row.e164}`,
+    })
+    revalidatePath('/console/phone')
+    revalidatePath(`/console/phone/${row.id}`)
+    return { ok: true, message: `عُطّل مسار ${row.e164}.` }
+  }
+
+  const rules = (row.routingRules ?? {}) as { fallbackDisabled?: boolean }
+  const blockers = [
+    !row.agentId && 'لا يوجد موظف صوتي معيّن.',
+    (!row.liveVersionId || row.liveVersionStatus !== 'published') && 'لا توجد نسخة منشورة.',
+    !row.verifiedAt && 'لم تنجح مكالمة تحقق حقيقية بعد.',
+    !row.transferDestination && !rules.fallbackDisabled && 'لم تُضبط وجهة التصعيد.',
+  ].filter(Boolean) as string[]
+
+  if (blockers.length) return { ok: false, error: blockers.join(' ') }
+  if (!(await markPhoneActive(row.id))) {
+    return { ok: false, error: 'تعذّر تفعيل المسار. راجع دليل التحقق.' }
+  }
+
+  await audit({
+    workspaceId: row.workspaceId,
+    action: 'phone.activated',
+    resourceType: 'phone_number',
+    resourceId: row.id,
+    note: `تفعيل مسار ${row.e164}`,
+  })
+  revalidatePath('/console/phone')
+  revalidatePath(`/console/phone/${row.id}`)
+  return { ok: true, message: `أصبح ${row.e164} نشطًا.` }
 }
 
 /* ─── Pronunciation ──────────────────────────────────────────────────────── */
@@ -419,6 +594,8 @@ const pronunciationSchema = z.object({
 export async function addPronunciation(
   input: z.input<typeof pronunciationSchema>,
 ): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
   const parsed = pronunciationSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات غير صحيحة.' }
@@ -453,6 +630,8 @@ export async function setPronunciationStatus(
   pronunciationId: string,
   status: 'approved' | 'rejected' | 'draft',
 ): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
   const [row] = await db
     .select()
     .from(pronunciation)
@@ -479,6 +658,8 @@ export async function setPronunciationStatus(
 }
 
 export async function deletePronunciation(pronunciationId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
   const [row] = await db
     .select()
     .from(pronunciation)
@@ -507,7 +688,12 @@ const clientSchema = z.object({
   status: z.enum(['discovery', 'setup', 'pilot', 'live', 'paused']),
   city: z.string().trim().max(80).optional(),
   hoursWeekday: z.string().trim().max(40).optional(),
-  transferTo: z.string().trim().max(20).optional(),
+  transferTo: z
+    .string()
+    .trim()
+    .max(20)
+    .refine((value) => !value || /^\+?[0-9\s-]{8,20}$/.test(value), 'رقم التحويل غير صحيح')
+    .optional(),
 })
 
 const STATUS_LABEL: Record<string, string> = {
@@ -519,6 +705,8 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export async function updateClient(input: z.input<typeof clientSchema>): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
   const parsed = clientSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات غير صحيحة.' }
@@ -533,18 +721,32 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
 
   const info = (row.businessInfo ?? {}) as Record<string, unknown>
   const hours = (info.hours ?? {}) as Record<string, string>
+  const nextBusinessInfo = {
+    ...info,
+    city: parsed.data.city ?? info.city,
+    hours: { ...hours, sun_thu: parsed.data.hoursWeekday ?? hours.sun_thu },
+    transferTo: parsed.data.transferTo ?? info.transferTo,
+  }
+
+  if (row.status !== 'live' && parsed.data.status === 'live') {
+    const readiness = await getClientReadinessById(row.id, {
+      businessInfo: nextBusinessInfo,
+      status: parsed.data.status,
+    })
+    if (!readiness?.canGoLive) {
+      return {
+        ok: false,
+        error: `لا يمكن بدء التشغيل بعد. ${readiness?.blockers[0] ?? 'راجع خطوات الجاهزية.'}`,
+      }
+    }
+  }
 
   await db
     .update(workspace)
     .set({
       name: parsed.data.name,
       status: parsed.data.status,
-      businessInfo: {
-        ...info,
-        city: parsed.data.city ?? info.city,
-        hours: { ...hours, sun_thu: parsed.data.hoursWeekday ?? hours.sun_thu },
-        transferTo: parsed.data.transferTo ?? info.transferTo,
-      },
+      businessInfo: nextBusinessInfo,
       updatedAt: new Date(),
     })
     .where(eq(workspace.id, parsed.data.workspaceId))
@@ -561,6 +763,7 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
   })
 
   revalidatePath('/console/clients')
+  revalidatePath(`/console/clients/${row.slug}`)
   revalidatePath('/console')
   return { ok: true, message: `حُدّثت بيانات ${parsed.data.name}.` }
 }
@@ -571,6 +774,8 @@ export async function advanceChangeRequest(
   requestId: string,
   status: 'in_review' | 'testing' | 'scheduled' | 'live' | 'rejected',
 ): Promise<ActionResult> {
+  const denied = await requireActionPermission('change.manage')
+  if (denied) return denied
   const [row] = await db
     .select()
     .from(changeRequest)
@@ -598,6 +803,20 @@ export async function advanceChangeRequest(
     resourceId: row.id,
     note: `${row.title} → ${label[status]}`,
   })
+
+  await tryNotify(() =>
+    notifyWorkspaceMembers({
+      workspaceId: row.workspaceId,
+      severity: status === 'live' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+      category: 'change_request',
+      title: status === 'live' ? 'اكتمل طلب التعديل' : 'تحديث على طلبك',
+      message: `${row.title}: ${label[status]}`,
+      href: '/portal/requests',
+      sourceType: 'change_request',
+      sourceId: row.id,
+      dedupeKey: `change-request:${row.id}:${status}`,
+    }),
+  )
 
   revalidatePath('/console/clients')
   revalidatePath('/portal/requests')

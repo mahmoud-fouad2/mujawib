@@ -542,11 +542,18 @@ p {
   display: grid;
   justify-items: center;
   gap: var(--s-4);
+  inline-size: 100%;
   max-inline-size: 46ch;
   margin-inline: auto;
   padding-block: 18vh var(--s-9);
   padding-inline: var(--s-5);
   text-align: center;
+}
+
+.notfound .row {
+  flex-wrap: wrap;
+  inline-size: 100%;
+  max-inline-size: 100%;
 }
 
 .notfound h1 {
@@ -557,6 +564,21 @@ p {
 .notfound__lead {
   color: var(--text-muted);
   line-height: 1.75;
+}
+
+@media (max-width: 480px) {
+  .notfound {
+    padding-inline: var(--s-4);
+  }
+
+  .notfound h1 {
+    font-size: var(--step-3);
+  }
+
+  .notfound .btn {
+    flex: 1 1 9rem;
+    min-inline-size: 0;
+  }
 }
 
 /* ─── spinner ──────────────────────────────────────────────────────────── */

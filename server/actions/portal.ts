@@ -4,19 +4,15 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { getCurrentUser } from '@/server/auth/session'
+import { authorizeClientWorkspace } from '@/server/auth/access'
 import { db } from '@/server/db'
 import { auditLog, changeRequest, knowledgeItem, workspace } from '@/server/db/schema'
+import { notifyOperators, tryNotify } from '@/server/notifications/service'
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string }
 
 function id(prefix: string) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`
-}
-
-async function actor() {
-  const user = await getCurrentUser()
-  return user?.email ?? 'client'
 }
 
 /* ─── Change requests ────────────────────────────────────────────────────── */
@@ -36,12 +32,15 @@ export async function createChangeRequest(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'تحقق من البيانات.' }
   }
+  const access = await authorizeClientWorkspace(parsed.data.workspaceId, 'request.create')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية إنشاء طلب لهذه المساحة.' }
 
   const now = new Date()
-  const requester = await actor()
+  const requester = access.email
+  const requestId = id('cr')
 
   await db.insert(changeRequest).values({
-    id: id('cr'),
+    id: requestId,
     workspaceId: parsed.data.workspaceId,
     type: parsed.data.type,
     title: parsed.data.title,
@@ -62,6 +61,21 @@ export async function createChangeRequest(
     createdAt: now,
   })
 
+  await tryNotify(() =>
+    notifyOperators({
+      workspaceId: access.workspace.id,
+      roles: ['owner', 'ops'],
+      severity: 'info',
+      category: 'change_request',
+      title: 'طلب تعديل جديد',
+      message: `${access.workspace.name}: ${parsed.data.title}`,
+      href: `/console/clients/${access.workspace.slug}`,
+      sourceType: 'change_request',
+      sourceId: requestId,
+      dedupeKey: `change-request:${requestId}:requested`,
+    }),
+  )
+
   revalidatePath('/portal/requests')
   revalidatePath('/portal')
   return { ok: true, message: 'سُجّل طلبك، وسيصلك تحديث عند بدء المراجعة.' }
@@ -74,12 +88,42 @@ export async function cancelChangeRequest(requestId: string): Promise<ActionResu
     .where(eq(changeRequest.id, requestId))
     .limit(1)
   if (!row) return { ok: false, error: 'الطلب غير موجود.' }
-  if (row.status === 'live') return { ok: false, error: 'الطلب نُفِّذ بالفعل ولا يمكن سحبه.' }
+  const access = await authorizeClientWorkspace(row.workspaceId, 'request.cancel')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية سحب هذا الطلب.' }
+  if (!['requested', 'in_review'].includes(row.status)) {
+    return { ok: false, error: 'بدأ تنفيذ الطلب، تواصل مع فريق التشغيل لتغييره.' }
+  }
 
   await db
     .update(changeRequest)
     .set({ status: 'rejected', updatedAt: new Date() })
     .where(eq(changeRequest.id, requestId))
+
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: row.workspaceId,
+    actorId: access.email,
+    action: 'change_request.cancel',
+    resourceType: 'change_request',
+    resourceId: row.id,
+    metadata: { note: row.title },
+    createdAt: new Date(),
+  })
+
+  await tryNotify(() =>
+    notifyOperators({
+      workspaceId: access.workspace.id,
+      roles: ['owner', 'ops'],
+      severity: 'warning',
+      category: 'change_request',
+      title: 'سحب العميل طلب تعديل',
+      message: `${access.workspace.name}: ${row.title}`,
+      href: `/console/clients/${access.workspace.slug}`,
+      sourceType: 'change_request',
+      sourceId: row.id,
+      dedupeKey: `change-request:${row.id}:cancelled`,
+    }),
+  )
 
   revalidatePath('/portal/requests')
   return { ok: true, message: 'سُحب الطلب.' }
@@ -102,6 +146,8 @@ export async function updateOpeningHours(
 ): Promise<ActionResult> {
   const parsed = hoursSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: 'تحقق من صيغة ساعات العمل.' }
+  const access = await authorizeClientWorkspace(parsed.data.workspaceId, 'business.manage')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية تعديل بيانات النشاط.' }
 
   const [row] = await db
     .select()
@@ -131,7 +177,7 @@ export async function updateOpeningHours(
   await db.insert(auditLog).values({
     id: id('audit'),
     workspaceId: row.id,
-    actorId: await actor(),
+    actorId: access.email,
     action: 'client.hours_update',
     resourceType: 'workspace',
     resourceId: row.id,
@@ -157,10 +203,13 @@ export async function addService(input: z.input<typeof serviceSchema>): Promise<
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'تحقق من البيانات.' }
   }
+  const access = await authorizeClientWorkspace(parsed.data.workspaceId, 'business.manage')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية تعديل الخدمات.' }
 
   const now = new Date()
+  const itemId = id('kn')
   await db.insert(knowledgeItem).values({
-    id: id('kn'),
+    id: itemId,
     workspaceId: parsed.data.workspaceId,
     category: 'service',
     title: parsed.data.title,
@@ -173,6 +222,17 @@ export async function addService(input: z.input<typeof serviceSchema>): Promise<
     updatedAt: now,
   })
 
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: parsed.data.workspaceId,
+    actorId: access.email,
+    action: 'client.service_add',
+    resourceType: 'knowledge_item',
+    resourceId: itemId,
+    metadata: { note: parsed.data.title },
+    createdAt: now,
+  })
+
   revalidatePath('/portal/business-info')
   return { ok: true, message: `أُضيفت «${parsed.data.title}» وأصبح المُجاوِب يجيب عنها.` }
 }
@@ -180,8 +240,22 @@ export async function addService(input: z.input<typeof serviceSchema>): Promise<
 export async function removeService(itemId: string): Promise<ActionResult> {
   const [row] = await db.select().from(knowledgeItem).where(eq(knowledgeItem.id, itemId)).limit(1)
   if (!row) return { ok: false, error: 'العنصر غير موجود.' }
+  if (!row.workspaceId) return { ok: false, error: 'هذا العنصر ليس مرتبطًا بمساحة عميل.' }
+  const access = await authorizeClientWorkspace(row.workspaceId, 'business.manage')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية حذف هذه الخدمة.' }
 
   await db.delete(knowledgeItem).where(eq(knowledgeItem.id, itemId))
+
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: row.workspaceId,
+    actorId: access.email,
+    action: 'client.service_remove',
+    resourceType: 'knowledge_item',
+    resourceId: row.id,
+    metadata: { note: row.title },
+    createdAt: new Date(),
+  })
 
   revalidatePath('/portal/business-info')
   return { ok: true, message: `حُذفت «${row.title}».` }

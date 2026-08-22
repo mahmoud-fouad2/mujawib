@@ -7,12 +7,14 @@ import {
   type PhoneVerificationEvidence,
   phoneNumber,
 } from '@/server/db/schema'
-import { voiceError, voiceLog } from '@/server/voice/log'
+import { sanitizeLogText, voiceError, voiceLog } from '@/server/voice/log'
 
 /**
  * The verification state of a real phone number.
  *
  *   pending → verifying → verified → active
+ *                                ↘ degraded
+ *   any state → disabled
  *
  * Every transition is written by something that actually happened on the wire.
  * A number is not verified because it was configured, because the carrier
@@ -26,24 +28,15 @@ import { voiceError, voiceLog } from '@/server/voice/log'
  * not answer — our side.
  */
 
-/** Rank used so a state is never silently walked backwards. */
-const RANK: Record<PhoneLifecycle, number> = {
-  pending: 0,
-  verifying: 1,
-  verified: 2,
-  active: 3,
-}
-
-function rankOf(status: string | null): number {
-  return RANK[(status ?? 'pending') as PhoneLifecycle] ?? 0
-}
-
 /**
  * A call reached us on this number and resolved to an agent, but was not
  * answered. Proves ingress; proves nothing beyond it.
  */
 export async function markPhoneReached(phoneNumberId: string): Promise<void> {
-  await transition(phoneNumberId, 'verifying', null)
+  await withPhone(phoneNumberId, async (row) => {
+    if (row.sipStatus !== 'pending') return unchanged(phoneNumberId, row.sipStatus)
+    await writeState(phoneNumberId, row.sipStatus, 'verifying')
+  })
 }
 
 /**
@@ -59,14 +52,45 @@ export async function markPhoneAnswered(
   phoneNumberId: string,
   evidence: PhoneVerificationEvidence,
 ): Promise<void> {
-  await transition(phoneNumberId, 'verified', evidence)
+  await withPhone(phoneNumberId, async (row) => {
+    if (row.sipStatus === 'disabled') return unchanged(phoneNumberId, row.sipStatus)
+    const next: PhoneLifecycle = row.verifiedAt ? 'active' : 'verified'
+    await writeState(phoneNumberId, row.sipStatus, next, row.verifiedAt ? null : evidence)
+  })
 }
 
-async function transition(
+/** Ops may activate only a route that a real answered call has proved. */
+export async function markPhoneActive(phoneNumberId: string): Promise<boolean> {
+  return withPhone(phoneNumberId, async (row) => {
+    if (!row.verifiedAt) return false
+    await writeState(phoneNumberId, row.sipStatus, 'active')
+    return true
+  })
+}
+
+/** Runtime/ops signal that a previously proven route currently needs attention. */
+export async function markPhoneDegraded(phoneNumberId: string): Promise<boolean> {
+  return withPhone(phoneNumberId, async (row) => {
+    if (!row.verifiedAt || row.sipStatus === 'disabled') return false
+    await writeState(phoneNumberId, row.sipStatus, 'degraded')
+    return true
+  })
+}
+
+/** Explicit operator shutdown. A real call must never silently re-enable it. */
+export async function markPhoneDisabled(phoneNumberId: string): Promise<boolean> {
+  return withPhone(phoneNumberId, async (row) => {
+    await writeState(phoneNumberId, row.sipStatus, 'disabled')
+    return true
+  })
+}
+
+type PhoneStateRow = { sipStatus: PhoneLifecycle; verifiedAt: Date | null }
+
+async function withPhone<T>(
   phoneNumberId: string,
-  target: PhoneLifecycle,
-  evidence: PhoneVerificationEvidence | null,
-): Promise<void> {
+  operation: (row: PhoneStateRow) => Promise<T>,
+): Promise<T | false> {
   try {
     const [row] = await db
       .select({ sipStatus: phoneNumber.sipStatus, verifiedAt: phoneNumber.verifiedAt })
@@ -74,35 +98,40 @@ async function transition(
       .where(eq(phoneNumber.id, phoneNumberId))
       .limit(1)
 
-    if (!row) return
-
-    const current = (row.sipStatus ?? 'pending') as PhoneLifecycle
-
-    // An answered call on a number that is already verified means it is in
-    // service, not that it needs verifying again.
-    const next: PhoneLifecycle =
-      target === 'verified' && rankOf(current) >= RANK.verified ? 'active' : target
-
-    if (rankOf(next) <= rankOf(current)) {
-      voiceLog('PHONE_STATE', { phoneNumberId, state: current, note: 'unchanged' })
-      return
-    }
-
-    const now = new Date()
-    await db
-      .update(phoneNumber)
-      .set({
-        sipStatus: next,
-        lastTestAt: now,
-        updatedAt: now,
-        // Written once, on the call that first proved the number.
-        ...(evidence && !row.verifiedAt ? { verifiedAt: now, verificationEvidence: evidence } : {}),
-      })
-      .where(eq(phoneNumber.id, phoneNumberId))
-
-    voiceLog('PHONE_STATE', { phoneNumberId, from: current, to: next })
+    if (!row) return false
+    return await operation({
+      sipStatus: (row.sipStatus ?? 'pending') as PhoneLifecycle,
+      verifiedAt: row.verifiedAt,
+    })
   } catch (error) {
     // Bookkeeping must never end a call that is already up.
-    voiceError('ERROR', `phone state update failed: ${String(error)}`)
+    voiceError('ERROR', `phone state update failed: ${sanitizeLogText(String(error))}`)
+    return false
   }
+}
+
+function unchanged(phoneNumberId: string, state: PhoneLifecycle) {
+  voiceLog('PHONE_STATE', { phoneNumberId, state, note: 'unchanged' })
+}
+
+async function writeState(
+  phoneNumberId: string,
+  current: PhoneLifecycle,
+  next: PhoneLifecycle,
+  evidence: PhoneVerificationEvidence | null = null,
+) {
+  if (current === next) return unchanged(phoneNumberId, current)
+
+  const now = new Date()
+  await db
+    .update(phoneNumber)
+    .set({
+      sipStatus: next,
+      lastTestAt: now,
+      updatedAt: now,
+      ...(evidence ? { verifiedAt: now, verificationEvidence: evidence } : {}),
+    })
+    .where(eq(phoneNumber.id, phoneNumberId))
+
+  voiceLog('PHONE_STATE', { phoneNumberId, from: current, to: next })
 }

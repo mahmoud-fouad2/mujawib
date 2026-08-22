@@ -53,6 +53,78 @@
   gap: var(--s-4);
 }
 
+.password-control {
+  position: relative;
+}
+
+.password-control .input {
+  padding-inline-end: 46px;
+}
+
+.password-control__toggle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 5px;
+  display: grid;
+  place-items: center;
+  inline-size: 38px;
+  color: var(--text-muted);
+  border-radius: var(--r-control);
+}
+
+.password-control__toggle:hover,
+.password-control__toggle:focus-visible {
+  color: var(--text);
+  background: var(--raised);
+}
+
+.field__aside-link {
+  inline-size: fit-content;
+  color: var(--signal);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.access-pending__status {
+  inline-size: fit-content;
+  padding-block: 5px;
+  border-block-end: 1px solid var(--signal);
+  color: var(--signal);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.access-pending__actions {
+  flex-wrap: wrap;
+}
+
+.recovery-result {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.recovery-result > svg {
+  color: var(--good);
+}
+
+.recovery-result > div {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.recovery-result h1 {
+  font-size: var(--step-3);
+}
+
+.recovery-result p {
+  color: var(--text-muted);
+  line-height: 1.75;
+}
+
+.recovery-result .btn {
+  inline-size: fit-content;
+}
+
 .auth__divider {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -406,4 +478,226 @@
 .wizard__fields .field .btn {
   inline-size: fit-content;
   margin-block-start: var(--s-2);
+}
+
+/* ─── workspace invitation ─────────────────────────────────────────────── */
+
+.invite-page__aside {
+  justify-content: center;
+}
+
+.invite-page__eyebrow {
+  inline-size: fit-content;
+  padding-block: 5px;
+  border-block-end: 1px solid var(--signal);
+  color: var(--signal);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.invite-page__steps {
+  display: grid;
+  max-inline-size: 500px;
+  border-block-start: 1px solid var(--line);
+}
+
+.invite-page__steps li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding-block: var(--s-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.invite-page__steps > li > span {
+  padding-block-start: 2px;
+  color: var(--signal);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.invite-page__steps div {
+  display: grid;
+  gap: 3px;
+}
+
+.invite-page__steps small {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.invite-acceptance {
+  display: grid;
+  gap: var(--s-5);
+}
+
+.invite-acceptance__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 38px;
+  block-size: 38px;
+  border: 1px solid var(--signal-line);
+  border-radius: var(--r-control);
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+
+.invite-facts {
+  display: grid;
+  border-block: 1px solid var(--line);
+}
+
+.invite-facts div {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--s-3);
+  padding-block: 11px;
+  border-block-end: 1px solid var(--line-faint);
+}
+
+.invite-facts div:last-child {
+  border-block-end: 0;
+}
+
+.invite-facts dt {
+  color: var(--text-faint);
+  font-size: 0.8125rem;
+}
+
+.invite-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-align: end;
+}
+
+.invite-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-inline-size: 0;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--raised);
+}
+
+.invite-mode button {
+  min-block-size: 38px;
+  border-radius: calc(var(--r-control) - 3px);
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.invite-mode button[aria-pressed="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+}
+
+.invite-mode__locked {
+  display: grid;
+  place-items: center;
+  min-block-size: 38px;
+  color: var(--text-faint);
+  font-size: var(--step--1);
+}
+
+.invite-session {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.invite-session > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  color: var(--good);
+}
+
+.invite-session > div:first-child span {
+  display: grid;
+  flex: 1;
+  color: var(--text);
+}
+
+.invite-session small {
+  margin-block-start: 2px;
+  color: var(--text-muted);
+}
+
+.invite-session > .btn--quiet {
+  inline-size: fit-content;
+}
+
+.invite-auth-foot {
+  padding-block-start: var(--s-3);
+}
+
+.invite-terminal {
+  display: grid;
+  gap: var(--s-5);
+  align-content: center;
+  min-block-size: 360px;
+}
+
+.invite-terminal > svg {
+  color: var(--bad);
+}
+
+.invite-terminal div {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.invite-terminal h1 {
+  font-size: var(--step-3);
+}
+
+.invite-terminal p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.invite-terminal .btn {
+  inline-size: fit-content;
+}
+
+.invite-loading {
+  display: grid;
+  gap: var(--s-4);
+  align-content: center;
+  min-block-size: 360px;
+}
+
+.invite-loading .skeleton {
+  block-size: 46px;
+  border-radius: var(--r-control);
+}
+
+.invite-loading .skeleton:first-child {
+  inline-size: 68%;
+  block-size: 62px;
+}
+
+@media (max-width: 520px) {
+  .invite-page .auth__panel {
+    justify-content: flex-start;
+    padding: var(--s-5);
+  }
+
+  .invite-acceptance .auth__head h1 {
+    font-size: var(--step-3);
+  }
+
+  .invite-facts div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .invite-facts dd {
+    text-align: start;
+  }
 }

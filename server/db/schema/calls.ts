@@ -35,7 +35,13 @@ export const callOutcomeEnum = pgEnum('call_outcome', [
  * evidence, and code that asks "is this number live?" must read that, not the
  * status string, which seeded rows also carry.
  */
-export type PhoneLifecycle = 'pending' | 'verifying' | 'verified' | 'active'
+export type PhoneLifecycle =
+  | 'pending'
+  | 'verifying'
+  | 'verified'
+  | 'active'
+  | 'degraded'
+  | 'disabled'
 
 /** What the call that proved the number looked like. */
 export type PhoneVerificationEvidence = {

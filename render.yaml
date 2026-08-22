@@ -5,8 +5,8 @@
 # The database is Neon (external), so no Render Postgres is provisioned here —
 # set DATABASE_URL in the dashboard to the pooled Neon connection string.
 #
-# The sideband realtime service (services/realtime) is not deployed yet; it is
-# added here once SIP inbound is wired, so we do not ship a service that idles.
+# The Node web process also owns each accepted call's OpenAI sideband control
+# socket. Audio remains on OpenAI SIP; no second media or demo runtime exists.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -25,7 +25,9 @@ services:
     # `corepack enable` fails on Render: it tries to symlink into /usr/bin,
     # which is read-only. Render already exposes pnpm, and COREPACK_ENABLE_STRICT=0
     # stops it rejecting a version that differs from packageManager.
-    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    # Access schema is additive/idempotent and runs before the new code goes live,
+    # so the previous deployment keeps working while a new build is prepared.
+    buildCommand: pnpm install --frozen-lockfile && pnpm db:access-schema && pnpm db:notification-schema && pnpm build
     startCommand: pnpm start
 
     healthCheckPath: /api/health
@@ -67,10 +69,18 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
 
+      # Optional — required for password recovery emails.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
       # Optional — voice runtime, not required for the console to run.
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_WEBHOOK_SECRET
         sync: false
-      - key: REALTIME_SERVICE_URL
-        sync: false
+      # Pinned separately from the live voice model so summary behavior can be
+      # upgraded and rolled back without touching active calls.
+      - key: OPENAI_POST_CALL_MODEL
+        value: gpt-5.4-mini-2026-03-17

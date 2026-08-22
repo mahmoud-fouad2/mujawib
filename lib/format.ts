@@ -156,6 +156,14 @@ export const EVENT_LABEL: Record<string, string> = {
   transfer: 'تحويل',
   ended: 'انتهت',
   abandoned: 'أُغلقت',
+  sideband_connected: 'بدأت متابعة المكالمة',
+  sideband_closed: 'اكتمل سجل المكالمة',
+  tool_completed: 'اكتمل إجراء مرتبط',
+  realtime_error: 'حدث يحتاج مراجعة',
+  post_call_started: 'بدأ إعداد الملخص',
+  post_call_completed: 'اكتمل ملخص المكالمة',
+  post_call_failed: 'تعذر إعداد الملخص',
+  post_call_skipped: 'لم يتوفر نص كافٍ للملخص',
 }
 
 export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'signal'

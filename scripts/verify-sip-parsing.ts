@@ -11,6 +11,7 @@
 import { callerFrom, didCandidates, toE164 } from '../server/voice/sip.ts'
 
 const DID = '+16513711782'
+const CALLER = '+966530047640'
 
 let failures = 0
 
@@ -82,6 +83,28 @@ for (const shape of shapes) {
   const matching = candidates.filter((c) => c.e164 === DID).map((c) => c.header)
   check(shape.label, matching, shape.expect)
 }
+
+console.log('\nSuccessful real-call regression fixture')
+const successfulIngressHeaders = [
+  { name: 'Record-Route', value: '<sip:198.51.100.20:5061;transport=tls;lr>' },
+  { name: 'From', value: `<sip:${CALLER}@198.51.100.21:5060>` },
+  { name: 'To', value: '<sip:proj_fixture@sip.api.openai.com;transport=tls>' },
+  { name: 'P-Asserted-Identity', value: `<sip:${CALLER}@198.51.100.21:5060>` },
+  { name: 'Diversion', value: `<sip:${DID}@198.51.100.21>;reason=unconditional` },
+  { name: 'Call-ID', value: 'fixture-call-id@198.51.100.21' },
+  { name: 'Via', value: 'SIP/2.0/TLS 198.51.100.20:5061;branch=z9hG4bKfixture' },
+  { name: 'Contact', value: `<sip:${CALLER}@198.51.100.21:5060>` },
+  { name: 'X-Twilio-AccountSid', value: 'AC13b00000000000000000000000aab5' },
+  { name: 'User-Agent', value: 'Twilio Gateway' },
+  { name: 'X-Twilio-CallSid', value: 'CAe3d6000000000000000000000034ec' },
+]
+
+check(
+  'business DID resolves from Diversion only',
+  didCandidates(successfulIngressHeaders).map(({ header, e164 }) => ({ header, e164 })),
+  [{ header: 'Diversion', e164: DID }],
+)
+check('caller remains caller identity', callerFrom(successfulIngressHeaders), CALLER)
 
 console.log('\nCaller extraction')
 check(

@@ -113,7 +113,7 @@ export function RowActionSeparator() {
 
 /* ─── running a server action ────────────────────────────────────────────── */
 
-type Result = { ok: true; message: string } | { ok: false; error: string }
+type Result = { ok: true; message: string } | { ok: false; error: string; refresh?: boolean }
 
 /**
  * One place where every server action is invoked, so success and failure are
@@ -127,16 +127,26 @@ export function useAction() {
 
   function run(fn: () => Promise<Result>, onSuccess?: () => void) {
     startTransition(async () => {
+      let progressToast: number | null = null
+      const progressTimer = window.setTimeout(() => {
+        progressToast = toast.info('جارٍ تنفيذ الإجراء…')
+      }, 450)
+
       try {
         const result = await fn()
+        window.clearTimeout(progressTimer)
+        if (progressToast) toast.dismiss(progressToast)
         if (result.ok) {
           toast.success(result.message)
           onSuccess?.()
           router.refresh()
         } else {
           toast.error(result.error)
+          if (result.refresh) router.refresh()
         }
       } catch {
+        window.clearTimeout(progressTimer)
+        if (progressToast) toast.dismiss(progressToast)
         toast.error('تعذر تنفيذ الإجراء. تحقق من الاتصال وحاول مرة أخرى.')
       }
     })

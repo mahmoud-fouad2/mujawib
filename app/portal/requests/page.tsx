@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { NewRequestButton, RequestRowActions } from '@/components/portal/portal-actions'
 import { EmptyState, Pill } from '@/components/ui/primitives'
+import { canClient } from '@/lib/access'
 import { CHANGE_STATUS_LABEL, num, relative } from '@/lib/format'
 import { getPortalRequests, getPortalWorkspace } from '@/server/data/portal'
 
@@ -28,13 +29,15 @@ export default async function PortalRequestsPage() {
   const requests = await getPortalRequests(workspace.id)
   const open = requests.filter((r) => r.status !== 'live' && r.status !== 'rejected')
   const done = requests.filter((r) => r.status === 'live')
+  const canCreate = canClient(workspace.accessRole, 'request.create')
+  const canCancel = canClient(workspace.accessRole, 'request.cancel')
 
   return (
     <>
       <PageHead
         title="طلبات التعديل"
         sub="اطلب أي تغيير، وتابع تنفيذه خطوة بخطوة حتى يصل للتشغيل"
-        actions={<NewRequestButton workspaceId={workspace.id} />}
+        actions={canCreate ? <NewRequestButton workspaceId={workspace.id} /> : undefined}
       />
 
       <SummaryBar
@@ -95,7 +98,9 @@ export default async function PortalRequestsPage() {
                     >
                       {CHANGE_STATUS_LABEL[r.status] ?? r.status}
                     </Pill>
-                    <RequestRowActions id={r.id} title={r.title} status={r.status} />
+                    {canCancel ? (
+                      <RequestRowActions id={r.id} title={r.title} status={r.status} />
+                    ) : null}
                   </span>
                 </div>
               )

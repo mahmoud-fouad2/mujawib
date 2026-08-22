@@ -1,13 +1,15 @@
 import type { Metadata } from 'next'
 import { CallsWorkbench } from '@/components/console/calls-workbench'
 import { PageHead } from '@/components/console/ui'
+import { canOperator } from '@/lib/access'
 import { num } from '@/lib/format'
+import { requireOperatorPage } from '@/server/auth/access'
 import { type CallFilter, getCallDetail, getCalls } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'المكالمات' }
 export const dynamic = 'force-dynamic'
 
-const VALID: CallFilter[] = ['all', 'needs_review', 'resolved', 'transferred', 'failed']
+const VALID: CallFilter[] = ['all', 'needs_review', 'resolved', 'transferred', 'failed', 'demo']
 
 export default async function CallsPage({
   searchParams,
@@ -15,6 +17,7 @@ export default async function CallsPage({
   searchParams: Promise<{ filter?: string; q?: string; call?: string }>
 }) {
   const params = await searchParams
+  const access = await requireOperatorPage('/console/calls')
   const filter = (VALID.includes(params.filter as CallFilter) ? params.filter : 'all') as CallFilter
   const search = params.q?.trim() || undefined
 
@@ -33,6 +36,7 @@ export default async function CallsPage({
         rows={rows}
         selected={selected}
         filter={filter}
+        canRetrySummary={canOperator(access.role, 'qa.review')}
         {...(search ? { search } : {})}
       />
     </>

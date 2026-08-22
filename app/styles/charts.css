@@ -241,6 +241,54 @@
   block-size: 320px;
 }
 
+.skeleton-toolbar {
+  block-size: 44px;
+  inline-size: min(720px, 100%);
+}
+
+.skeleton-master-detail {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.5fr);
+  min-block-size: 560px;
+  border-block: 1px solid var(--line);
+}
+
+.skeleton-list,
+.skeleton-detail,
+.skeleton-journey {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  padding: var(--s-5) 0;
+}
+
+.skeleton-list {
+  padding-inline-end: var(--s-5);
+  border-inline-end: 1px solid var(--line);
+}
+
+.skeleton-detail {
+  padding-inline-start: var(--s-6);
+}
+
+.skeleton-row {
+  block-size: 66px;
+}
+
+.skeleton-detail-head,
+.skeleton-journey-head {
+  block-size: 54px;
+}
+
+.skeleton-detail-body {
+  block-size: 420px;
+}
+
+.skeleton-journey {
+  padding-block: var(--s-5);
+  border-block: 1px solid var(--line);
+}
+
 .skeleton-split {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -250,6 +298,22 @@
 @media (max-width: 1100px) {
   .skeleton-split {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .skeleton-master-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .skeleton-list {
+    padding-inline-end: 0;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--line);
+  }
+
+  .skeleton-detail {
+    padding-inline-start: 0;
   }
 }
 

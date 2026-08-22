@@ -1,6 +1,14 @@
 import 'server-only'
 
 import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
+import { canOperator } from '@/lib/access'
+import { readCallIntelligenceState } from '@/lib/call-intelligence'
+import {
+  capabilitiesForProvider,
+  integrationSetupState,
+  normalizeIntegrationConfig,
+} from '@/lib/integrations'
+import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
 import { db } from '@/server/db'
 import {
   agent,
@@ -25,6 +33,8 @@ import {
   voiceProfile,
   workspace,
 } from '@/server/db/schema'
+import { getClientReadinessById } from '@/server/operations/client-readiness'
+import { getVersionTestGate } from '@/server/test-lab/gate'
 
 /** Calls that are on the wire right now. */
 const LIVE_STATUSES = ['live', 'ringing', 'waiting_tool'] as const
@@ -42,22 +52,33 @@ function daysBack(n: number) {
   return d
 }
 
+function liveCutoff() {
+  return new Date(Date.now() - 2 * 60 * 60 * 1000)
+}
+
 /* ─── Sidebar counts ─────────────────────────────────────────────────────── */
 
 /** Two numbers the sidebar badges — kept as one cheap query per navigation. */
 export async function getNavCounts(): Promise<{ live: number; review: number }> {
-  const [row] = await db
-    .select({
-      live: sql<number>`(
-        select count(*) from ${call} where ${call.status} in ('live','ringing','waiting_tool')
-      )`.mapWith(Number),
-      review: sql<number>`(
-        select count(*) from ${qaResult} where ${qaResult.reviewerId} is null
-      )`.mapWith(Number),
-    })
-    .from(sql`(select 1) as t`)
+  const [liveRows, reviewRows] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(
+        and(
+          inArray(call.status, [...LIVE_STATUSES]),
+          eq(call.origin, 'live'),
+          gte(call.startedAt, liveCutoff()),
+        ),
+      ),
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(qaResult)
+      .innerJoin(call, eq(call.id, qaResult.callId))
+      .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live'))),
+  ])
 
-  return { live: row?.live ?? 0, review: row?.review ?? 0 }
+  return { live: liveRows[0]?.n ?? 0, review: reviewRows[0]?.n ?? 0 }
 }
 
 /* ─── Operator home ──────────────────────────────────────────────────────── */
@@ -92,7 +113,7 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
         sql<number>`count(*) filter (where ${call.startedAt} >= ${today} and ${call.outcome} is not null)`.mapWith(
           Number,
         ),
-      live: sql<number>`count(*) filter (where ${call.status} in ('live','ringing','waiting_tool'))`.mapWith(
+      live: sql<number>`count(*) filter (where ${call.status} in ('live','ringing','waiting_tool') and ${call.startedAt} >= ${liveCutoff()})`.mapWith(
         Number,
       ),
       afterHours:
@@ -101,6 +122,7 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
         ),
     })
     .from(call)
+    .where(eq(call.origin, 'live'))
 
   const [bookings] = await db
     .select({
@@ -111,11 +133,14 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
         ),
     })
     .from(booking)
+    .innerJoin(call, eq(booking.callId, call.id))
+    .where(eq(call.origin, 'live'))
 
   const [review] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(qaResult)
-    .where(sql`${qaResult.reviewerId} is null`)
+    .innerJoin(call, eq(qaResult.callId, call.id))
+    .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live')))
 
   const closed = calls?.closedToday ?? 0
 
@@ -157,7 +182,13 @@ export async function getLiveCalls(): Promise<LiveCall[]> {
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
     .leftJoin(agentVersion, eq(call.agentVersionId, agentVersion.id))
     .leftJoin(agent, eq(agentVersion.agentId, agent.id))
-    .where(inArray(call.status, [...LIVE_STATUSES]))
+    .where(
+      and(
+        inArray(call.status, [...LIVE_STATUSES]),
+        eq(call.origin, 'live'),
+        gte(call.startedAt, liveCutoff()),
+      ),
+    )
     .orderBy(desc(call.startedAt))
     .limit(12)
 
@@ -212,7 +243,7 @@ export async function getNeedsAttention(limit = 8): Promise<AttentionItem[]> {
     .from(qaResult)
     .innerJoin(call, eq(qaResult.callId, call.id))
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
-    .where(sql`${qaResult.reviewerId} is null`)
+    .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live')))
     .orderBy(desc(qaResult.createdAt))
     .limit(limit) as Promise<AttentionItem[]>
 }
@@ -243,7 +274,10 @@ export async function getClientsAtRisk(): Promise<ClientRisk[]> {
         ),
     })
     .from(workspace)
-    .innerJoin(call, and(eq(call.workspaceId, workspace.id), gte(call.startedAt, since)))
+    .innerJoin(
+      call,
+      and(eq(call.workspaceId, workspace.id), gte(call.startedAt, since), eq(call.origin, 'live')),
+    )
     .where(eq(workspace.type, 'client'))
     .groupBy(workspace.id, workspace.name, workspace.slug)
 
@@ -316,7 +350,9 @@ export async function getPlatformStatus(): Promise<PlatformSignal[]> {
   const [phones] = await db
     .select({
       unverified:
-        sql<number>`count(*) filter (where ${phoneNumber.sipStatus} <> 'verified')`.mapWith(Number),
+        sql<number>`count(*) filter (where ${phoneNumber.sipStatus} not in ('verified', 'active'))`.mapWith(
+          Number,
+        ),
     })
     .from(phoneNumber)
 
@@ -332,7 +368,14 @@ export async function getPlatformStatus(): Promise<PlatformSignal[]> {
   const [slowTools] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(toolExecution)
-    .where(and(gte(toolExecution.executedAt, daysBack(1)), eq(toolExecution.success, 'false')))
+    .innerJoin(call, eq(toolExecution.callId, call.id))
+    .where(
+      and(
+        gte(toolExecution.executedAt, daysBack(1)),
+        eq(toolExecution.success, 'false'),
+        eq(call.origin, 'live'),
+      ),
+    )
 
   if ((slowTools?.n ?? 0) > 0) {
     signals.push({
@@ -375,7 +418,7 @@ export async function getCallTrend(days = 14) {
         ),
     })
     .from(call)
-    .where(gte(call.startedAt, daysBack(days)))
+    .where(and(gte(call.startedAt, daysBack(days)), eq(call.origin, 'live')))
     .groupBy(sql`date_trunc('day', ${call.startedAt})`)
     .orderBy(sql`date_trunc('day', ${call.startedAt})`)
 
@@ -400,7 +443,7 @@ export async function getMetricTrends() {
           ),
       })
       .from(call)
-      .where(gte(call.startedAt, since))
+      .where(and(gte(call.startedAt, since), eq(call.origin, 'live')))
       .groupBy(sql`date_trunc('day', ${call.startedAt})`)
       .orderBy(sql`date_trunc('day', ${call.startedAt})`),
     db
@@ -409,7 +452,8 @@ export async function getMetricTrends() {
         n: sql<number>`count(*)`.mapWith(Number),
       })
       .from(booking)
-      .where(gte(booking.createdAt, since))
+      .innerJoin(call, eq(booking.callId, call.id))
+      .where(and(gte(booking.createdAt, since), eq(call.origin, 'live')))
       .groupBy(sql`date_trunc('day', ${booking.createdAt})`)
       .orderBy(sql`date_trunc('day', ${booking.createdAt})`),
     db
@@ -418,7 +462,8 @@ export async function getMetricTrends() {
         n: sql<number>`count(*)`.mapWith(Number),
       })
       .from(qaResult)
-      .where(gte(qaResult.createdAt, since))
+      .innerJoin(call, eq(qaResult.callId, call.id))
+      .where(and(gte(qaResult.createdAt, since), eq(call.origin, 'live')))
       .groupBy(sql`date_trunc('day', ${qaResult.createdAt})`)
       .orderBy(sql`date_trunc('day', ${qaResult.createdAt})`),
   ])
@@ -453,45 +498,61 @@ export async function getMetricTrends() {
 /* ─── Clients ────────────────────────────────────────────────────────────── */
 
 export async function getClients() {
-  const rows = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      slug: workspace.slug,
-      status: workspace.status,
-      industryPack: workspace.industryPack,
-      businessInfo: workspace.businessInfo,
-      createdAt: workspace.createdAt,
-      calls30d: sql<number>`(
-        select count(*) from ${call}
-        where ${call.workspaceId} = ${workspace.id}
-          and ${call.startedAt} >= now() - interval '30 days'
-      )`.mapWith(Number),
-      bookings30d: sql<number>`(
-        select count(*) from ${booking}
-        where ${booking.workspaceId} = ${workspace.id}
-          and ${booking.createdAt} >= now() - interval '30 days'
-      )`.mapWith(Number),
-      agents: sql<number>`(
-        select count(*) from ${agent} where ${agent.workspaceId} = ${workspace.id}
-      )`.mapWith(Number),
-      unhealthy: sql<number>`(
-        select count(*) from ${integrationConnection}
-        where ${integrationConnection.workspaceId} = ${workspace.id}
-          and ${integrationConnection.health} in ('degraded','failed')
-      )`.mapWith(Number),
-    })
-    .from(workspace)
-    .where(eq(workspace.type, 'client'))
-    .orderBy(
-      desc(sql`(
-      select count(*) from ${call}
-      where ${call.workspaceId} = ${workspace.id}
-        and ${call.startedAt} >= now() - interval '30 days'
-    )`),
-    )
+  const since = daysBack(30)
+  const [clients, calls, bookings, agents, unhealthy] = await Promise.all([
+    db
+      .select({
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        status: workspace.status,
+        industryPack: workspace.industryPack,
+        businessInfo: workspace.businessInfo,
+        createdAt: workspace.createdAt,
+      })
+      .from(workspace)
+      .where(eq(workspace.type, 'client')),
+    db
+      .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(and(gte(call.startedAt, since), eq(call.origin, 'live')))
+      .groupBy(call.workspaceId),
+    db
+      .select({ workspaceId: booking.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(booking)
+      .innerJoin(call, eq(booking.callId, call.id))
+      .where(and(gte(booking.createdAt, since), eq(call.origin, 'live')))
+      .groupBy(booking.workspaceId),
+    db
+      .select({ workspaceId: agent.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(agent)
+      .groupBy(agent.workspaceId),
+    db
+      .select({
+        workspaceId: integrationConnection.workspaceId,
+        n: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(integrationConnection)
+      .where(inArray(integrationConnection.health, ['degraded', 'failed']))
+      .groupBy(integrationConnection.workspaceId),
+  ])
 
-  return rows
+  const countByWorkspace = (rows: { workspaceId: string; n: number }[]) =>
+    new Map(rows.map((row) => [row.workspaceId, row.n]))
+  const callsByWorkspace = countByWorkspace(calls)
+  const bookingsByWorkspace = countByWorkspace(bookings)
+  const agentsByWorkspace = countByWorkspace(agents)
+  const unhealthyByWorkspace = countByWorkspace(unhealthy)
+
+  return clients
+    .map((client) => ({
+      ...client,
+      calls30d: callsByWorkspace.get(client.id) ?? 0,
+      bookings30d: bookingsByWorkspace.get(client.id) ?? 0,
+      agents: agentsByWorkspace.get(client.id) ?? 0,
+      unhealthy: unhealthyByWorkspace.get(client.id) ?? 0,
+    }))
+    .sort((a, b) => b.calls30d - a.calls30d)
 }
 
 export async function getClientBySlug(slug: string) {
@@ -506,76 +567,92 @@ export async function getClientDetail(slug: string) {
 
   const since = daysBack(30)
 
-  const [totals, agents, numbers, integrations, requests, knowledge, recentCalls, trend] =
-    await Promise.all([
-      db
-        .select({
-          calls: sql<number>`count(*)`.mapWith(Number),
-          resolved:
-            sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
-              Number,
-            ),
-          closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(Number),
-          transfers: sql<number>`count(*) filter (where ${call.outcome} = 'transfer')`.mapWith(
+  const [
+    totals,
+    agents,
+    numbers,
+    integrations,
+    requests,
+    knowledge,
+    recentCalls,
+    trend,
+    readiness,
+  ] = await Promise.all([
+    db
+      .select({
+        calls: sql<number>`count(*)`.mapWith(Number),
+        resolved:
+          sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
             Number,
           ),
-          afterHours:
-            sql<number>`count(*) filter (where (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
-              Number,
-            ),
-        })
-        .from(call)
-        .where(and(eq(call.workspaceId, ws.id), gte(call.startedAt, since))),
-      db
-        .select({
-          id: agent.id,
-          name: agent.name,
-          liveVersionId: agent.liveVersionId,
-          updatedAt: agent.updatedAt,
-        })
-        .from(agent)
-        .where(eq(agent.workspaceId, ws.id)),
-      db.select().from(phoneNumber).where(eq(phoneNumber.workspaceId, ws.id)),
-      db.select().from(integrationConnection).where(eq(integrationConnection.workspaceId, ws.id)),
-      db
-        .select()
-        .from(changeRequest)
-        .where(eq(changeRequest.workspaceId, ws.id))
-        .orderBy(desc(changeRequest.createdAt))
-        .limit(6),
-      db
-        .select({ category: knowledgeItem.category, n: sql<number>`count(*)`.mapWith(Number) })
-        .from(knowledgeItem)
-        .where(eq(knowledgeItem.workspaceId, ws.id))
-        .groupBy(knowledgeItem.category),
-      db
-        .select({
-          id: call.id,
-          callerNumber: call.callerNumber,
-          intent: call.intent,
-          outcome: call.outcome,
-          status: call.status,
-          durationSeconds: call.durationSeconds,
-          startedAt: call.startedAt,
-        })
-        .from(call)
-        .where(eq(call.workspaceId, ws.id))
-        .orderBy(desc(call.startedAt))
-        .limit(10),
-      db
-        .select({
-          day: sql<string>`to_char(date_trunc('day', ${call.startedAt}), 'YYYY-MM-DD')`,
-          total: sql<number>`count(*)`.mapWith(Number),
-          resolved:
-            sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
-              Number,
-            ),
-        })
-        .from(call)
-        .where(and(eq(call.workspaceId, ws.id), gte(call.startedAt, daysBack(14))))
-        .groupBy(sql`date_trunc('day', ${call.startedAt})`)
-        .orderBy(sql`date_trunc('day', ${call.startedAt})`),
-    ])
+        closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(Number),
+        transfers: sql<number>`count(*) filter (where ${call.outcome} = 'transfer')`.mapWith(
+          Number,
+        ),
+        afterHours:
+          sql<number>`count(*) filter (where (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
+            Number,
+          ),
+      })
+      .from(call)
+      .where(and(eq(call.workspaceId, ws.id), gte(call.startedAt, since), eq(call.origin, 'live'))),
+    db
+      .select({
+        id: agent.id,
+        name: agent.name,
+        liveVersionId: agent.liveVersionId,
+        updatedAt: agent.updatedAt,
+      })
+      .from(agent)
+      .where(eq(agent.workspaceId, ws.id)),
+    db.select().from(phoneNumber).where(eq(phoneNumber.workspaceId, ws.id)),
+    db.select().from(integrationConnection).where(eq(integrationConnection.workspaceId, ws.id)),
+    db
+      .select()
+      .from(changeRequest)
+      .where(eq(changeRequest.workspaceId, ws.id))
+      .orderBy(desc(changeRequest.createdAt))
+      .limit(6),
+    db
+      .select({ category: knowledgeItem.category, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(knowledgeItem)
+      .where(eq(knowledgeItem.workspaceId, ws.id))
+      .groupBy(knowledgeItem.category),
+    db
+      .select({
+        id: call.id,
+        callerNumber: call.callerNumber,
+        intent: call.intent,
+        outcome: call.outcome,
+        status: call.status,
+        durationSeconds: call.durationSeconds,
+        startedAt: call.startedAt,
+      })
+      .from(call)
+      .where(and(eq(call.workspaceId, ws.id), eq(call.origin, 'live')))
+      .orderBy(desc(call.startedAt))
+      .limit(10),
+    db
+      .select({
+        day: sql<string>`to_char(date_trunc('day', ${call.startedAt}), 'YYYY-MM-DD')`,
+        total: sql<number>`count(*)`.mapWith(Number),
+        resolved:
+          sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+            Number,
+          ),
+      })
+      .from(call)
+      .where(
+        and(
+          eq(call.workspaceId, ws.id),
+          gte(call.startedAt, daysBack(14)),
+          eq(call.origin, 'live'),
+        ),
+      )
+      .groupBy(sql`date_trunc('day', ${call.startedAt})`)
+      .orderBy(sql`date_trunc('day', ${call.startedAt})`),
+    getClientReadinessById(ws.id),
+  ])
 
   const t = totals[0] ?? { calls: 0, resolved: 0, closed: 0, transfers: 0, afterHours: 0 }
 
@@ -592,6 +669,7 @@ export async function getClientDetail(slug: string) {
     knowledge,
     recentCalls,
     trend,
+    readiness,
   }
 }
 
@@ -662,7 +740,13 @@ export async function getAgentDetail(agentId: string) {
             ),
           })
           .from(call)
-          .where(and(eq(call.agentVersionId, liveVersion.id), gte(call.startedAt, daysBack(30))))
+          .where(
+            and(
+              eq(call.agentVersionId, liveVersion.id),
+              gte(call.startedAt, daysBack(30)),
+              eq(call.origin, 'live'),
+            ),
+          )
       : Promise.resolve([]),
   ])
 
@@ -719,23 +803,27 @@ export async function getAgents() {
   const profiles = await db.select().from(voiceProfile)
   const profileById = new Map(profiles.map((p) => [p.id, p]))
 
-  return rows.map((a) => {
-    const own = versions.filter((v) => v.agentId === a.id)
-    const live = own.find((v) => v.id === a.liveVersionId) ?? null
-    const draft = own.find((v) => v.status === 'draft') ?? null
-    return {
-      ...a,
-      live,
-      draft,
-      versionCount: own.length,
-      voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
-    }
-  })
+  return Promise.all(
+    rows.map(async (a) => {
+      const own = versions.filter((v) => v.agentId === a.id)
+      const live = own.find((v) => v.id === a.liveVersionId) ?? null
+      const draft = own.find((v) => v.status === 'draft') ?? null
+      const draftTestGate = draft ? await getVersionTestGate(draft.id) : null
+      return {
+        ...a,
+        live,
+        draft,
+        draftTestGate,
+        versionCount: own.length,
+        voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
+      }
+    }),
+  )
 }
 
 /* ─── Calls ──────────────────────────────────────────────────────────────── */
 
-export type CallFilter = 'all' | 'needs_review' | 'resolved' | 'transferred' | 'failed'
+export type CallFilter = 'all' | 'needs_review' | 'resolved' | 'transferred' | 'failed' | 'demo'
 
 export async function getCalls(options: {
   filter?: CallFilter
@@ -747,6 +835,7 @@ export async function getCalls(options: {
 
   const conditions = []
   if (workspaceId) conditions.push(eq(call.workspaceId, workspaceId))
+  conditions.push(eq(call.origin, filter === 'demo' ? 'seed' : 'live'))
 
   if (filter === 'resolved') conditions.push(inArray(call.outcome, ['resolved', 'booking', 'lead']))
   if (filter === 'transferred') conditions.push(eq(call.outcome, 'transfer'))
@@ -770,6 +859,7 @@ export async function getCalls(options: {
       id: call.id,
       callerNumber: call.callerNumber,
       status: call.status,
+      origin: call.origin,
       outcome: call.outcome,
       intent: call.intent,
       durationSeconds: call.durationSeconds,
@@ -787,8 +877,6 @@ export async function getCalls(options: {
     .orderBy(desc(call.startedAt))
     .limit(limit)
 }
-
-export type TranscriptTurn = { role: 'agent' | 'caller'; text: string; at: number }
 
 export async function getCallDetail(id: string) {
   const [row] = await db
@@ -823,6 +911,14 @@ export async function getCallDetail(id: string) {
     db.select().from(lead).where(eq(lead.callId, id)).limit(1),
   ])
 
+  const transcript = normalizeTranscript(row.call.transcript)
+  const bookingRecord = relatedBooking[0] ?? null
+  const leadRecord = relatedLead[0] ?? null
+  const intelligence = readCallIntelligenceState(row.call.metadata)
+  const intelligenceStale =
+    intelligence.state === 'processing' &&
+    Date.now() - new Date(intelligence.startedAt).getTime() > 90_000
+
   return {
     ...row.call,
     workspaceName: row.workspaceName,
@@ -831,12 +927,25 @@ export async function getCallDetail(id: string) {
     versionNumber: row.versionNumber,
     phoneE164: row.phoneE164,
     transferDestination: row.transferDestination,
-    transcript: (row.call.transcript ?? []) as TranscriptTurn[],
+    transcript,
+    summary: buildCallSummary({
+      status: row.call.status,
+      outcome: row.call.outcome,
+      intent: row.call.intent,
+      endedAt: row.call.endedAt,
+      metadata: row.call.metadata,
+      transcript,
+      booking: bookingRecord,
+      lead: leadRecord,
+      tools,
+    }),
+    intelligence,
+    intelligenceStale,
     events,
     tools,
     qa: qa[0] ?? null,
-    booking: relatedBooking[0] ?? null,
-    lead: relatedLead[0] ?? null,
+    booking: bookingRecord,
+    lead: leadRecord,
   }
 }
 
@@ -862,6 +971,7 @@ export async function getQaQueue(limit = 40) {
     .from(qaResult)
     .innerJoin(call, eq(qaResult.callId, call.id))
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
+    .where(eq(call.origin, 'live'))
     .orderBy(desc(qaResult.createdAt))
     .limit(limit)
 
@@ -874,12 +984,15 @@ export async function getQaQueue(limit = 40) {
       avgScore: sql<number>`coalesce(round(avg(${qaResult.score})), 0)`.mapWith(Number),
     })
     .from(qaResult)
+    .innerJoin(call, eq(qaResult.callId, call.id))
+    .where(eq(call.origin, 'live'))
 
   // Flag frequency drives the queue-reason table in Bible §22.
   const flagRows = await db
     .select({ flags: qaResult.flags })
     .from(qaResult)
-    .where(sql`${qaResult.reviewerId} is null`)
+    .innerJoin(call, eq(qaResult.callId, call.id))
+    .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live')))
 
   const flagCounts = new Map<string, number>()
   for (const r of flagRows) {
@@ -973,12 +1086,14 @@ export async function getVoiceLab() {
 /* ─── Integrations ───────────────────────────────────────────────────────── */
 
 export async function getIntegrations() {
-  const rows = await db
+  const rawRows = await db
     .select({
       id: integrationConnection.id,
       provider: integrationConnection.provider,
       label: integrationConnection.label,
       health: integrationConnection.health,
+      config: integrationConnection.config,
+      credentialsRef: integrationConnection.credentialsRef,
       lastSuccessAt: integrationConnection.lastSuccessAt,
       lastErrorAt: integrationConnection.lastErrorAt,
       errorRate24h: integrationConnection.errorRate24h,
@@ -988,6 +1103,20 @@ export async function getIntegrations() {
     .from(integrationConnection)
     .innerJoin(workspace, eq(integrationConnection.workspaceId, workspace.id))
     .orderBy(workspace.name)
+
+  const rows = rawRows.map((row) => {
+    const config = normalizeIntegrationConfig(row.config)
+    return {
+      ...row,
+      config,
+      capabilities: capabilitiesForProvider(row.provider),
+      setup: integrationSetupState({
+        provider: row.provider,
+        config,
+        credentialsRef: row.credentialsRef,
+      }),
+    }
+  })
 
   const executions = await db
     .select({
@@ -1001,7 +1130,8 @@ export async function getIntegrations() {
       ),
     })
     .from(toolExecution)
-    .where(gte(toolExecution.executedAt, daysBack(7)))
+    .innerJoin(call, eq(toolExecution.callId, call.id))
+    .where(and(gte(toolExecution.executedAt, daysBack(7)), eq(call.origin, 'live')))
     .groupBy(toolExecution.toolName)
     .orderBy(desc(sql`count(*)`))
 
@@ -1014,24 +1144,109 @@ export async function getPhoneNumbers() {
   return db
     .select({
       id: phoneNumber.id,
+      workspaceId: phoneNumber.workspaceId,
       e164: phoneNumber.e164,
       label: phoneNumber.label,
       mode: phoneNumber.mode,
       sipStatus: phoneNumber.sipStatus,
       transferDestination: phoneNumber.transferDestination,
+      routingRules: phoneNumber.routingRules,
       lastTestAt: phoneNumber.lastTestAt,
+      verifiedAt: phoneNumber.verifiedAt,
       workspaceName: workspace.name,
+      workspaceSlug: workspace.slug,
+      agentId: agent.id,
       agentName: agent.name,
+      liveVersionId: agent.liveVersionId,
+      liveVersionNumber: agentVersion.versionNumber,
+      liveVersionStatus: agentVersion.status,
+      lastSuccessfulCallAt: sql<Date | null>`(
+        select max(${call.startedAt}) from ${call}
+        where ${call.phoneNumberId} = ${phoneNumber.id}
+          and ${call.origin} = 'live'
+          and ${call.status} <> 'failed'
+      )`,
       calls30d: sql<number>`(
         select count(*) from ${call}
         where ${call.phoneNumberId} = ${phoneNumber.id}
           and ${call.startedAt} >= now() - interval '30 days'
+          and ${call.origin} = 'live'
       )`.mapWith(Number),
     })
     .from(phoneNumber)
     .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
     .leftJoin(agent, eq(phoneNumber.agentId, agent.id))
+    .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
     .orderBy(workspace.name)
+}
+
+export async function getPhoneNumberDetail(phoneId: string) {
+  const [row] = await db
+    .select({
+      id: phoneNumber.id,
+      workspaceId: phoneNumber.workspaceId,
+      e164: phoneNumber.e164,
+      label: phoneNumber.label,
+      mode: phoneNumber.mode,
+      sipStatus: phoneNumber.sipStatus,
+      transferDestination: phoneNumber.transferDestination,
+      routingRules: phoneNumber.routingRules,
+      lastTestAt: phoneNumber.lastTestAt,
+      verifiedAt: phoneNumber.verifiedAt,
+      verificationEvidence: phoneNumber.verificationEvidence,
+      workspaceName: workspace.name,
+      workspaceSlug: workspace.slug,
+      agentId: agent.id,
+      agentName: agent.name,
+      liveVersionId: agent.liveVersionId,
+      liveVersionNumber: agentVersion.versionNumber,
+      liveVersionStatus: agentVersion.status,
+      lastSuccessfulCallAt: sql<Date | null>`(
+        select max(${call.startedAt}) from ${call}
+        where ${call.phoneNumberId} = ${phoneNumber.id}
+          and ${call.origin} = 'live'
+          and ${call.status} <> 'failed'
+      )`,
+    })
+    .from(phoneNumber)
+    .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
+    .leftJoin(agent, eq(phoneNumber.agentId, agent.id))
+    .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+    .where(eq(phoneNumber.id, phoneId))
+    .limit(1)
+
+  if (!row) return null
+
+  const [recentCalls, availableAgents] = await Promise.all([
+    db
+      .select({
+        id: call.id,
+        status: call.status,
+        outcome: call.outcome,
+        callerNumber: call.callerNumber,
+        origin: call.origin,
+        startedAt: call.startedAt,
+        endedAt: call.endedAt,
+      })
+      .from(call)
+      .where(and(eq(call.phoneNumberId, row.id), eq(call.origin, 'live')))
+      .orderBy(desc(call.startedAt))
+      .limit(8),
+    db
+      .select({
+        id: agent.id,
+        name: agent.name,
+        liveVersionId: agent.liveVersionId,
+        versionNumber: agentVersion.versionNumber,
+        versionStatus: agentVersion.status,
+      })
+      .from(agent)
+      .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+      .where(eq(agent.workspaceId, row.workspaceId))
+      .orderBy(agent.name),
+  ])
+
+  return { ...row, recentCalls, availableAgents }
 }
 
 /* ─── System ─────────────────────────────────────────────────────────────── */
@@ -1103,20 +1318,26 @@ export async function getChangeRequests(workspaceId?: string) {
 
 /* ─── Command palette index ──────────────────────────────────────────────── */
 
-export async function getCommandIndex() {
+export async function getCommandIndex(role: string) {
   const [clients, agents, numbers] = await Promise.all([
-    db
-      .select({ name: workspace.name, slug: workspace.slug })
-      .from(workspace)
-      .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'paused'))),
-    db
-      .select({ name: agent.name, workspaceName: workspace.name })
-      .from(agent)
-      .innerJoin(workspace, eq(agent.workspaceId, workspace.id)),
-    db
-      .select({ e164: phoneNumber.e164, workspaceName: workspace.name })
-      .from(phoneNumber)
-      .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id)),
+    canOperator(role, 'client.manage')
+      ? db
+          .select({ name: workspace.name, slug: workspace.slug })
+          .from(workspace)
+          .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'paused')))
+      : Promise.resolve([]),
+    canOperator(role, 'agent.publish')
+      ? db
+          .select({ name: agent.name, workspaceName: workspace.name })
+          .from(agent)
+          .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+      : Promise.resolve([]),
+    canOperator(role, 'phone.manage')
+      ? db
+          .select({ e164: phoneNumber.e164, workspaceName: workspace.name })
+          .from(phoneNumber)
+          .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
+      : Promise.resolve([]),
   ])
 
   return { clients, agents, numbers }
