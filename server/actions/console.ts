@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -19,14 +19,16 @@ import {
   agentVersion,
   auditLog,
   changeRequest,
+  flow,
   integrationConnection,
   phoneNumber,
   pronunciation,
   qaResult,
+  salesInquiry,
+  scenarioTest,
   workspace,
 } from '@/server/db/schema'
 import { invokeIntegration } from '@/server/integrations/runtime'
-import { notifyWorkspaceMembers, tryNotify } from '@/server/notifications/service'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
 import { getVersionTestGate } from '@/server/test-lab/gate'
 import { markPhoneActive, markPhoneDisabled } from '@/server/voice/phone'
@@ -41,12 +43,12 @@ function id(prefix: string) {
 
 async function actor() {
   const user = await getCurrentUser()
-  return user?.email ?? user?.id ?? 'ops'
+  return user?.id ?? 'ops'
 }
 
 async function requireActionPermission(
   permission: OperatorPermission,
-): Promise<ActionResult | null> {
+): Promise<{ ok: false; error: string } | null> {
   const access = await authorizeOperator(permission)
   return access ? null : { ok: false, error: 'لا تملك صلاحية تنفيذ هذا الإجراء.' }
 }
@@ -68,6 +70,47 @@ async function audit(input: {
     metadata: { note: input.note },
     createdAt: new Date(),
   })
+}
+
+const inquiryStatusSchema = z.object({
+  inquiryId: z.string().min(1),
+  status: z.enum(['new', 'qualified', 'proposal', 'won', 'lost']),
+})
+
+export async function updateSalesInquiryStatus(
+  input: z.input<typeof inquiryStatusSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+  const parsed = inquiryStatusSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'حالة الطلب غير صحيحة.' }
+
+  const [row] = await db
+    .select()
+    .from(salesInquiry)
+    .where(eq(salesInquiry.id, parsed.data.inquiryId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'طلب العرض غير موجود.' }
+
+  const actorId = await actor()
+  await db.transaction(async (tx) => {
+    await tx
+      .update(salesInquiry)
+      .set({ status: parsed.data.status, ownerId: actorId, updatedAt: new Date() })
+      .where(eq(salesInquiry.id, row.id))
+    await tx.insert(auditLog).values({
+      id: id('audit'),
+      actorId,
+      action: 'sales_inquiry.status_changed',
+      resourceType: 'sales_inquiry',
+      resourceId: row.id,
+      metadata: { from: row.status, to: parsed.data.status, company: row.company },
+      createdAt: new Date(),
+    })
+  })
+
+  revalidatePath('/console/inquiries')
+  return { ok: true, message: 'حُدّثت حالة طلب العرض.' }
 }
 
 /* ─── QA review ──────────────────────────────────────────────────────────── */
@@ -170,11 +213,6 @@ export async function publishVersion(versionId: string): Promise<ActionResult> {
   if (!version) return { ok: false, error: 'النسخة غير موجودة.' }
   if (version.status === 'published') return { ok: false, error: 'هذه النسخة منشورة بالفعل.' }
 
-  const blockers = (version.blockers ?? []) as string[]
-  if (blockers.length > 0) {
-    return { ok: false, error: `لا يمكن النشر: ${blockers[0]}` }
-  }
-
   const testGate = await getVersionTestGate(versionId)
   if (!testGate?.canPublish) {
     return {
@@ -187,35 +225,164 @@ export async function publishVersion(versionId: string): Promise<ActionResult> {
   if (!parent) return { ok: false, error: 'الموظف الصوتي غير موجود.' }
 
   const now = new Date()
+  const publishedById = await actor()
 
-  // Retire the version that was live, so exactly one is ever published.
-  await db
-    .update(agentVersion)
-    .set({ status: 'archived', updatedAt: now })
-    .where(and(eq(agentVersion.agentId, version.agentId), eq(agentVersion.status, 'published')))
-
-  await db
-    .update(agentVersion)
-    .set({ status: 'published', publishedAt: now, publishedById: await actor(), updatedAt: now })
-    .where(eq(agentVersion.id, versionId))
-
-  await db
-    .update(agent)
-    .set({ liveVersionId: versionId, updatedAt: now })
-    .where(eq(agent.id, version.agentId))
-
-  await audit({
-    workspaceId: parent.workspaceId,
-    action: 'agent.publish',
-    resourceType: 'agent_version',
-    resourceId: versionId,
-    note: `نشر النسخة v${version.versionNumber} — ${parent.name}`,
-  })
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .select({ id: agent.id })
+        .from(agent)
+        .where(eq(agent.id, version.agentId))
+        .for('update')
+      await tx
+        .update(agentVersion)
+        .set({ status: 'archived', updatedAt: now })
+        .where(and(eq(agentVersion.agentId, version.agentId), eq(agentVersion.status, 'published')))
+      await tx
+        .update(agentVersion)
+        .set({ status: 'published', publishedAt: now, publishedById, updatedAt: now })
+        .where(eq(agentVersion.id, versionId))
+      await tx
+        .update(agent)
+        .set({ liveVersionId: versionId, updatedAt: now })
+        .where(eq(agent.id, version.agentId))
+      await tx.insert(auditLog).values({
+        id: id('audit'),
+        workspaceId: parent.workspaceId,
+        actorId: publishedById,
+        action: 'agent.publish',
+        resourceType: 'agent_version',
+        resourceId: versionId,
+        metadata: { note: `نشر النسخة v${version.versionNumber} — ${parent.name}` },
+        createdAt: now,
+      })
+    })
+  } catch {
+    return { ok: false, error: 'تعذر إتمام النشر بصورة ذرية. لم تتغير النسخة الحية.' }
+  }
 
   revalidatePath('/console/agents')
   revalidatePath('/console/test-lab')
   revalidatePath('/console')
   return { ok: true, message: `نُشرت النسخة v${version.versionNumber}.` }
+}
+
+/** Creates the next editable version without mutating the published runtime. */
+export async function createAgentDraft(
+  agentId: string,
+): Promise<ActionResult<{ versionId: string }>> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
+
+  const now = new Date()
+  const actorId = await actor()
+  const draftId = id('av')
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [parent] = await tx
+        .select()
+        .from(agent)
+        .where(eq(agent.id, agentId))
+        .for('update')
+        .limit(1)
+      if (!parent) return { error: 'الموظف الصوتي غير موجود.' } as const
+
+      const versions = await tx
+        .select()
+        .from(agentVersion)
+        .where(eq(agentVersion.agentId, agentId))
+        .orderBy(desc(agentVersion.versionNumber))
+      if (versions.some((version) => version.status === 'draft')) {
+        return { error: 'توجد مسودة مفتوحة بالفعل.' } as const
+      }
+
+      const live = versions.find((version) => version.id === parent.liveVersionId)
+      if (live?.status !== 'published') {
+        return { error: 'لا توجد نسخة منشورة يمكن إنشاء مسودة منها.' } as const
+      }
+
+      const [sourceFlows, sourceScenarios] = await Promise.all([
+        tx.select().from(flow).where(eq(flow.agentVersionId, live.id)).orderBy(flow.sortOrder),
+        tx.select().from(scenarioTest).where(eq(scenarioTest.agentVersionId, live.id)),
+      ])
+      const nextVersion = (versions[0]?.versionNumber ?? 0) + 1
+
+      await tx.insert(agentVersion).values({
+        id: draftId,
+        agentId,
+        versionNumber: nextVersion,
+        status: 'draft',
+        identity: live.identity,
+        voiceProfileId: live.voiceProfileId,
+        businessRules: live.businessRules,
+        flows: live.flows,
+        toolBindings: live.toolBindings,
+        routing: live.routing,
+        compiledPrompt: live.compiledPrompt,
+        readinessScore: 0,
+        blockers: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      if (sourceFlows.length > 0) {
+        await tx.insert(flow).values(
+          sourceFlows.map((source) => ({
+            id: id('flow'),
+            agentVersionId: draftId,
+            name: source.name,
+            goal: source.goal,
+            requiredFields: source.requiredFields,
+            actions: source.actions,
+            fallback: source.fallback,
+            sortOrder: source.sortOrder,
+            createdAt: now,
+          })),
+        )
+      }
+
+      if (sourceScenarios.length > 0) {
+        await tx.insert(scenarioTest).values(
+          sourceScenarios.map((source) => ({
+            id: id('scenario'),
+            agentVersionId: draftId,
+            name: source.name,
+            category: source.category,
+            input: source.input,
+            expectedOutcome: source.expectedOutcome,
+            isCritical: source.isCritical,
+            createdAt: now,
+          })),
+        )
+      }
+
+      await tx.insert(auditLog).values({
+        id: id('audit'),
+        workspaceId: parent.workspaceId,
+        actorId,
+        action: 'agent.draft_created',
+        resourceType: 'agent_version',
+        resourceId: draftId,
+        metadata: { note: `إنشاء المسودة v${nextVersion} من v${live.versionNumber}` },
+        createdAt: now,
+      })
+
+      return { versionId: draftId, versionNumber: nextVersion } as const
+    })
+
+    if ('error' in result) return { ok: false, error: result.error }
+    revalidatePath('/console/agents')
+    revalidatePath(`/console/agents/${agentId}`)
+    revalidatePath('/console/test-lab')
+    return {
+      ok: true,
+      message: `أُنشئت المسودة v${result.versionNumber}.`,
+      data: { versionId: result.versionId },
+    }
+  } catch {
+    return { ok: false, error: 'تعذر إنشاء المسودة. لم تتغير النسخة المنشورة.' }
+  }
 }
 
 /** Returns the agent to its previous published version. */
@@ -241,31 +408,39 @@ export async function rollbackAgent(agentId: string): Promise<ActionResult> {
   if (!previous) return { ok: false, error: 'لا توجد نسخة سابقة يمكن الرجوع إليها.' }
 
   const now = new Date()
+  const actorId = await actor()
 
-  if (parent.liveVersionId) {
-    await db
-      .update(agentVersion)
-      .set({ status: 'archived', updatedAt: now })
-      .where(eq(agentVersion.id, parent.liveVersionId))
+  try {
+    await db.transaction(async (tx) => {
+      await tx.select({ id: agent.id }).from(agent).where(eq(agent.id, agentId)).for('update')
+      if (parent.liveVersionId) {
+        await tx
+          .update(agentVersion)
+          .set({ status: 'archived', updatedAt: now })
+          .where(eq(agentVersion.id, parent.liveVersionId))
+      }
+      await tx
+        .update(agentVersion)
+        .set({ status: 'published', updatedAt: now })
+        .where(eq(agentVersion.id, previous.id))
+      await tx
+        .update(agent)
+        .set({ liveVersionId: previous.id, updatedAt: now })
+        .where(eq(agent.id, agentId))
+      await tx.insert(auditLog).values({
+        id: id('audit'),
+        workspaceId: parent.workspaceId,
+        actorId,
+        action: 'agent.rollback',
+        resourceType: 'agent_version',
+        resourceId: previous.id,
+        metadata: { note: `الرجوع إلى v${previous.versionNumber} — ${parent.name}` },
+        createdAt: now,
+      })
+    })
+  } catch {
+    return { ok: false, error: 'تعذر الرجوع بصورة ذرية. لم تتغير النسخة الحية.' }
   }
-
-  await db
-    .update(agentVersion)
-    .set({ status: 'published', updatedAt: now })
-    .where(eq(agentVersion.id, previous.id))
-
-  await db
-    .update(agent)
-    .set({ liveVersionId: previous.id, updatedAt: now })
-    .where(eq(agent.id, agentId))
-
-  await audit({
-    workspaceId: parent.workspaceId,
-    action: 'agent.rollback',
-    resourceType: 'agent_version',
-    resourceId: previous.id,
-    note: `الرجوع إلى v${previous.versionNumber} — ${parent.name}`,
-  })
 
   revalidatePath('/console/agents')
   return { ok: true, message: `تم الرجوع إلى v${previous.versionNumber}.` }
@@ -766,59 +941,4 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
   revalidatePath(`/console/clients/${row.slug}`)
   revalidatePath('/console')
   return { ok: true, message: `حُدّثت بيانات ${parsed.data.name}.` }
-}
-
-/* ─── Change requests (operator side) ────────────────────────────────────── */
-
-export async function advanceChangeRequest(
-  requestId: string,
-  status: 'in_review' | 'testing' | 'scheduled' | 'live' | 'rejected',
-): Promise<ActionResult> {
-  const denied = await requireActionPermission('change.manage')
-  if (denied) return denied
-  const [row] = await db
-    .select()
-    .from(changeRequest)
-    .where(eq(changeRequest.id, requestId))
-    .limit(1)
-  if (!row) return { ok: false, error: 'الطلب غير موجود.' }
-
-  await db
-    .update(changeRequest)
-    .set({ status, assignedToId: await actor(), updatedAt: new Date() })
-    .where(eq(changeRequest.id, requestId))
-
-  const label: Record<string, string> = {
-    in_review: 'قيد المراجعة',
-    testing: 'اختبار',
-    scheduled: 'مجدول',
-    live: 'تم التنفيذ',
-    rejected: 'مرفوض',
-  }
-
-  await audit({
-    workspaceId: row.workspaceId,
-    action: 'change_request.advance',
-    resourceType: 'change_request',
-    resourceId: row.id,
-    note: `${row.title} → ${label[status]}`,
-  })
-
-  await tryNotify(() =>
-    notifyWorkspaceMembers({
-      workspaceId: row.workspaceId,
-      severity: status === 'live' ? 'success' : status === 'rejected' ? 'warning' : 'info',
-      category: 'change_request',
-      title: status === 'live' ? 'اكتمل طلب التعديل' : 'تحديث على طلبك',
-      message: `${row.title}: ${label[status]}`,
-      href: '/portal/requests',
-      sourceType: 'change_request',
-      sourceId: row.id,
-      dedupeKey: `change-request:${row.id}:${status}`,
-    }),
-  )
-
-  revalidatePath('/console/clients')
-  revalidatePath('/portal/requests')
-  return { ok: true, message: `الطلب الآن: ${label[status]}.` }
 }

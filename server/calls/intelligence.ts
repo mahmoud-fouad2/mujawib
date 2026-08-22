@@ -1,7 +1,7 @@
 import 'server-only'
 
-import { createHash, randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { createHash, randomUUID } from 'crypto'
+import { and, eq, inArray, lt, or } from 'drizzle-orm'
 import {
   CALL_SUMMARY_JSON_SCHEMA,
   type CallIntelligenceState,
@@ -11,7 +11,8 @@ import {
 import { env } from '@/lib/env'
 import { normalizeTranscript, type TranscriptTurn } from '@/server/calls/presentation'
 import { db } from '@/server/db'
-import { booking, call, callEvent, lead, toolExecution } from '@/server/db/schema'
+import { backgroundJob, booking, call, callEvent, lead, toolExecution } from '@/server/db/schema'
+import { revealJson } from '@/server/security/protected-data'
 import { maskIdentifier, voiceError, voiceLog } from '@/server/voice/log'
 
 const RESPONSES_API = 'https://api.openai.com/v1/responses'
@@ -23,6 +24,7 @@ type ProcessingResult =
   | { state: 'completed'; reused: boolean }
   | { state: 'failed'; errorCode: FailedState['errorCode'] }
   | { state: 'skipped'; reason: SkippedState['reason'] }
+  | { state: 'queued' }
 
 type FailedState = Extract<CallIntelligenceState, { state: 'failed' }>
 type SkippedState = Extract<CallIntelligenceState, { state: 'skipped' }>
@@ -34,13 +36,6 @@ type Evidence = {
   lead: { interest: string | null; status: string } | null
   tools: { name: string; succeeded: boolean }[]
 }
-
-const globalTasks = globalThis as typeof globalThis & {
-  __mujawibCallIntelligence?: Map<string, Promise<ProcessingResult>>
-}
-
-if (!globalTasks.__mujawibCallIntelligence) globalTasks.__mujawibCallIntelligence = new Map()
-const activeTasks = globalTasks.__mujawibCallIntelligence
 
 function eventId() {
   return `cev_${randomUUID().replaceAll('-', '').slice(0, 24)}`
@@ -100,7 +95,9 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
   const [row] = await db.select().from(call).where(eq(call.id, callId)).limit(1)
   if (!row) return { state: 'failed', errorCode: 'request_failed' }
 
-  const transcript = normalizeTranscript(row.transcript)
+  const transcript = normalizeTranscript(
+    revealJson<unknown[]>(row.transcriptEncrypted, row.transcript ?? []),
+  )
   const hash = transcriptHash(transcript)
   const model = env.OPENAI_POST_CALL_MODEL ?? DEFAULT_MODEL
   const previous = readCallIntelligenceState(row.metadata)
@@ -170,7 +167,7 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
     db.select().from(booking).where(eq(booking.callId, callId)).limit(1),
     db.select().from(lead).where(eq(lead.callId, callId)).limit(1),
     db
-      .select({ toolName: toolExecution.toolName, success: toolExecution.success })
+      .select({ toolName: toolExecution.toolName, status: toolExecution.status })
       .from(toolExecution)
       .where(eq(toolExecution.callId, callId)),
   ])
@@ -184,7 +181,7 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
     lead: relatedLead[0]
       ? { interest: relatedLead[0].interest, status: relatedLead[0].status }
       : null,
-    tools: tools.map((tool) => ({ name: tool.toolName, succeeded: tool.success === 'true' })),
+    tools: tools.map((tool) => ({ name: tool.toolName, succeeded: tool.status === 'succeeded' })),
   }
 
   let response: Response
@@ -271,20 +268,91 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
   return { state: 'completed', reused: false }
 }
 
-/**
- * Runs after the control channel has closed. Calls sharing a Node process also
- * share the task, so a UI retry cannot race the automatic processor.
- */
-export function processCallIntelligence(
+function jobId(dedupeKey: string) {
+  return `job_${createHash('sha256').update(dedupeKey).digest('hex').slice(0, 24)}`
+}
+
+async function ensureJob(callId: string, force: boolean) {
+  const dedupeKey = force ? `post-call:${callId}:force:${randomUUID()}` : `post-call:${callId}`
+  const id = jobId(dedupeKey)
+  await db
+    .insert(backgroundJob)
+    .values({
+      id,
+      type: 'post_call_intelligence',
+      dedupeKey,
+      payload: { callId, force },
+      status: 'pending',
+      availableAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoNothing({ target: backgroundJob.dedupeKey })
+  return id
+}
+
+async function runClaimedJob(jobIdValue: string, callId: string, force: boolean) {
+  const staleBefore = new Date(Date.now() - 2 * 60 * 1000)
+  const [claimed] = await db
+    .update(backgroundJob)
+    .set({ status: 'running', lockedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(backgroundJob.id, jobIdValue),
+        or(
+          inArray(backgroundJob.status, ['pending', 'failed']),
+          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+        ),
+      ),
+    )
+    .returning({ id: backgroundJob.id })
+  if (!claimed) return { state: 'queued' } as const
+
+  const result = await runProcessing(callId, force)
+  await db
+    .update(backgroundJob)
+    .set({
+      status: result.state === 'failed' ? 'failed' : 'completed',
+      completedAt: result.state === 'failed' ? null : new Date(),
+      lastError: result.state === 'failed' ? result.errorCode : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(backgroundJob.id, jobIdValue))
+  return result
+}
+
+export async function enqueueCallIntelligence(callId: string) {
+  await ensureJob(callId, false)
+}
+
+export async function processCallIntelligence(
   callId: string,
   options: { force?: boolean } = {},
 ): Promise<ProcessingResult> {
-  const active = activeTasks.get(callId)
-  if (active) return active
+  const force = options.force === true
+  const id = await ensureJob(callId, force)
+  return runClaimedJob(id, callId, force)
+}
 
-  const task = runProcessing(callId, options.force === true).finally(() =>
-    activeTasks.delete(callId),
-  )
-  activeTasks.set(callId, task)
-  return task
+export async function drainCallIntelligenceJobs(limit = 3) {
+  const staleBefore = new Date(Date.now() - 2 * 60 * 1000)
+  const jobs = await db
+    .select({ id: backgroundJob.id, payload: backgroundJob.payload })
+    .from(backgroundJob)
+    .where(
+      and(
+        eq(backgroundJob.type, 'post_call_intelligence'),
+        or(
+          inArray(backgroundJob.status, ['pending', 'failed']),
+          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+        ),
+      ),
+    )
+    .limit(limit)
+
+  for (const job of jobs) {
+    const callId = typeof job.payload.callId === 'string' ? job.payload.callId : null
+    if (!callId) continue
+    await runClaimedJob(job.id, callId, job.payload.force === true)
+  }
 }

@@ -75,9 +75,9 @@ const ready = assessVersionTestGate(now, [
   {
     id: 'scenario_1',
     name: 'تحويل بشري',
-    isCritical: 'true',
+    isCritical: true,
     latestRun: {
-      passed: 'true',
+      passed: true,
       ranAt: new Date('2026-08-20T10:01:00.000Z'),
       details: runDetails,
     },
@@ -89,9 +89,9 @@ const stale = assessVersionTestGate(now, [
   {
     id: 'scenario_1',
     name: 'تحويل بشري',
-    isCritical: 'true',
+    isCritical: true,
     latestRun: {
-      passed: 'true',
+      passed: true,
       ranAt: new Date('2026-08-20T09:59:00.000Z'),
       details: runDetails,
     },
@@ -104,9 +104,9 @@ const legacy = assessVersionTestGate(now, [
   {
     id: 'scenario_1',
     name: 'تحويل بشري',
-    isCritical: 'true',
+    isCritical: true,
     latestRun: {
-      passed: 'true',
+      passed: true,
       ranAt: new Date('2026-08-20T10:01:00.000Z'),
       details: {},
     },

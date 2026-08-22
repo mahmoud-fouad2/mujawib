@@ -1,10 +1,10 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { ACCESS_ROLE_LABEL, isClientRole, isOperatorRole } from '@/lib/access'
+import { ACCESS_ROLE_LABEL } from '@/lib/access'
 import { env } from '@/lib/env'
 import {
   INVITATION_TTL_DAYS,
@@ -128,8 +128,8 @@ export async function createWorkspaceInvitation(
   const token = createInvitationToken()
   const invitationId = id('invite')
 
-  await db.batch([
-    db
+  await db.transaction(async (tx) => {
+    await tx
       .update(workspaceInvitation)
       .set({ status: 'revoked', updatedAt: now })
       .where(
@@ -138,8 +138,8 @@ export async function createWorkspaceInvitation(
           eq(workspaceInvitation.email, email),
           eq(workspaceInvitation.status, 'pending'),
         ),
-      ),
-    db.insert(workspaceInvitation).values({
+      )
+    await tx.insert(workspaceInvitation).values({
       id: invitationId,
       workspaceId: targetWorkspace.id,
       email,
@@ -150,8 +150,8 @@ export async function createWorkspaceInvitation(
       expiresAt,
       createdAt: now,
       updatedAt: now,
-    }),
-    db.insert(auditLog).values({
+    })
+    await tx.insert(auditLog).values({
       id: id('audit'),
       workspaceId: targetWorkspace.id,
       actorId: owner.email,
@@ -160,8 +160,8 @@ export async function createWorkspaceInvitation(
       resourceId: invitationId,
       metadata: { note: `${email} — ${parsed.data.role}` },
       createdAt: now,
-    }),
-  ])
+    })
+  })
 
   revalidatePath('/console/access')
   return {
@@ -195,12 +195,12 @@ export async function revokeWorkspaceInvitation(invitationId: string): Promise<A
   }
 
   const now = new Date()
-  await db.batch([
-    db
+  await db.transaction(async (tx) => {
+    await tx
       .update(workspaceInvitation)
       .set({ status: 'revoked', updatedAt: now })
-      .where(and(eq(workspaceInvitation.id, row.id), eq(workspaceInvitation.status, 'pending'))),
-    db.insert(auditLog).values({
+      .where(and(eq(workspaceInvitation.id, row.id), eq(workspaceInvitation.status, 'pending')))
+    await tx.insert(auditLog).values({
       id: id('audit'),
       workspaceId: row.workspaceId,
       actorId: owner.email,
@@ -209,8 +209,8 @@ export async function revokeWorkspaceInvitation(invitationId: string): Promise<A
       resourceId: row.id,
       metadata: { note: row.email },
       createdAt: now,
-    }),
-  ])
+    })
+  })
 
   revalidatePath('/console/access')
   return { ok: true, message: `أُلغيت دعوة ${row.email} إلى ${row.workspaceName}.` }
@@ -327,16 +327,16 @@ export async function createInvitedWorkspaceAccount(
   const now = new Date()
 
   try {
-    await db.batch([
-      db.insert(user).values({
+    await db.transaction(async (tx) => {
+      await tx.insert(user).values({
         id: userId,
         name: parsed.data.name,
         email: row.email,
         emailVerified: true,
         createdAt: now,
         updatedAt: now,
-      }),
-      db.insert(account).values({
+      })
+      await tx.insert(account).values({
         id: id('acc'),
         accountId: userId,
         providerId: 'credential',
@@ -344,16 +344,16 @@ export async function createInvitedWorkspaceAccount(
         password: passwordHash,
         createdAt: now,
         updatedAt: now,
-      }),
-      db.insert(workspaceAccess).values({
+      })
+      await tx.insert(workspaceAccess).values({
         id: id('access'),
         workspaceId: row.workspaceId,
         userId,
         role: row.role,
         createdAt: now,
         updatedAt: now,
-      }),
-      db
+      })
+      const accepted = await tx
         .update(workspaceInvitation)
         .set({
           status: 'accepted',
@@ -367,8 +367,10 @@ export async function createInvitedWorkspaceAccount(
             eq(workspaceInvitation.status, 'pending'),
             gt(workspaceInvitation.expiresAt, now),
           ),
-        ),
-      db.insert(auditLog).values({
+        )
+        .returning({ id: workspaceInvitation.id })
+      if (accepted.length !== 1) throw new Error('invitation is no longer open')
+      await tx.insert(auditLog).values({
         id: id('audit'),
         workspaceId: row.workspaceId,
         actorId: row.email,
@@ -377,8 +379,8 @@ export async function createInvitedWorkspaceAccount(
         resourceId: row.id,
         metadata: { note: `${row.email} — ${row.role}` },
         createdAt: now,
-      }),
-    ])
+      })
+    })
   } catch {
     return {
       ok: false,
@@ -455,8 +457,8 @@ export async function acceptWorkspaceInvitation(
   }
 
   const now = new Date()
-  await db.batch([
-    db
+  await db.transaction(async (tx) => {
+    const accepted = await tx
       .update(workspaceInvitation)
       .set({
         status: 'accepted',
@@ -470,8 +472,10 @@ export async function acceptWorkspaceInvitation(
           eq(workspaceInvitation.status, 'pending'),
           gt(workspaceInvitation.expiresAt, now),
         ),
-      ),
-    db
+      )
+      .returning({ id: workspaceInvitation.id })
+    if (accepted.length !== 1) throw new Error('invitation is no longer open')
+    await tx
       .insert(workspaceAccess)
       .values({
         id: id('access'),
@@ -481,8 +485,8 @@ export async function acceptWorkspaceInvitation(
         createdAt: now,
         updatedAt: now,
       })
-      .onConflictDoNothing({ target: [workspaceAccess.userId, workspaceAccess.workspaceId] }),
-    db.insert(auditLog).values({
+      .onConflictDoNothing({ target: [workspaceAccess.userId, workspaceAccess.workspaceId] })
+    await tx.insert(auditLog).values({
       id: id('audit'),
       workspaceId: row.workspaceId,
       actorId: session.user.email,
@@ -491,8 +495,8 @@ export async function acceptWorkspaceInvitation(
       resourceId: row.id,
       metadata: { note: `${session.user.email} — ${row.role}` },
       createdAt: now,
-    }),
-  ])
+    })
+  })
 
   revalidatePath('/console/access')
   revalidatePath('/console')
@@ -502,93 +506,6 @@ export async function acceptWorkspaceInvitation(
     message: `اكتمل ربط حسابك بـ ${row.workspaceName}.`,
     redirectTo: row.workspaceType === 'operator' ? '/console' : '/portal',
   }
-}
-
-export async function grantWorkspaceAccess(
-  input: z.input<typeof grantSchema>,
-): Promise<AccessActionResult> {
-  const owner = await authorizeOperator('access.manage')
-  if (!owner) return { ok: false, error: 'إدارة الوصول متاحة لمالك المنصة فقط.' }
-
-  const parsed = grantSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: 'تحقق من البريد والدور ومساحة العمل.' }
-
-  const [targetWorkspace] = await db
-    .select()
-    .from(workspace)
-    .where(eq(workspace.id, parsed.data.workspaceId))
-    .limit(1)
-  if (!targetWorkspace) return { ok: false, error: 'مساحة العمل غير موجودة.' }
-
-  const roleFits =
-    targetWorkspace.type === 'operator'
-      ? isOperatorRole(parsed.data.role)
-      : isClientRole(parsed.data.role)
-  if (!roleFits) return { ok: false, error: 'هذا الدور لا يناسب نوع مساحة العمل.' }
-
-  const [targetUser] = await db
-    .select({ id: user.id, email: user.email })
-    .from(user)
-    .where(eq(user.email, parsed.data.email))
-    .limit(1)
-  if (!targetUser) {
-    return { ok: false, error: 'لا يوجد حساب بهذا البريد. أنشئ الحساب أولًا ثم أضف الوصول.' }
-  }
-
-  const [existing] = await db
-    .select({ role: workspaceAccess.role })
-    .from(workspaceAccess)
-    .where(
-      and(
-        eq(workspaceAccess.userId, targetUser.id),
-        eq(workspaceAccess.workspaceId, targetWorkspace.id),
-      ),
-    )
-    .limit(1)
-  if (
-    targetWorkspace.type === 'operator' &&
-    existing?.role === 'owner' &&
-    parsed.data.role !== 'owner'
-  ) {
-    const [owners] = await db
-      .select({ count: sql<number>`count(*)`.mapWith(Number) })
-      .from(workspaceAccess)
-      .innerJoin(workspace, eq(workspaceAccess.workspaceId, workspace.id))
-      .where(and(eq(workspace.type, 'operator'), eq(workspaceAccess.role, 'owner')))
-    if ((owners?.count ?? 0) <= 1) {
-      return { ok: false, error: 'لا يمكن تغيير دور آخر مالك للمنصة.' }
-    }
-  }
-
-  const now = new Date()
-  await db
-    .insert(workspaceAccess)
-    .values({
-      id: id('access'),
-      workspaceId: targetWorkspace.id,
-      userId: targetUser.id,
-      role: parsed.data.role,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [workspaceAccess.userId, workspaceAccess.workspaceId],
-      set: { role: parsed.data.role, updatedAt: now },
-    })
-
-  await db.insert(auditLog).values({
-    id: id('audit'),
-    workspaceId: targetWorkspace.id,
-    actorId: owner.email,
-    action: 'access.grant',
-    resourceType: 'workspace_access',
-    resourceId: targetUser.id,
-    metadata: { note: `${targetUser.email} — ${parsed.data.role}` },
-    createdAt: now,
-  })
-
-  revalidatePath('/console/access')
-  return { ok: true, message: `حُفظ وصول ${targetUser.email} إلى ${targetWorkspace.name}.` }
 }
 
 export async function revokeWorkspaceAccess(accessId: string): Promise<AccessActionResult> {

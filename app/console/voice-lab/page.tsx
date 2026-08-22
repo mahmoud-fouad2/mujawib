@@ -90,9 +90,7 @@ export default async function VoiceLabPage() {
                       <td className="mono">{p.dialect}</td>
                       <td className="muted">{STYLE_LABEL[p.style] ?? p.style}</td>
                       <td className="mono">{policy.primary ?? '—'}</td>
-                      <td>
-                        {p.isGlobal === 'true' ? <Pill tone="signal">عام</Pill> : <Pill>خاص</Pill>}
-                      </td>
+                      <td>{p.isGlobal ? <Pill tone="signal">عام</Pill> : <Pill>خاص</Pill>}</td>
                     </tr>
                   )
                 })}
@@ -111,12 +109,12 @@ export default async function VoiceLabPage() {
                     <span>{r.workspaceName}</span>
                     <span aria-hidden="true">·</span>
                     <span>{r.category}</span>
-                    {r.isCritical === 'true' ? <Pill tone="warn">حرج</Pill> : null}
+                    {r.isCritical ? <Pill tone="warn">حرج</Pill> : null}
                   </div>
                 </div>
                 <span className="row" style={{ gap: 'var(--s-2)' }}>
                   <span className="mono muted">{r.score}</span>
-                  {r.passed === 'true' ? (
+                  {r.passed ? (
                     <Check size={15} style={{ color: 'var(--good)' }} aria-hidden="true" />
                   ) : (
                     <X size={15} style={{ color: 'var(--bad)' }} aria-hidden="true" />

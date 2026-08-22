@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -58,6 +58,9 @@ export async function retryCallSummary(callId: string): Promise<CallActionResult
           : 'نص الحوار غير متاح بعد، وسجل المكالمة محفوظ.',
       refresh: true,
     }
+  }
+  if (result.state === 'queued') {
+    return { ok: true, message: 'الملخص قيد المعالجة وسيظهر تلقائيًا.' }
   }
   return {
     ok: false,

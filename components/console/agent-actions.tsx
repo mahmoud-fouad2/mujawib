@@ -1,10 +1,10 @@
 'use client'
 
-import { Rocket, Undo2 } from 'lucide-react'
+import { CopyPlus, Rocket, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { Confirm } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
-import { publishVersion, rollbackAgent } from '@/server/actions/console'
+import { createAgentDraft, publishVersion, rollbackAgent } from '@/server/actions/console'
 
 export function AgentRowActions({
   agentId,
@@ -30,6 +30,16 @@ export function AgentRowActions({
   return (
     <>
       <RowActions>
+        {!draftVersionId ? (
+          <RowAction
+            icon={<CopyPlus size={15} />}
+            onClick={() => run(() => createAgentDraft(agentId))}
+            disabled={pending}
+            title="أنشئ نسخة قابلة للتحرير من النسخة المنشورة"
+          >
+            إنشاء مسودة
+          </RowAction>
+        ) : null}
         <RowAction
           icon={<Rocket size={15} />}
           onClick={() => setConfirm('publish')}

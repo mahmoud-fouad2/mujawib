@@ -68,15 +68,6 @@ export async function markPhoneActive(phoneNumberId: string): Promise<boolean> {
   })
 }
 
-/** Runtime/ops signal that a previously proven route currently needs attention. */
-export async function markPhoneDegraded(phoneNumberId: string): Promise<boolean> {
-  return withPhone(phoneNumberId, async (row) => {
-    if (!row.verifiedAt || row.sipStatus === 'disabled') return false
-    await writeState(phoneNumberId, row.sipStatus, 'degraded')
-    return true
-  })
-}
-
 /** Explicit operator shutdown. A real call must never silently re-enable it. */
 export async function markPhoneDisabled(phoneNumberId: string): Promise<boolean> {
   return withPhone(phoneNumberId, async (row) => {

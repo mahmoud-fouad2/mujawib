@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
-import { getPortalAccess, getPortalWorkspacesForCurrentUser } from '@/server/auth/access'
+import { getPortalAccess } from '@/server/auth/access'
 import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
 import { db } from '@/server/db'
 import {
@@ -16,6 +16,7 @@ import {
   toolExecution,
   workspace,
 } from '@/server/db/schema'
+import { revealJson } from '@/server/security/protected-data'
 
 /**
  * Client Portal data — Bible §20. Everything here answers a business question.
@@ -33,10 +34,6 @@ function daysBack(n: number) {
 export async function getPortalWorkspace(slug?: string) {
   const access = await getPortalAccess(slug)
   return access ? { ...access.workspace, accessRole: access.role } : null
-}
-
-export async function getPortalWorkspaces() {
-  return getPortalWorkspacesForCurrentUser()
 }
 
 export type PortalSummary = {
@@ -226,6 +223,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
       status: call.status,
       durationSeconds: call.durationSeconds,
       transcript: call.transcript,
+      transcriptEncrypted: call.transcriptEncrypted,
       metadata: call.metadata,
       startedAt: call.startedAt,
       endedAt: call.endedAt,
@@ -240,11 +238,13 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
     db.select().from(booking).where(eq(booking.callId, callId)).limit(1),
     db.select().from(lead).where(eq(lead.callId, callId)).limit(1),
     db
-      .select({ toolName: toolExecution.toolName, success: toolExecution.success })
+      .select({ toolName: toolExecution.toolName, status: toolExecution.status })
       .from(toolExecution)
       .where(eq(toolExecution.callId, callId)),
   ])
-  const transcript = normalizeTranscript(row.transcript)
+  const transcript = normalizeTranscript(
+    revealJson<unknown[]>(row.transcriptEncrypted, row.transcript ?? []),
+  )
   const bookingRecord = relatedBooking[0] ?? null
   const leadRecord = relatedLead[0] ?? null
   const metadata = row.metadata ?? {}

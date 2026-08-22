@@ -56,7 +56,7 @@ select,
 textarea {
   font: inherit;
   color: inherit;
-  letter-spacing: inherit;
+  letter-spacing: 0;
 }
 
 button {
@@ -135,7 +135,7 @@ p {
   font-feature-settings: "tnum" 1;
   direction: ltr;
   unicode-bidi: isolate;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .label {
@@ -451,6 +451,12 @@ p {
   padding: var(--s-3) var(--s-4);
   border-block-end: 1px solid var(--line-faint);
   vertical-align: middle;
+}
+
+.inquiry-need {
+  max-inline-size: 36ch;
+  color: var(--text-muted);
+  line-height: 1.55;
 }
 
 .table tbody tr:last-child td {

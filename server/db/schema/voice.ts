@@ -1,4 +1,4 @@
-import { index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { workspace } from './workspaces'
 
 export const voiceProfile = pgTable(
@@ -12,7 +12,7 @@ export const voiceProfile = pgTable(
     style: text('style').notNull().default('professional'),
     languagePolicy: jsonb('language_policy').$type<Record<string, unknown>>().default({}),
     pacing: jsonb('pacing').$type<Record<string, unknown>>().default({}),
-    isGlobal: text('is_global').default('false'),
+    isGlobal: boolean('is_global').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

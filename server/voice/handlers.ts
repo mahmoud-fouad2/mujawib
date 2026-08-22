@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type IntegrationAction, normalizeIntegrationConfig } from '@/lib/integrations'
@@ -14,6 +14,7 @@ import {
   toolExecution,
 } from '@/server/db/schema'
 import { type IntegrationFailureCode, invokeIntegration } from '@/server/integrations/runtime'
+import { protectJson, revealJson } from '@/server/security/protected-data'
 import type { ToolName, ToolResult } from '@/server/voice/tools'
 
 /**
@@ -38,6 +39,7 @@ export type ToolContext = {
   workspaceId: string
   callerNumber: string | null
   transferTo: string | null
+  operationId?: string
   /** The control channel owns SIP REFER; handlers only see a truthful result. */
   referCall?: (destination: string) => Promise<boolean>
 }
@@ -58,13 +60,19 @@ async function findIntegration(
     .from(integrationConnection)
     .where(eq(integrationConnection.workspaceId, workspaceId))
 
-  const candidates = rows.filter((row) =>
-    [...providers, 'rest_api', 'generic_api'].includes(row.provider),
-  )
+  const providerOrder = [...providers, 'rest_api', 'generic_api']
   return (
-    candidates.find((row) => Boolean(normalizeIntegrationConfig(row.config).endpoints[action])) ??
-    candidates[0] ??
-    null
+    rows
+      .filter(
+        (row) =>
+          providerOrder.includes(row.provider) &&
+          (row.health === 'connected' || row.health === 'degraded') &&
+          Boolean(normalizeIntegrationConfig(row.config).endpoints[action]),
+      )
+      .sort((a, b) => {
+        const health = Number(b.health === 'connected') - Number(a.health === 'connected')
+        return health || providerOrder.indexOf(a.provider) - providerOrder.indexOf(b.provider)
+      })[0] ?? null
   )
 }
 
@@ -92,7 +100,59 @@ const bookingArgs = z.object({
   customerPhone: z.string().trim().min(7).max(30),
   branch: z.string().trim().max(160).optional(),
   notes: z.string().trim().max(500).optional(),
+  availabilityToken: z.string().trim().min(32).max(2_048),
 })
+
+const callbackArgs = z.object({
+  customerName: z.string().trim().min(1).max(160).optional(),
+  customerPhone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9\s-]{7,30}$/)
+    .optional(),
+  reason: z.string().trim().min(3).max(500),
+})
+
+function availabilityToken(ctx: ToolContext, service: string, slot: string) {
+  const expiresAt = Date.now() + 10 * 60 * 1000
+  const payload = Buffer.from(
+    JSON.stringify({ callId: ctx.callId, workspaceId: ctx.workspaceId, service, slot, expiresAt }),
+  ).toString('base64url')
+  const signature = createHmac('sha256', process.env.BETTER_AUTH_SECRET as string)
+    .update(payload)
+    .digest('base64url')
+  return `${payload}.${signature}`
+}
+
+function verifyAvailabilityToken(ctx: ToolContext, token: string, service: string, slot: string) {
+  const [payload, signature] = token.split('.')
+  if (!payload || !signature) return false
+  const expected = createHmac('sha256', process.env.BETTER_AUTH_SECRET as string)
+    .update(payload)
+    .digest('base64url')
+  const actualBytes = Buffer.from(signature)
+  const expectedBytes = Buffer.from(expected)
+  if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) {
+    return false
+  }
+
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >
+    return (
+      claims.callId === ctx.callId &&
+      claims.workspaceId === ctx.workspaceId &&
+      claims.service === service &&
+      claims.slot === slot &&
+      typeof claims.expiresAt === 'number' &&
+      claims.expiresAt > Date.now()
+    )
+  } catch {
+    return false
+  }
+}
 
 const confirmationArgs = z.object({
   to: z.string().trim().min(7).max(30).optional(),
@@ -162,7 +222,16 @@ async function checkAvailability(
     return { ok: false, error: 'لا توجد مواعيد متاحة في هذا اليوم.', fallback: 'retry' }
   }
 
-  return { ok: true, data: { slots, service: known.title } }
+  return {
+    ok: true,
+    data: {
+      service: known.title,
+      slots: slots.map((slot) => ({
+        slot,
+        availabilityToken: availabilityToken(ctx, known.title, slot),
+      })),
+    },
+  }
 }
 
 /* ─── create_booking ─────────────────────────────────────────────────────── */
@@ -176,11 +245,27 @@ async function createBooking(
     customerPhone?: string
     branch?: string
     notes?: string
+    availabilityToken?: string
   },
 ): Promise<ToolResult> {
   const parsed = bookingArgs.safeParse(args)
   if (!parsed.success) {
     return { ok: false, error: 'بيانات الحجز غير مكتملة.', fallback: 'retry' }
+  }
+
+  if (
+    !verifyAvailabilityToken(
+      ctx,
+      parsed.data.availabilityToken,
+      parsed.data.service,
+      parsed.data.slot,
+    )
+  ) {
+    return {
+      ok: false,
+      error: 'انتهت صلاحية الموعد أو لم يعد مطابقًا لنتيجة التحقق. أعد فحص المواعيد.',
+      fallback: 'retry',
+    }
   }
 
   const integration = await findIntegration(
@@ -195,29 +280,55 @@ async function createBooking(
   const response = await invokeIntegration<{ bookingId: string }>({
     connection: integration,
     action: 'booking',
-    payload: parsed.data,
+    payload: {
+      service: parsed.data.service,
+      slot: parsed.data.slot,
+      customerName: parsed.data.customerName,
+      customerPhone: parsed.data.customerPhone,
+      branch: parsed.data.branch,
+      notes: parsed.data.notes,
+      idempotencyKey: ctx.operationId ?? ctx.callId,
+    },
   })
   if (!response.ok) {
     return { ok: false, error: integrationError(response.code, 'التقويم'), fallback: 'callback' }
   }
 
   // Only recorded once the upstream calendar confirmed it.
-  const bookingId = id('bk')
-  await db.insert(booking).values({
-    id: bookingId,
-    workspaceId: ctx.workspaceId,
-    callId: ctx.callId,
-    externalId: response.data.bookingId,
-    customerName: parsed.data.customerName,
-    customerPhone: parsed.data.customerPhone,
-    service: parsed.data.service,
-    scheduledAt: new Date(parsed.data.slot),
-    status: 'confirmed',
-    metadata: { branch: parsed.data.branch, notes: parsed.data.notes, source: 'voice' },
-    createdAt: new Date(),
+  const proposedBookingId = id('bk')
+  const bookingId = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(booking)
+      .values({
+        id: proposedBookingId,
+        workspaceId: ctx.workspaceId,
+        callId: ctx.callId,
+        externalId: response.data.bookingId,
+        customerName: parsed.data.customerName,
+        customerPhone: parsed.data.customerPhone,
+        service: parsed.data.service,
+        scheduledAt: new Date(parsed.data.slot),
+        status: 'confirmed',
+        metadata: { branch: parsed.data.branch, notes: parsed.data.notes, source: 'voice' },
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: [booking.workspaceId, booking.externalId] })
+      .returning({ id: booking.id })
+    await tx.update(call).set({ outcome: 'booking' }).where(eq(call.id, ctx.callId))
+    if (inserted) return inserted.id
+    const [existing] = await tx
+      .select({ id: booking.id })
+      .from(booking)
+      .where(
+        and(
+          eq(booking.workspaceId, ctx.workspaceId),
+          eq(booking.externalId, response.data.bookingId),
+        ),
+      )
+      .limit(1)
+    if (!existing) throw new Error('booking result could not be reconciled')
+    return existing.id
   })
-
-  await db.update(call).set({ outcome: 'booking' }).where(eq(call.id, ctx.callId))
 
   return { ok: true, data: { bookingId, slot: parsed.data.slot } }
 }
@@ -252,31 +363,44 @@ async function sendConfirmation(
 
 /* ─── create_callback ────────────────────────────────────────────────────── */
 
-/** Always succeeds: it writes to our own database, so it is the safe fallback. */
 async function createCallback(
   ctx: ToolContext,
   args: { customerName?: string; customerPhone?: string; reason?: string },
 ): Promise<ToolResult> {
-  const now = new Date()
-  await db.insert(changeRequest).values({
-    id: id('cr'),
-    workspaceId: ctx.workspaceId,
-    type: 'callback',
-    title: `معاودة اتصال — ${args.customerName ?? args.customerPhone ?? 'متصل'}`,
-    description: args.reason ?? null,
-    status: 'requested',
-    requestedById: 'voice',
-    metadata: {
-      phone: args.customerPhone ?? ctx.callerNumber,
-      name: args.customerName,
-      callId: ctx.callId,
-    },
-    createdAt: now,
-    updatedAt: now,
+  const parsed = callbackArgs.safeParse({
+    ...args,
+    customerPhone: args.customerPhone ?? ctx.callerNumber ?? undefined,
   })
+  if (!parsed.success) {
+    return { ok: false, error: 'بيانات معاودة الاتصال غير مكتملة.', fallback: 'retry' }
+  }
+
+  const now = new Date()
+  const requestId = id('cr')
+  const [inserted] = await db
+    .insert(changeRequest)
+    .values({
+      id: requestId,
+      workspaceId: ctx.workspaceId,
+      type: 'callback',
+      title: `معاودة اتصال — ${parsed.data.customerName ?? parsed.data.customerPhone ?? 'متصل'}`,
+      description: parsed.data.reason,
+      status: 'requested',
+      requestedById: 'voice',
+      dedupeKey: `voice-callback:${ctx.callId}`,
+      metadata: {
+        phone: parsed.data.customerPhone,
+        name: parsed.data.customerName,
+        callId: ctx.callId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: [changeRequest.workspaceId, changeRequest.dedupeKey] })
+    .returning({ id: changeRequest.id })
 
   await db.update(call).set({ outcome: 'callback' }).where(eq(call.id, ctx.callId))
-  return { ok: true, data: { logged: true } }
+  return { ok: true, data: { logged: true, ...(inserted ? { requestId: inserted.id } : {}) } }
 }
 
 /* ─── transfer_to_human ──────────────────────────────────────────────────── */
@@ -340,8 +464,9 @@ export async function executeTool(
           id: executionId,
           callId: ctx.callId,
           toolName: name,
-          request: args,
-          success: 'running',
+          request: { protected: true },
+          requestEncrypted: protectJson(args),
+          status: 'running',
           executedAt: new Date(),
         })
         .onConflictDoNothing()
@@ -357,12 +482,13 @@ export async function executeTool(
 
     if (claimed.length === 0) {
       const [existing] = await db
-        .select({ result: toolExecution.result })
+        .select({ result: toolExecution.result, resultEncrypted: toolExecution.resultEncrypted })
         .from(toolExecution)
         .where(eq(toolExecution.id, executionId))
         .limit(1)
 
-      if (isToolResult(existing?.result)) return existing.result
+      const existingResult = revealJson(existing?.resultEncrypted, existing?.result)
+      if (isToolResult(existingResult)) return existingResult
 
       return {
         ok: false,
@@ -377,7 +503,7 @@ export async function executeTool(
     result = { ok: false, error: 'أداة غير معروفة.', fallback: 'transfer' }
   } else
     try {
-      result = await handler(ctx, args)
+      result = await handler({ ...ctx, operationId: executionId }, args)
     } catch {
       console.error(`[voice] tool ${name} threw`)
       result = { ok: false, error: 'تعذّر تنفيذ الطلب.', fallback: 'callback' }
@@ -389,7 +515,12 @@ export async function executeTool(
   if (options.executionId) {
     await db
       .update(toolExecution)
-      .set({ result: persistedResult, success: String(result.ok), latencyMs })
+      .set({
+        result: { protected: true },
+        resultEncrypted: protectJson(persistedResult),
+        status: result.ok ? 'succeeded' : 'failed',
+        latencyMs,
+      })
       .where(eq(toolExecution.id, executionId))
       .catch(() => console.error('[voice] could not finish tool execution record'))
   } else {
@@ -399,9 +530,11 @@ export async function executeTool(
         id: executionId,
         callId: ctx.callId,
         toolName: name,
-        request: args,
-        result: persistedResult,
-        success: String(result.ok),
+        request: { protected: true },
+        requestEncrypted: protectJson(args),
+        result: { protected: true },
+        resultEncrypted: protectJson(persistedResult),
+        status: result.ok ? 'succeeded' : 'failed',
         latencyMs,
         executedAt: new Date(),
       })

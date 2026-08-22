@@ -20,7 +20,7 @@ function runState(scenario: Awaited<ReturnType<typeof getTestLab>>['scenarios'][
   if (!run) return { label: 'لم يُشغّل', tone: 'neutral' as const, icon: CircleDashed }
   if (!run.trusted) return { label: 'نتيجة قديمة', tone: 'warn' as const, icon: AlertTriangle }
   if (!run.fresh) return { label: 'يحتاج إعادة', tone: 'warn' as const, icon: AlertTriangle }
-  if (run.passed === 'true') return { label: 'ناجح', tone: 'good' as const, icon: Check }
+  if (run.passed) return { label: 'ناجح', tone: 'good' as const, icon: Check }
   return {
     label: run.details?.status === 'error' ? 'تعذّر التشغيل' : 'لم ينجح',
     tone: 'bad' as const,
@@ -172,7 +172,7 @@ export default async function TestLabPage({ searchParams }: PageProps) {
                             {SCENARIO_CATEGORY_LABEL[
                               scenario.category as keyof typeof SCENARIO_CATEGORY_LABEL
                             ] ?? scenario.category}
-                            {scenario.isCritical === 'true' ? ' · حرج' : ' · مراقبة'}
+                            {scenario.isCritical ? ' · حرج' : ' · مراقبة'}
                           </span>
                         </div>
                       </div>

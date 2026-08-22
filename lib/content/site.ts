@@ -8,8 +8,8 @@ import type { Locale } from '@/lib/i18n'
  * reason to believe.
  */
 
-export type NavItem = { label: string; href: string }
-export type FooterColumn = { title: string; links: NavItem[] }
+type NavItem = { label: string; href: string }
+type FooterColumn = { title: string; links: NavItem[] }
 
 type Copy = {
   nav: NavItem[]

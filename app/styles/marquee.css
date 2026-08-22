@@ -86,7 +86,7 @@
   place-items: center;
   inline-size: 38px;
   block-size: 38px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--signal-soft);
   color: var(--signal);
 }
@@ -165,7 +165,7 @@
   inline-size: 42px;
   block-size: 42px;
   flex: none;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--raised);
 }

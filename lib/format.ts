@@ -10,11 +10,6 @@ export function num(value: number | null | undefined): string {
   return new Intl.NumberFormat(AR).format(value)
 }
 
-export function pct(value: number | null | undefined, digits = 0): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return '—'
-  return `${new Intl.NumberFormat(AR, { maximumFractionDigits: digits }).format(value)}%`
-}
-
 /**
  * Call durations read as m:ss, rolling up to h:mm:ss past the hour so a long
  * live call does not render as "1422:00".
@@ -81,10 +76,6 @@ export function maskPhone(e164: string | null | undefined): string {
   if (!e164) return '—'
   if (e164.length < 7) return e164
   return `${e164.slice(0, 5)}…${e164.slice(-3)}`
-}
-
-export function phone(e164: string | null | undefined): string {
-  return e164 ?? '—'
 }
 
 /* ─── domain vocabulary ─────────────────────────────────────────────────── */

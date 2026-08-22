@@ -16,7 +16,7 @@ export type ToolName =
   | 'create_callback'
   | 'transfer_to_human'
 
-export const TOOL_DEFINITIONS = [
+const TOOL_DEFINITIONS = [
   {
     type: 'function' as const,
     name: 'check_availability',
@@ -51,12 +51,16 @@ export const TOOL_DEFINITIONS = [
       properties: {
         service: { type: 'string' },
         slot: { type: 'string', description: 'الموعد المختار بصيغة ISO 8601' },
+        availabilityToken: {
+          type: 'string',
+          description: 'الرمز المقابل للموعد كما أعادته check_availability دون أي تعديل',
+        },
         customerName: { type: 'string' },
         customerPhone: { type: 'string', description: 'رقم الجوال كما أملاه المتصل' },
         branch: { type: 'string' },
         notes: { type: 'string' },
       },
-      required: ['service', 'slot', 'customerName', 'customerPhone'],
+      required: ['service', 'slot', 'customerName', 'customerPhone', 'availabilityToken'],
       additionalProperties: false,
     },
   },

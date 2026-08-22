@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
-import { organization } from 'better-auth/plugins'
+import { organization, twoFactor } from 'better-auth/plugins'
 import { MANAGED_AUTH_POLICY } from '@/lib/auth-policy'
 import { env } from '@/lib/env'
 import { db } from '@/server/db'
@@ -63,6 +63,7 @@ export const auth = betterAuth({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      twoFactor: schema.twoFactor,
       organization: schema.organization,
       member: schema.member,
       invitation: schema.invitation,
@@ -92,10 +93,7 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
-    cookieCache: { enabled: true, maxAge: 5 * 60 },
   },
-  plugins: [organization(), nextCookies()],
+  plugins: [organization(), twoFactor(), nextCookies()],
   trustedOrigins: [env.BETTER_AUTH_URL, env.NEXT_PUBLIC_APP_URL, ...developmentOrigins],
 })
-
-export type Session = typeof auth.$Infer.Session

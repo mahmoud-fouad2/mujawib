@@ -54,18 +54,18 @@
      negative tracking, and the loose default is what reads as amateur. */
   /* Secondary text sits at 15–16px, not 13px — body copy has to stay readable
      at arm's length on a laptop, and Arabic needs more height than Latin. */
-  --step--1: clamp(0.9375rem, 0.92rem + 0.08vw, 1rem);
-  --step-0: clamp(1rem, 0.97rem + 0.14vw, 1.0625rem);
-  --step-1: clamp(1.125rem, 1.08rem + 0.23vw, 1.25rem);
-  --step-2: clamp(1.25rem, 1.18rem + 0.36vw, 1.5rem);
-  --step-3: clamp(1.5rem, 1.37rem + 0.64vw, 1.9375rem);
-  --step-4: clamp(1.875rem, 1.63rem + 1.2vw, 2.75rem);
-  --step-5: clamp(2.25rem, 1.79rem + 2.3vw, 3.875rem);
-  --step-6: clamp(2.625rem, 1.83rem + 3.95vw, 5.375rem);
+  --step--1: 0.9375rem;
+  --step-0: 1rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: 2.25rem;
+  --step-5: 3.25rem;
+  --step-6: 4.75rem;
 
-  --tracking-display: -0.022em;
-  --tracking-tight: -0.014em;
-  --tracking-label: 0.08em;
+  --tracking-display: 0;
+  --tracking-tight: 0;
+  --tracking-label: 0;
 
   --leading-display: 1.08;
   --leading-heading: 1.22;
@@ -84,9 +84,9 @@
   --s-10: 128px;
 
   /* ─── radius ─────────────────────────────────────────────────────────── */
-  --r-control: 12px;
-  --r-panel: 16px;
-  --r-hero: 22px;
+  --r-control: 8px;
+  --r-panel: 8px;
+  --r-hero: 8px;
   --r-pill: 999px;
 
   /* ─── motion ─────────────────────────────────────────────────────────── */
@@ -108,6 +108,15 @@
   --shadow-sm: 0 1px 2px rgb(11 13 16 / 5%);
   --shadow-panel: 0 1px 3px rgb(11 13 16 / 6%), 0 8px 24px -12px rgb(11 13 16 / 10%);
   --shadow-pop: 0 4px 12px rgb(11 13 16 / 8%), 0 24px 60px -20px rgb(11 13 16 / 22%);
+}
+
+@media (max-width: 720px) {
+  :root {
+    --step-3: 1.5rem;
+    --step-4: 1.875rem;
+    --step-5: 2.25rem;
+    --step-6: 2.75rem;
+  }
 }
 
 :root[data-theme="dark"] {

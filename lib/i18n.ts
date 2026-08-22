@@ -1,8 +1,5 @@
 export type Locale = 'ar' | 'en'
 
-export const LOCALES: Locale[] = ['ar', 'en']
-export const DEFAULT_LOCALE: Locale = 'ar'
-
 export function dirOf(locale: Locale) {
   return locale === 'ar' ? 'rtl' : 'ltr'
 }
@@ -30,7 +27,7 @@ export function localePath(locale: Locale, path = '/') {
 }
 
 /** Strips the locale prefix so a path can be re-pointed at the other locale. */
-export function stripLocale(pathname: string): string {
+function stripLocale(pathname: string): string {
   if (pathname === '/en') return '/'
   if (pathname.startsWith('/en/')) return pathname.slice(3)
   return pathname

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { db } from '@/server/db'
 import {
   agent,
@@ -59,7 +59,7 @@ export type ResolvedAgent = {
  * unresolved so the call can be rejected rather than answered by whichever
  * agent happened to be created first.
  */
-export async function resolveAgentForNumber(
+async function resolveAgentForNumber(
   dialled: string,
   matchedHeader = 'To',
 ): Promise<ResolvedAgent | null> {
@@ -74,8 +74,8 @@ export async function resolveAgentForNumber(
     })
     .from(phoneNumber)
     .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
-    .leftJoin(agent, eq(phoneNumber.agentId, agent.id))
-    .where(eq(phoneNumber.e164, e164))
+    .leftJoin(agent, and(eq(phoneNumber.agentId, agent.id), eq(agent.workspaceId, workspace.id)))
+    .where(and(eq(phoneNumber.e164, e164), ne(phoneNumber.sipStatus, 'disabled')))
     .limit(1)
 
   if (!row?.ag?.liveVersionId) return null

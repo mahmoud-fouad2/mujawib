@@ -132,9 +132,13 @@ export const changeRequest = pgTable(
     status: changeRequestStatusEnum('status').notNull().default('requested'),
     requestedById: text('requested_by_id'),
     assignedToId: text('assigned_to_id'),
+    dedupeKey: text('dedupe_key'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('change_request_workspace_idx').on(t.workspaceId, t.status)],
+  (t) => [
+    index('change_request_workspace_idx').on(t.workspaceId, t.status),
+    uniqueIndex('change_request_workspace_dedupe_idx').on(t.workspaceId, t.dedupeKey),
+  ],
 )

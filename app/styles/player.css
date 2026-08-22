@@ -237,7 +237,7 @@
   flex-wrap: wrap;
   padding: 6px var(--s-3);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--raised);
   font-size: 0.75rem;
   color: var(--text-muted);

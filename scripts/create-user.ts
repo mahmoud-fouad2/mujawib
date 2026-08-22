@@ -31,16 +31,16 @@ try {
   const userId = `usr_${randomUUID().replaceAll('-', '').slice(0, 16)}`
   const now = new Date()
 
-  await db.batch([
-    db.insert(user).values({
+  await db.transaction(async (tx) => {
+    await tx.insert(user).values({
       id: userId,
       name: name as string,
       email: normalizedEmail,
       emailVerified: true,
       createdAt: now,
       updatedAt: now,
-    }),
-    db.insert(account).values({
+    })
+    await tx.insert(account).values({
       id: `acc_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
       accountId: userId,
       providerId: 'credential',
@@ -48,8 +48,8 @@ try {
       password: passwordHash,
       createdAt: now,
       updatedAt: now,
-    }),
-  ])
+    })
+  })
 
   console.log(`✓ created ${normalizedEmail}  (id ${userId})`)
   console.log('  No workspace access was granted. An owner must assign it from /console/access.')

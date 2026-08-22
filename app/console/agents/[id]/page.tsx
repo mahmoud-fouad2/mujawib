@@ -29,9 +29,9 @@ export default async function AgentDetailPage({ params }: Props) {
   const a = await getAgentDetail((await params).id)
   if (!a) notFound()
 
-  const blockers = (a.draft?.blockers ?? []) as string[]
-  const criticalFailed = a.runs.filter((r) => r.passed === 'false' && r.isCritical === 'true')
-  const passed = a.runs.filter((r) => r.passed === 'true').length
+  const blockers = a.draftTestGate?.blockers ?? []
+  const criticalFailed = a.runs.filter((r) => !r.passed && r.isCritical)
+  const passed = a.runs.filter((r) => r.passed).length
   const passRate = a.runs.length ? Math.round((passed / a.runs.length) * 100) : 0
   const identity = (a.liveVersion?.identity ?? {}) as {
     role?: string
@@ -206,12 +206,12 @@ export default async function AgentDetailPage({ params }: Props) {
                     <div className="queue__title">{r.name}</div>
                     <div className="queue__meta">
                       <span>{r.category}</span>
-                      {r.isCritical === 'true' ? <Pill tone="warn">حرج</Pill> : null}
+                      {r.isCritical ? <Pill tone="warn">حرج</Pill> : null}
                     </div>
                   </div>
                   <span className="row" style={{ gap: 'var(--s-2)' }}>
                     <span className="mono muted">{r.score}</span>
-                    {r.passed === 'true' ? (
+                    {r.passed ? (
                       <Check size={15} style={{ color: 'var(--good)' }} aria-hidden="true" />
                     ) : (
                       <X size={15} style={{ color: 'var(--bad)' }} aria-hidden="true" />
@@ -239,7 +239,6 @@ export default async function AgentDetailPage({ params }: Props) {
             </thead>
             <tbody>
               {a.versions.map((v) => {
-                const vBlockers = (v.blockers ?? []) as string[]
                 return (
                   <tr key={v.id}>
                     <td className="mono" style={{ fontWeight: 500 }}>
@@ -257,7 +256,7 @@ export default async function AgentDetailPage({ params }: Props) {
                       </Pill>
                     </td>
                     <td className="mono">{v.readinessScore ?? 0}%</td>
-                    <td className="muted">{vBlockers.length ? vBlockers[0] : '—'}</td>
+                    <td className="muted">{v.status === 'draft' ? (blockers[0] ?? '—') : '—'}</td>
                     <td className="muted">{v.publishedAt ? fullDate(v.publishedAt) : '—'}</td>
                     <td className="muted">{relative(v.createdAt)}</td>
                   </tr>

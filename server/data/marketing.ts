@@ -96,7 +96,7 @@ export async function getPlatformProof(): Promise<PlatformProof> {
   }
 }
 
-export type HeroTurn = { role: 'agent' | 'caller'; text: string; at: number }
+type HeroTurn = { role: 'agent' | 'caller'; text: string; at: number }
 
 export type HeroCall = {
   id: string
@@ -135,7 +135,7 @@ export async function getHeroCall(): Promise<HeroCall | null> {
     db
       .select({
         name: toolExecution.toolName,
-        success: toolExecution.success,
+        status: toolExecution.status,
         latencyMs: toolExecution.latencyMs,
       })
       .from(toolExecution)
@@ -160,7 +160,7 @@ export async function getHeroCall(): Promise<HeroCall | null> {
     turns: (row.transcript ?? []) as HeroTurn[],
     tools: tools.map((t) => ({
       name: t.name,
-      success: t.success === 'true',
+      success: t.status === 'succeeded',
       latencyMs: t.latencyMs,
     })),
     booking: bookings[0] ?? null,
@@ -291,15 +291,4 @@ export async function getConsolePreview() {
       degraded: degradedRows[0]?.n ?? 0,
     },
   }
-}
-
-/** Client names for the trust row — only businesses that are actually live. */
-export async function getReferenceClients() {
-  return db
-    .select({ name: workspace.name, status: workspace.status })
-    .from(workspace)
-    .innerJoin(call, and(eq(call.workspaceId, workspace.id), eq(call.origin, 'live')))
-    .where(eq(workspace.type, 'client'))
-    .groupBy(workspace.name, workspace.status)
-    .orderBy(workspace.name)
 }

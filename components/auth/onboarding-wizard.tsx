@@ -1,11 +1,21 @@
 'use client'
 
-import { AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, Plus, X } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Clipboard,
+  Loader2,
+  Plus,
+  X,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { Logo } from '@/components/brand/logo'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/primitives'
+import { useToast } from '@/components/ui/toast'
 import { provisionWorkspace } from '@/server/actions/onboarding'
 
 export type WizardPack = {
@@ -53,12 +63,14 @@ function newRow(): Row {
 }
 
 export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
+  const toast = useToast()
   const [step, setStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ name: string; agent: string } | null>(null)
+  const [done, setDone] = useState<{ name: string; agent: string; inviteUrl: string } | null>(null)
   const [pending, startTransition] = useTransition()
 
   const [name, setName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
   const [city, setCity] = useState('')
   const [timezone, setTimezone] = useState('Asia/Riyadh')
   const [pack, setPack] = useState(packs[0]?.packKey ?? 'medical')
@@ -73,7 +85,12 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
   const selectedPack = packs.find((p) => p.packKey === pack)
 
   function canAdvance() {
-    if (step === 0) return name.trim().length >= 2 && city.trim().length >= 2
+    if (step === 0)
+      return (
+        name.trim().length >= 2 &&
+        city.trim().length >= 2 &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail.trim())
+      )
     if (step === 1) return Boolean(pack) && agentName.trim().length >= 2
     if (step === 2)
       return (
@@ -88,6 +105,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
     startTransition(async () => {
       const result = await provisionWorkspace({
         name,
+        ownerEmail,
         city,
         timezone,
         pack: pack as 'medical' | 'realestate' | 'auto' | 'reception',
@@ -106,7 +124,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         setError(result.error)
         return
       }
-      setDone({ name: result.workspaceName, agent: result.agentName })
+      setDone({ name: result.workspaceName, agent: result.agentName, inviteUrl: result.inviteUrl })
     })
   }
 
@@ -126,6 +144,20 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
             الصوتي «{done.agent}» كمسودة. النشر متوقف حتى يجتاز اختبار الصوت ويُوثَّق مسار الهاتف —
             وهذه خطوة يتولاها فريق التشغيل معك.
           </p>
+          <div className="wizard__invite">
+            <span>دعوة مسؤول العميل</span>
+            <code dir="ltr">{done.inviteUrl}</code>
+            <Button
+              size="sm"
+              leading={<Clipboard size={15} />}
+              onClick={async () => {
+                await navigator.clipboard.writeText(done.inviteUrl)
+                toast.success('نُسخ رابط الدعوة.')
+              }}
+            >
+              نسخ الرابط
+            </Button>
+          </div>
           <div className="row">
             <Link href="/console/clients" className="btn btn--primary">
               افتح مساحة العمل
@@ -195,6 +227,19 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="عيادات ألفا الطبية"
                   />
+                </div>
+                <div className="field">
+                  <label htmlFor="w-owner-email">بريد مسؤول العميل</label>
+                  <input
+                    id="w-owner-email"
+                    className="input mono"
+                    type="email"
+                    autoComplete="email"
+                    value={ownerEmail}
+                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    placeholder="owner@company.com"
+                  />
+                  <span className="field__hint">سيستلم صلاحية إدارة بوابة هذه الشركة فقط.</span>
                 </div>
                 <div className="wizard__grid-2">
                   <div className="field">
@@ -444,6 +489,10 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
                       <strong> {selectedPack?.integrations.length ?? 0}</strong> تكاملًا بانتظار
                       الربط.
                     </p>
+                    <p className="muted" style={{ marginBlockStart: 'var(--s-3)' }}>
+                      ستُنشأ دعوة إدارة إلى <span className="mono">{ownerEmail || '—'}</span> وتظهر
+                      لك مرة واحدة بعد التهيئة.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -504,6 +553,10 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
             <div className="wizard__summary-row">
               <dt>المدينة</dt>
               <dd>{city || '—'}</dd>
+            </div>
+            <div className="wizard__summary-row">
+              <dt>مسؤول العميل</dt>
+              <dd className="mono">{ownerEmail || '—'}</dd>
             </div>
             <div className="wizard__summary-row">
               <dt>القالب</dt>

@@ -1,4 +1,6 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { agentVersion } from './agents'
+import { user } from './auth-schema'
 import { call } from './calls'
 
 export const qaResult = pgTable(
@@ -8,7 +10,7 @@ export const qaResult = pgTable(
     callId: text('call_id')
       .notNull()
       .references(() => call.id, { onDelete: 'cascade' }),
-    reviewerId: text('reviewer_id'),
+    reviewerId: text('reviewer_id').references(() => user.id, { onDelete: 'set null' }),
     score: integer('score'),
     flags: jsonb('flags').$type<string[]>().default([]),
     notes: text('notes'),
@@ -23,12 +25,14 @@ export const scenarioTest = pgTable(
   'scenario_test',
   {
     id: text('id').primaryKey(),
-    agentVersionId: text('agent_version_id').notNull(),
+    agentVersionId: text('agent_version_id')
+      .notNull()
+      .references(() => agentVersion.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     category: text('category').notNull(),
     input: jsonb('input').$type<Record<string, unknown>>().default({}),
     expectedOutcome: jsonb('expected_outcome').$type<Record<string, unknown>>().default({}),
-    isCritical: text('is_critical').default('false'),
+    isCritical: boolean('is_critical').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('scenario_agent_version_idx').on(t.agentVersionId)],
@@ -38,11 +42,13 @@ export const scenarioRun = pgTable(
   'scenario_run',
   {
     id: text('id').primaryKey(),
-    agentVersionId: text('agent_version_id').notNull(),
+    agentVersionId: text('agent_version_id')
+      .notNull()
+      .references(() => agentVersion.id, { onDelete: 'cascade' }),
     scenarioId: text('scenario_id')
       .notNull()
       .references(() => scenarioTest.id, { onDelete: 'cascade' }),
-    passed: text('passed').notNull(),
+    passed: boolean('passed').notNull(),
     score: integer('score'),
     details: jsonb('details').$type<Record<string, unknown>>().default({}),
     ranAt: timestamp('ran_at', { withTimezone: true }).notNull().defaultNow(),

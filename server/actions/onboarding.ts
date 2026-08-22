@@ -1,9 +1,12 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { env } from '@/lib/env'
+import { INVITATION_TTL_DAYS, normalizeInvitationEmail } from '@/lib/invitations'
 import { authorizeOperator } from '@/server/auth/access'
+import { buildInvitationUrl, createInvitationToken } from '@/server/auth/invitations'
 import { db } from '@/server/db'
 import {
   agent,
@@ -16,6 +19,7 @@ import {
   organization,
   phoneNumber,
   workspace,
+  workspaceInvitation,
 } from '@/server/db/schema'
 
 /**
@@ -34,6 +38,7 @@ const serviceSchema = z.object({
 
 const schema = z.object({
   name: z.string().trim().min(2, 'اسم الشركة مطلوب').max(160),
+  ownerEmail: z.string().trim().email('بريد مسؤول العميل غير صحيح').max(254),
   city: z.string().trim().min(2, 'المدينة مطلوبة').max(80),
   timezone: z.string().trim().min(3).max(60),
   pack: z.enum(['medical', 'realestate', 'auto', 'reception']),
@@ -52,7 +57,13 @@ const schema = z.object({
 export type OnboardingInput = z.input<typeof schema>
 
 export type OnboardingResult =
-  | { ok: true; workspaceSlug: string; workspaceName: string; agentName: string }
+  | {
+      ok: true
+      workspaceSlug: string
+      workspaceName: string
+      agentName: string
+      inviteUrl: string
+    }
   | { ok: false; error: string; field?: string }
 
 const ORG_ID = 'org_mujawib'
@@ -86,6 +97,7 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
   }
 
   const data = parsed.data
+  const ownerEmail = normalizeInvitationEmail(data.ownerEmail)
 
   if (data.did && !/^\+?[0-9\s-]{8,20}$/.test(data.did)) {
     return { ok: false, error: 'رقم الاستقبال غير صحيح', field: 'did' }
@@ -119,150 +131,173 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
   const workspaceId = id('ws')
   const agentId = id('agent')
   const versionId = id('av')
+  const invitationId = id('invite')
+  const invitationToken = createInvitationToken()
   const now = new Date()
+  const invitationExpiresAt = new Date(now.getTime() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000)
 
   const packFlows = ((template.defaultFlows as string[]) ?? []).filter(Boolean)
   const packIntegrations = ((template.defaultIntegrations as string[]) ?? []).filter(Boolean)
 
-  await db.insert(workspace).values({
-    id: workspaceId,
-    organizationId: ORG_ID,
-    name: data.name,
-    slug,
-    type: 'client',
-    status: 'setup',
-    industryPack: data.pack,
-    timezone: data.timezone,
-    locale: 'ar-SA',
-    businessInfo: {
-      city: data.city,
-      hours: { sun_thu: data.hoursWeekday, sat: data.hoursWeekend || 'مغلق', fri: 'مغلق' },
-      branches: data.branches,
-      transferTo: data.transferTo,
-    },
-    retentionPolicy: { calls: '180d', recordings: '30d', transcripts: '180d' },
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  // Structured knowledge — Bible §12: prices and hours never rely on retrieval.
-  await db.insert(knowledgeItem).values([
-    ...data.services.map((s) => ({
-      id: id('kn'),
-      workspaceId,
-      category: 'service',
-      title: s.title,
-      content: { price: s.price || 'حسب الحالة' } as Record<string, unknown>,
-      source: 'onboarding',
-      createdAt: now,
-      updatedAt: now,
-    })),
-    ...data.branches.map((b) => ({
-      id: id('kn'),
-      workspaceId,
-      category: 'branch',
-      title: b,
-      content: { city: data.city, hours: data.hoursWeekday } as Record<string, unknown>,
-      source: 'onboarding',
-      createdAt: now,
-      updatedAt: now,
-    })),
-  ])
-
-  await db.insert(agent).values({
-    id: agentId,
-    workspaceId,
-    name: data.agentName,
-    templateId: template.id,
-    liveVersionId: null,
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  await db.insert(agentVersion).values({
-    id: versionId,
-    agentId,
-    versionNumber: 1,
-    status: 'draft',
-    identity: {
-      role: `موظف استقبال صوتي لدى ${data.name}`,
-      goals: ['الإجابة على الاستفسارات', 'إنجاز الحجز', 'التحويل الآمن عند الحاجة'],
-      restricted: ['لا يؤكد سعرًا غير موجود في المعرفة'],
-    },
-    businessRules: {
-      hours: data.hoursWeekday,
-      weekend: data.hoursWeekend || 'مغلق',
-      transferTo: data.transferTo,
-    },
-    flows: packFlows,
-    toolBindings: packIntegrations,
-    routing: { afterHours: 'callback', escalation: data.transferTo },
-    readinessScore: 0,
-    // Provisioning is not publishing — Bible §23 keeps the gate closed.
-    blockers: ['اختبار الصوت لم يُنفّذ', 'مسار الهاتف لم يُوثَّق'],
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  if (packFlows.length > 0) {
-    await db.insert(flow).values(
-      packFlows.map((name, i) => ({
-        id: id('flow'),
-        agentVersionId: versionId,
-        name,
-        goal: `إنجاز ${name} بدون تدخل بشري`,
-        requiredFields: name.includes('حجز')
-          ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
-          : ['الموضوع'],
-        actions: name.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
-        fallback: { onFailure: 'callback_or_transfer' },
-        sortOrder: i,
-        createdAt: now,
-      })),
-    )
-  }
-
-  if (packIntegrations.length > 0) {
-    await db.insert(integrationConnection).values(
-      packIntegrations.map((provider) => ({
-        id: id('int'),
-        workspaceId,
-        provider,
-        label: provider,
-        health: 'disconnected' as const,
-        config: { scope: 'workspace' },
-        createdAt: now,
-        updatedAt: now,
-      })),
-    )
-  }
-
-  if (data.did) {
-    await db.insert(phoneNumber).values({
-      id: id('phone'),
-      workspaceId,
-      e164: data.did.replaceAll(' ', ''),
-      label: `الرقم الرئيسي — ${data.city}`,
-      agentId,
-      mode: 'all_calls',
-      transferDestination: data.transferTo.replaceAll(' ', ''),
-      sipStatus: 'pending',
-      routingRules: { afterHours: 'callback' },
+  await db.transaction(async (tx) => {
+    await tx.insert(workspace).values({
+      id: workspaceId,
+      organizationId: ORG_ID,
+      name: data.name,
+      slug,
+      type: 'client',
+      status: 'setup',
+      industryPack: data.pack,
+      timezone: data.timezone,
+      locale: 'ar-SA',
+      businessInfo: {
+        city: data.city,
+        hours: { sun_thu: data.hoursWeekday, sat: data.hoursWeekend || 'مغلق', fri: 'مغلق' },
+        branches: data.branches,
+        transferTo: data.transferTo,
+      },
+      retentionPolicy: { calls: '180d', recordings: '30d', transcripts: '180d' },
       createdAt: now,
       updatedAt: now,
     })
-  }
 
-  await db.insert(auditLog).values({
-    id: id('audit'),
-    workspaceId,
-    actorId: 'onboarding',
-    action: 'workspace.provision',
-    resourceType: 'workspace',
-    resourceId: workspaceId,
-    metadata: { note: `تهيئة ${data.name} من قالب ${template.name}` },
-    createdAt: now,
+    // Structured knowledge — Bible §12: prices and hours never rely on retrieval.
+    await tx.insert(knowledgeItem).values([
+      ...data.services.map((s) => ({
+        id: id('kn'),
+        workspaceId,
+        category: 'service',
+        title: s.title,
+        content: { price: s.price || 'حسب الحالة' } as Record<string, unknown>,
+        source: 'onboarding',
+        createdAt: now,
+        updatedAt: now,
+      })),
+      ...data.branches.map((b) => ({
+        id: id('kn'),
+        workspaceId,
+        category: 'branch',
+        title: b,
+        content: { city: data.city, hours: data.hoursWeekday } as Record<string, unknown>,
+        source: 'onboarding',
+        createdAt: now,
+        updatedAt: now,
+      })),
+    ])
+
+    await tx.insert(agent).values({
+      id: agentId,
+      workspaceId,
+      name: data.agentName,
+      templateId: template.id,
+      liveVersionId: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await tx.insert(agentVersion).values({
+      id: versionId,
+      agentId,
+      versionNumber: 1,
+      status: 'draft',
+      identity: {
+        role: `موظف استقبال صوتي لدى ${data.name}`,
+        goals: ['الإجابة على الاستفسارات', 'إنجاز الحجز', 'التحويل الآمن عند الحاجة'],
+        restricted: ['لا يؤكد سعرًا غير موجود في المعرفة'],
+      },
+      businessRules: {
+        hours: data.hoursWeekday,
+        weekend: data.hoursWeekend || 'مغلق',
+        transferTo: data.transferTo,
+      },
+      flows: packFlows,
+      toolBindings: packIntegrations,
+      routing: { afterHours: 'callback', escalation: data.transferTo },
+      readinessScore: 0,
+      blockers: [],
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    if (packFlows.length > 0) {
+      await tx.insert(flow).values(
+        packFlows.map((name, i) => ({
+          id: id('flow'),
+          agentVersionId: versionId,
+          name,
+          goal: `إنجاز ${name} بدون تدخل بشري`,
+          requiredFields: name.includes('حجز')
+            ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
+            : ['الموضوع'],
+          actions: name.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
+          fallback: { onFailure: 'callback_or_transfer' },
+          sortOrder: i,
+          createdAt: now,
+        })),
+      )
+    }
+
+    if (packIntegrations.length > 0) {
+      await tx.insert(integrationConnection).values(
+        packIntegrations.map((provider) => ({
+          id: id('int'),
+          workspaceId,
+          provider,
+          label: provider,
+          health: 'disconnected' as const,
+          config: { scope: 'workspace' },
+          createdAt: now,
+          updatedAt: now,
+        })),
+      )
+    }
+
+    if (data.did) {
+      await tx.insert(phoneNumber).values({
+        id: id('phone'),
+        workspaceId,
+        e164: data.did.replaceAll(' ', ''),
+        label: `الرقم الرئيسي — ${data.city}`,
+        agentId,
+        mode: 'all_calls',
+        transferDestination: data.transferTo.replaceAll(' ', ''),
+        sipStatus: 'pending',
+        routingRules: { afterHours: 'callback' },
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+
+    await tx.insert(workspaceInvitation).values({
+      id: invitationId,
+      workspaceId,
+      email: ownerEmail,
+      role: 'client_admin',
+      tokenHash: invitationToken.hash,
+      status: 'pending',
+      invitedById: access.userId,
+      expiresAt: invitationExpiresAt,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await tx.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId,
+      actorId: 'onboarding',
+      action: 'workspace.provision',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      metadata: { note: `تهيئة ${data.name} ودعوة ${ownerEmail} من قالب ${template.name}` },
+      createdAt: now,
+    })
   })
 
-  return { ok: true, workspaceSlug: slug, workspaceName: data.name, agentName: data.agentName }
+  return {
+    ok: true,
+    workspaceSlug: slug,
+    workspaceName: data.name,
+    agentName: data.agentName,
+    inviteUrl: buildInvitationUrl(env.NEXT_PUBLIC_APP_URL, invitationToken.raw),
+  }
 }

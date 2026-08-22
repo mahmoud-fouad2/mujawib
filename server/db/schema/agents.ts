@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   index,
   integer,
   jsonb,
@@ -8,6 +10,8 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { user } from './auth-schema'
+import { voiceProfile } from './voice'
 import { workspace } from './workspaces'
 
 export const agentVersionStatusEnum = pgEnum('agent_version_status', [
@@ -26,7 +30,9 @@ export const agent = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     templateId: text('template_id'),
-    liveVersionId: text('live_version_id'),
+    liveVersionId: text('live_version_id').references((): AnyPgColumn => agentVersion.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -43,7 +49,9 @@ export const agentVersion = pgTable(
     versionNumber: integer('version_number').notNull(),
     status: agentVersionStatusEnum('status').notNull().default('draft'),
     identity: jsonb('identity').$type<Record<string, unknown>>().default({}),
-    voiceProfileId: text('voice_profile_id'),
+    voiceProfileId: text('voice_profile_id').references(() => voiceProfile.id, {
+      onDelete: 'set null',
+    }),
     businessRules: jsonb('business_rules').$type<Record<string, unknown>>().default({}),
     flows: jsonb('flows').$type<unknown[]>().default([]),
     toolBindings: jsonb('tool_bindings').$type<unknown[]>().default([]),
@@ -52,12 +60,15 @@ export const agentVersion = pgTable(
     readinessScore: integer('readiness_score').default(0),
     blockers: jsonb('blockers').$type<string[]>().default([]),
     publishedAt: timestamp('published_at', { withTimezone: true }),
-    publishedById: text('published_by_id'),
+    publishedById: text('published_by_id').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('agent_version_unique_idx').on(t.agentId, t.versionNumber),
+    uniqueIndex('agent_version_one_published_idx')
+      .on(t.agentId)
+      .where(sql`${t.status} = 'published'`),
     index('agent_version_status_idx').on(t.agentId, t.status),
   ],
 )

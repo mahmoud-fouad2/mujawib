@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   Sun,
+  UserPlus,
   UserRoundCog,
   Users,
   X,
@@ -24,6 +25,7 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { AccountMenu } from '@/components/auth/account-menu'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { type CommandIndex, CommandPalette } from '@/components/console/command-palette'
 import { NotificationCenter } from '@/components/notifications/notification-center'
@@ -39,6 +41,7 @@ const ICONS: Record<NavIconKey, typeof Home> = {
   calls: Activity,
   qa: ShieldCheck,
   clients: Users,
+  inquiries: UserPlus,
   agents: LayoutGrid,
   templates: FolderTree,
   voice: Settings,
@@ -57,12 +60,14 @@ export function ConsoleShell({
   index,
   role,
   notifications,
+  user,
 }: {
   children: ReactNode
   counts: NavCounts
   index: CommandIndex
   role: string
   notifications: NotificationFeed
+  user: { name: string; email: string }
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
@@ -178,6 +183,7 @@ export function ConsoleShell({
             <button type="button" className="icon-btn" onClick={toggle} aria-label="تبديل الوضع">
               {mode === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>
+            <AccountMenu name={user.name} email={user.email} />
           </div>
         </header>
 

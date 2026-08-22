@@ -1,4 +1,4 @@
-export type TranscriptRole = 'caller' | 'agent'
+type TranscriptRole = 'caller' | 'agent'
 
 export type TranscriptTurn = {
   role: TranscriptRole
@@ -28,7 +28,7 @@ type SummaryInput = {
   transcript: TranscriptTurn[]
   booking: { service?: string | null; status?: string | null } | null
   lead: { interest?: string | null; status?: string | null } | null
-  tools: { toolName: string; success: string | null }[]
+  tools: { toolName: string; status: 'running' | 'succeeded' | 'failed' }[]
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -147,7 +147,7 @@ export function buildCallSummary(input: SummaryInput): CallSummary {
   const callerHighlights = highlights(input.transcript, 'caller')
   const agentHighlights = highlights(input.transcript, 'agent')
   const recorded = explicitSummary(input.metadata)
-  const failedTools = input.tools.filter((tool) => tool.success === 'false')
+  const failedTools = input.tools.filter((tool) => tool.status === 'failed')
   const warnings: string[] = []
 
   if (input.transcript.length === 0) warnings.push('نص الحوار غير متاح لهذه المكالمة.')

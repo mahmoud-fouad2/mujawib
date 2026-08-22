@@ -1,5 +1,5 @@
-export const NOTIFICATION_SEVERITIES = ['info', 'success', 'warning', 'critical'] as const
-export const NOTIFICATION_CATEGORIES = [
+const NOTIFICATION_SEVERITIES = ['info', 'success', 'warning', 'critical'] as const
+const NOTIFICATION_CATEGORIES = [
   'call',
   'integration',
   'qa',

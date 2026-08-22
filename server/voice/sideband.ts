@@ -1,12 +1,18 @@
 import 'server-only'
 
-import { createHash } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { createHash } from 'crypto'
+import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
-import { processCallIntelligence } from '@/server/calls/intelligence'
+import { enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { db } from '@/server/db'
-import { call, callEvent, toolExecution } from '@/server/db/schema'
+import { backgroundJob, call, callEvent, toolExecution } from '@/server/db/schema'
 import { notifyOperators, notifyWorkspaceMembers, tryNotify } from '@/server/notifications/service'
+import {
+  protectJson,
+  protectString,
+  revealJson,
+  revealString,
+} from '@/server/security/protected-data'
 import { executeTool } from '@/server/voice/handlers'
 import { maskIdentifier, sanitizeLogText, voiceError, voiceLog } from '@/server/voice/log'
 import {
@@ -37,16 +43,75 @@ type SessionState = {
   seenToolCalls: Set<string>
 }
 
-const globalSidebands = globalThis as typeof globalThis & {
-  __mujawibSidebands?: Map<string, Promise<void>>
-}
-
-if (!globalSidebands.__mujawibSidebands) globalSidebands.__mujawibSidebands = new Map()
-const activeSidebands = globalSidebands.__mujawibSidebands
-
 function stableId(prefix: string, ...parts: string[]) {
   const digest = createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 24)
   return `${prefix}_${digest}`
+}
+
+function sidebandJobId(externalCallId: string) {
+  return stableId('job', 'sideband', externalCallId)
+}
+
+async function claimSideband(ctx: SidebandContext) {
+  const now = new Date()
+  const id = sidebandJobId(ctx.externalCallId)
+  const [inserted] = await db
+    .insert(backgroundJob)
+    .values({
+      id,
+      type: 'realtime_sideband',
+      dedupeKey: `sideband:${ctx.externalCallId}`,
+      payload: {
+        callRecordId: ctx.callRecordId,
+        externalCallId: ctx.externalCallId,
+        workspaceId: ctx.workspaceId,
+        callerNumberProtected: ctx.callerNumber ? protectString(ctx.callerNumber) : null,
+        transferToProtected: ctx.transferTo ? protectString(ctx.transferTo) : null,
+        startedAt: ctx.startedAt.toISOString(),
+      },
+      status: 'running',
+      attempts: 1,
+      availableAt: now,
+      lockedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: backgroundJob.dedupeKey })
+    .returning({ id: backgroundJob.id })
+  if (inserted) return true
+
+  const staleBefore = new Date(now.getTime() - 45_000)
+  const [reclaimed] = await db
+    .update(backgroundJob)
+    .set({
+      status: 'running',
+      lockedAt: now,
+      attempts: sql`${backgroundJob.attempts} + 1`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(backgroundJob.id, id),
+        or(
+          eq(backgroundJob.status, 'pending'),
+          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+        ),
+      ),
+    )
+    .returning({ id: backgroundJob.id })
+  return Boolean(reclaimed)
+}
+
+async function finishSidebandJob(ctx: SidebandContext, normal: boolean, reason: string | null) {
+  await db
+    .update(backgroundJob)
+    .set({
+      status: normal ? 'completed' : 'failed',
+      completedAt: new Date(),
+      lastError: normal ? null : reason,
+      updatedAt: new Date(),
+    })
+    .where(eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)))
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -112,13 +177,16 @@ async function appendTranscript(
 
   const turnId = stableId('turn', ctx.callRecordId, action.role, action.sourceId)
   const [row] = await db
-    .select({ transcript: call.transcript })
+    .select({ transcript: call.transcript, transcriptEncrypted: call.transcriptEncrypted })
     .from(call)
     .where(eq(call.id, ctx.callRecordId))
     .limit(1)
   if (!row) return
 
-  const transcript = Array.isArray(row.transcript) ? row.transcript : []
+  const transcript = revealJson<unknown[]>(
+    row.transcriptEncrypted,
+    Array.isArray(row.transcript) ? row.transcript : [],
+  )
   const alreadyStored = transcript.some((turn) => asRecord(turn)?.sourceId === turnId)
   if (alreadyStored) return
 
@@ -126,7 +194,11 @@ async function appendTranscript(
   await db
     .update(call)
     .set({
-      transcript: [...transcript, { role: action.role, text: cleanText, at, sourceId: turnId }],
+      transcript: [],
+      transcriptEncrypted: protectJson([
+        ...transcript,
+        { role: action.role, text: cleanText, at, sourceId: turnId },
+      ]),
     })
     .where(eq(call.id, ctx.callRecordId))
 
@@ -182,8 +254,10 @@ async function recordInvalidArguments(
       callId: ctx.callRecordId,
       toolName: action.name,
       request: {},
-      result: result as unknown as Record<string, unknown>,
-      success: 'false',
+      requestEncrypted: protectJson({}),
+      result: { protected: true },
+      resultEncrypted: protectJson(result),
+      status: 'failed',
       latencyMs: 0,
       executedAt: new Date(),
     })
@@ -337,18 +411,14 @@ async function finalizeCall(ctx: SidebandContext, code: number, reason: Buffer) 
   )
   const closeReason = sanitizeLogText(reason.toString()) || null
   const previousSideband = asRecord(row.metadata?.sideband) ?? {}
-  const status =
-    normalClose && (row.status === 'live' || row.status === 'waiting_tool')
-      ? 'completed'
-      : row.status === 'waiting_tool'
-        ? 'live'
-        : row.status
+  const status = normalClose ? 'completed' : 'failed'
 
   await db
     .update(call)
     .set({
       status,
-      ...(normalClose ? { endedAt, durationSeconds } : {}),
+      endedAt,
+      durationSeconds,
       metadata: {
         ...(row.metadata ?? {}),
         sideband: {
@@ -371,10 +441,11 @@ async function finalizeCall(ctx: SidebandContext, code: number, reason: Buffer) 
     normal: normalClose,
     code,
   })
+  await finishSidebandJob(ctx, normalClose, closeReason)
 
   // This stays behind the already-finished call. The caller is never kept on
   // the line while the operational summary is produced.
-  if (normalClose) await processCallIntelligence(ctx.callRecordId)
+  if (normalClose) await enqueueCallIntelligence(ctx.callRecordId)
 
   if (!normalClose) {
     await tryNotify(async () => {
@@ -423,6 +494,13 @@ async function runSideband(ctx: SidebandContext) {
     seenToolCalls: new Set(),
   }
   let queue = Promise.resolve()
+  const heartbeat = setInterval(() => {
+    void db
+      .update(backgroundJob)
+      .set({ lockedAt: new Date(), updatedAt: new Date() })
+      .where(eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)))
+  }, 15_000)
+  heartbeat.unref()
 
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => ws.terminate(), CONNECT_TIMEOUT_MS)
@@ -451,6 +529,7 @@ async function runSideband(ctx: SidebandContext) {
 
     ws.on('close', (code, reason) => {
       clearTimeout(timeout)
+      clearInterval(heartbeat)
       queue = queue
         .then(() => finalizeCall(ctx, code, reason))
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
@@ -464,12 +543,56 @@ async function runSideband(ctx: SidebandContext) {
  * directly between OpenAI and the SIP ingress; this socket only receives
  * private control events, executes tools, and persists verified evidence.
  */
-export function startRealtimeSideband(ctx: SidebandContext): boolean {
-  if (activeSidebands.has(ctx.externalCallId)) return false
+export async function startRealtimeSideband(ctx: SidebandContext): Promise<boolean> {
+  if (!(await claimSideband(ctx))) return false
 
-  const task = runSideband(ctx)
-    .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
-    .finally(() => activeSidebands.delete(ctx.externalCallId))
-  activeSidebands.set(ctx.externalCallId, task)
+  void runSideband(ctx).catch(async (error) => {
+    const message = sanitizeLogText(String(error))
+    voiceError('SIDEBAND_ERROR', message)
+    await finishSidebandJob(ctx, false, message)
+  })
   return true
+}
+
+export async function recoverStaleSidebands(limit = 2) {
+  const staleBefore = new Date(Date.now() - 45_000)
+  const jobs = await db
+    .select({ payload: backgroundJob.payload })
+    .from(backgroundJob)
+    .where(
+      and(
+        eq(backgroundJob.type, 'realtime_sideband'),
+        or(
+          inArray(backgroundJob.status, ['pending']),
+          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+        ),
+      ),
+    )
+    .limit(limit)
+
+  for (const job of jobs) {
+    const payload = job.payload
+    if (
+      typeof payload.callRecordId !== 'string' ||
+      typeof payload.externalCallId !== 'string' ||
+      typeof payload.workspaceId !== 'string' ||
+      typeof payload.startedAt !== 'string'
+    ) {
+      continue
+    }
+    await startRealtimeSideband({
+      callRecordId: payload.callRecordId,
+      externalCallId: payload.externalCallId,
+      workspaceId: payload.workspaceId,
+      callerNumber:
+        typeof payload.callerNumberProtected === 'string'
+          ? revealString(payload.callerNumberProtected)
+          : null,
+      transferTo:
+        typeof payload.transferToProtected === 'string'
+          ? revealString(payload.transferToProtected)
+          : null,
+      startedAt: new Date(payload.startedAt),
+    })
+  }
 }

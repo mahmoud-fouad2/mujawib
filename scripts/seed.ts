@@ -8,16 +8,17 @@
  * Batched: rows are collected in memory and flushed in chunks — neon-http is
  * one round trip per statement, so per-row inserts would take hours.
  */
-import { neon } from '@neondatabase/serverless'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/neon-http'
 import type { PgTable } from 'drizzle-orm/pg-core'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import * as schema from '../server/db/schema/index.ts'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('DATABASE_URL is required to seed')
 
-const db = drizzle({ client: neon(connectionString), schema })
+const client = postgres(connectionString, { max: 1, prepare: false })
+const db = drizzle(client, { schema })
 
 // ─── deterministic helpers ──────────────────────────────────────────────────
 
@@ -484,7 +485,7 @@ function build() {
       style: v.style,
       languagePolicy: v.policy,
       pacing: v.pacing,
-      isGlobal: 'true',
+      isGlobal: true,
       createdAt: daysAgo(190),
     })
   }
@@ -604,7 +605,7 @@ function build() {
       readinessScore: isLive ? int(92, 99) : int(70, 88),
       blockers: isLive ? [] : ['اختبار الهاتف لم يكتمل'],
       publishedAt: published ? daysAgo(int(3, 20)) : null,
-      publishedById: published ? 'ops' : null,
+      publishedById: null,
       createdAt: daysAgo(activeDays + 10),
     })
 
@@ -825,7 +826,7 @@ function build() {
             toolName: 'check_availability',
             request: { date: 'tomorrow', service: pick(client.services).title },
             result: checkOk ? { slots: ['17:30', '18:15'] } : { error: 'upstream_timeout' },
-            success: String(checkOk),
+            status: checkOk ? 'succeeded' : 'failed',
             latencyMs: checkOk ? int(320, 1400) : int(1800, 4200),
             executedAt: new Date(startedAt.getTime() + Math.max(2, durationSeconds - 12) * 1000),
           })
@@ -836,7 +837,7 @@ function build() {
               toolName: 'create_booking',
               request: { slot: '17:30', name: cust.name, phone: cust.phone },
               result: { bookingId: `bk_${callId}` },
-              success: 'true',
+              status: 'succeeded',
               latencyMs: int(400, 1200),
               executedAt: new Date(startedAt.getTime() + Math.max(3, durationSeconds - 6) * 1000),
             })
@@ -846,7 +847,7 @@ function build() {
               toolName: 'send_confirmation',
               request: { channel: 'whatsapp', to: cust.phone },
               result: { messageId: `wam_${callId}` },
-              success: 'true',
+              status: 'succeeded',
               latencyMs: int(180, 600),
               executedAt: new Date(startedAt.getTime() + Math.max(4, durationSeconds - 3) * 1000),
             })
@@ -894,7 +895,7 @@ function build() {
           B.qaResult.add({
             id: id('qa'),
             callId,
-            reviewerId: chance(0.5) ? 'ops' : null,
+            reviewerId: null,
             score: int(48, 88),
             flags: [...flags],
             notes: 'بحاجة إلى مراجعة بشرية — راجع سبب عدم الإنجاز.',
@@ -1004,7 +1005,7 @@ function build() {
         category: s.cat,
         input: { utterance: s.name },
         expectedOutcome: { pass: true },
-        isCritical: String(s.critical),
+        isCritical: s.critical,
         createdAt: daysAgo(activeDays + 5),
       })
       const passed = isLive ? chance(0.93) : chance(0.72)
@@ -1012,7 +1013,7 @@ function build() {
         id: id('run'),
         agentVersionId: liveVersionId,
         scenarioId: sid,
-        passed: String(passed),
+        passed,
         score: passed ? int(88, 100) : int(40, 72),
         details: { notes: passed ? 'مطابق للمتوقع' : 'يحتاج مراجعة' },
         ranAt: daysAgo(int(1, 6)),
@@ -1053,8 +1054,11 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(async () => {
+    await client.end()
+    process.exit(0)
+  })
   .catch((err) => {
     console.error(err)
-    process.exit(1)
+    return client.end().finally(() => process.exit(1))
   })

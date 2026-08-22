@@ -1,10 +1,15 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { authorizeClientWorkspace } from '@/server/auth/access'
+import {
+  authorizeClientWorkspace,
+  getPortalAccess,
+  PORTAL_WORKSPACE_COOKIE,
+} from '@/server/auth/access'
 import { db } from '@/server/db'
 import { auditLog, changeRequest, knowledgeItem, workspace } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
@@ -13,6 +18,25 @@ export type ActionResult = { ok: true; message: string } | { ok: false; error: s
 
 function id(prefix: string) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`
+}
+
+export async function selectPortalWorkspace(slug: string): Promise<ActionResult> {
+  const parsed = z.string().trim().min(1).max(120).safeParse(slug)
+  if (!parsed.success) return { ok: false, error: 'مساحة العمل غير صحيحة.' }
+  const access = await getPortalAccess(parsed.data)
+  if (!access || access.workspace.slug !== parsed.data) {
+    return { ok: false, error: 'لا تملك صلاحية الوصول إلى هذه المساحة.' }
+  }
+
+  ;(await cookies()).set(PORTAL_WORKSPACE_COOKIE, parsed.data, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/portal',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+  revalidatePath('/portal', 'layout')
+  return { ok: true, message: `انتقلت إلى ${access.workspace.name}.` }
 }
 
 /* ─── Change requests ────────────────────────────────────────────────────── */

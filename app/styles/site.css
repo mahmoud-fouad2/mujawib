@@ -194,7 +194,7 @@
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: var(--text-muted);
   transition:
     background var(--t-fast) var(--ease),
@@ -369,7 +369,7 @@
   font-family: var(--font-mono);
   font-size: var(--step-2);
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -479,7 +479,7 @@
   display: block;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   margin-block-end: 3px;
   color: var(--text-faint);
 }
@@ -501,7 +501,7 @@
   gap: var(--s-2);
   padding: 7px var(--s-3);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--raised);
 }
 
@@ -947,7 +947,7 @@
   inline-size: 38px;
   block-size: 38px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--raised);
   overflow: hidden;
 }
@@ -1267,7 +1267,7 @@
   margin-block-end: var(--s-4);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text-faint);
 }
@@ -1301,7 +1301,7 @@
   font-family: var(--font-mono);
   font-size: var(--step-3);
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .facts span {
@@ -1502,7 +1502,7 @@
   font-family: var(--font-mono);
   font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   font-weight: 500;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1659,7 +1659,7 @@
   place-items: center;
   inline-size: 40px;
   block-size: 40px;
-  border-radius: 11px;
+  border-radius: 8px;
   background: var(--signal-soft);
   color: var(--signal);
 }
@@ -1963,7 +1963,7 @@
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: var(--signal);
 }
 

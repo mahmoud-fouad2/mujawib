@@ -11,15 +11,16 @@
  * so a route that is not created here simply will not answer.
  */
 import { randomUUID } from 'node:crypto'
-import { neon } from '@neondatabase/serverless'
 import { and, eq, inArray } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/neon-http'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import * as schema from '../server/db/schema/index.ts'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('DATABASE_URL is required')
 
-const db = drizzle({ client: neon(connectionString), schema })
+const client = postgres(connectionString, { max: 1, prepare: false })
+const db = drizzle(client, { schema })
 
 /* ─── the one route we are configuring ───────────────────────────────────── */
 
@@ -166,8 +167,11 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(async () => {
+    await client.end()
+    process.exit(0)
+  })
   .catch((error) => {
     console.error(error)
-    process.exit(1)
+    return client.end().finally(() => process.exit(1))
   })

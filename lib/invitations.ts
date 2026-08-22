@@ -2,8 +2,6 @@ import { type AccessRole, isClientRole, isOperatorRole } from '@/lib/access'
 
 export const INVITATION_TTL_DAYS = 7
 
-export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
-
 export function normalizeInvitationEmail(email: string): string {
   return email.trim().toLowerCase()
 }

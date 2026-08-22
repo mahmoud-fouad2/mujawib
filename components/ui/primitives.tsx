@@ -1,51 +1,5 @@
 import type { ReactNode } from 'react'
 
-/* ─── Panel ──────────────────────────────────────────────────────────────── */
-
-export function Panel({
-  children,
-  className,
-  flush,
-}: {
-  children: ReactNode
-  className?: string
-  flush?: boolean
-}) {
-  return (
-    <section className={['panel', flush && 'panel--flush', className].filter(Boolean).join(' ')}>
-      {children}
-    </section>
-  )
-}
-
-export function PanelHead({
-  title,
-  meta,
-  action,
-}: {
-  title: ReactNode
-  meta?: ReactNode
-  action?: ReactNode
-}) {
-  return (
-    <header className="panel__head">
-      <div className="stack" style={{ gap: 2 }}>
-        <h2>{title}</h2>
-        {meta ? (
-          <span className="muted" style={{ fontSize: 'var(--step--1)' }}>
-            {meta}
-          </span>
-        ) : null}
-      </div>
-      {action}
-    </header>
-  )
-}
-
-export function PanelBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={['panel__body', className].filter(Boolean).join(' ')}>{children}</div>
-}
-
 /* ─── Status pill ────────────────────────────────────────────────────────── */
 
 export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'signal'
@@ -93,11 +47,4 @@ export function EmptyState({
       {action}
     </div>
   )
-}
-
-/* ─── Data value ─────────────────────────────────────────────────────────── */
-
-/** Numbers, durations, phone numbers — mono, tabular, bidi-isolated. */
-export function Data({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={['mono', className].filter(Boolean).join(' ')}>{children}</span>
 }

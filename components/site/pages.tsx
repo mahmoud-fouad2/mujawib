@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Phone } from 'lucide-react'
 import Image from 'next/image'
+import { ContactForm } from '@/components/site/contact-form'
 import { SectionHead } from '@/components/site/sections'
 import { LinkButton } from '@/components/ui/button'
 import { Pill } from '@/components/ui/primitives'
@@ -30,7 +31,6 @@ function PageHero({
 }) {
   return (
     <section className="page-hero">
-      <span className="aurora page-hero__aurora" aria-hidden="true" />
       <div className="container page-hero__grid">
         <span className="section__label">{eyebrow}</span>
         <div>
@@ -88,6 +88,7 @@ export function ContactPage({ locale }: { locale: Locale }) {
 
       <section className="section page-scope">
         <div className="container">
+          <ContactForm locale={locale} />
           <div className="channels reveal-group">
             {p.channels.map((c, i) => {
               const Icon = CHANNEL_ICON[i % CHANNEL_ICON.length] ?? Mail

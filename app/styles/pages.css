@@ -22,11 +22,6 @@
   padding-block: clamp(var(--s-7), 6vw, 96px) clamp(var(--s-5), 3vw, var(--s-7));
 }
 
-.page-hero__aurora {
-  inset-block-start: -30%;
-  inset-inline-start: -10%;
-}
-
 .page-hero__grid {
   position: relative;
   z-index: 1;
@@ -38,6 +33,101 @@
   block-size: clamp(240px, 30vw, 380px);
 }
 /* ─── contact channels ─────────────────────────────────────────────────── */
+
+.contact-form {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(var(--s-6), 5vw, var(--s-8));
+  padding-block-end: clamp(var(--s-7), 7vw, var(--s-9));
+  margin-block-end: clamp(var(--s-6), 5vw, var(--s-8));
+  border-block-end: 1px solid var(--line-strong);
+}
+
+.contact-form__head {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+}
+
+.contact-form__head > span {
+  color: var(--signal);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.contact-form__head h2,
+.contact-success h2 {
+  font-size: var(--step-3);
+}
+
+.contact-form__head p,
+.contact-success p {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.contact-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.contact-form__need {
+  grid-column: 1 / -1;
+}
+
+.contact-form textarea {
+  resize: vertical;
+}
+
+.contact-form > .check-row,
+.contact-form > .btn,
+.contact-form > .auth__error {
+  grid-column: 2;
+}
+
+.contact-form > .btn {
+  inline-size: fit-content;
+}
+
+.contact-form__honeypot {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.contact-success {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+  padding-block: var(--s-7);
+  margin-block-end: var(--s-8);
+  border-block: 1px solid var(--good);
+}
+
+.contact-success > svg {
+  flex: none;
+  color: var(--good);
+}
+
+@media (max-width: 760px) {
+  .contact-form {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-form__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .contact-form__need,
+  .contact-form > .check-row,
+  .contact-form > .btn,
+  .contact-form > .auth__error {
+    grid-column: 1;
+  }
+}
 
 .channels {
   display: grid;
@@ -96,7 +186,7 @@
   inline-size: 46px;
   block-size: 46px;
   margin-block-end: var(--s-2);
-  border-radius: 13px;
+  border-radius: 8px;
   background: var(--signal-soft);
   color: var(--signal);
   transition:
@@ -118,7 +208,7 @@
 .channel__value {
   font-size: var(--step-2);
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .channel__note {

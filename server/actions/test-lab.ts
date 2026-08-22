@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -101,7 +101,7 @@ export async function createTestScenario(
     category: parsed.data.category,
     input: parsed.data.input,
     expectedOutcome: parsed.data.expectation,
-    isCritical: parsed.data.isCritical ? 'true' : 'false',
+    isCritical: parsed.data.isCritical,
     createdAt: new Date(),
   })
 
@@ -217,7 +217,7 @@ async function executeAndPersist(runtime: VersionRuntime, scenario: ScenarioRow)
     id: id('run'),
     agentVersionId: runtime.versionId,
     scenarioId: scenario.id,
-    passed: passed ? 'true' : 'false',
+    passed,
     score,
     details,
     ranAt: new Date(),
@@ -257,7 +257,7 @@ export async function runTestScenario(scenarioId: string): Promise<ActionResult>
     note: `${result.passed ? 'نجح' : 'لم ينجح'} سيناريو «${row.scenario.name}» بدرجة ${result.score}`,
   })
 
-  if (!result.passed && row.scenario.isCritical === 'true') {
+  if (!result.passed && row.scenario.isCritical) {
     await tryNotify(() =>
       notifyOperators({
         workspaceId: row.workspaceId,
@@ -328,7 +328,7 @@ export async function runVersionTestSuite(versionId: string): Promise<ActionResu
 
   const failed = results.filter(({ result }) => !result.passed).length
   const criticalFailed = results.filter(
-    ({ scenario, result }) => scenario.isCritical === 'true' && !result.passed,
+    ({ scenario, result }) => scenario.isCritical && !result.passed,
   ).length
 
   await recordAudit({

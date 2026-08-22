@@ -1,7 +1,7 @@
-import { isIP } from 'node:net'
+import { isIP } from 'net'
 import { z } from 'zod'
 
-export const INTEGRATION_ACTIONS = ['health', 'availability', 'booking', 'message'] as const
+const INTEGRATION_ACTIONS = ['health', 'availability', 'booking', 'message'] as const
 
 export type IntegrationAction = (typeof INTEGRATION_ACTIONS)[number]
 
@@ -30,7 +30,7 @@ export function capabilitiesForProvider(provider: string): IntegrationAction[] {
 
 const endpointSchema = z.string().trim().url().max(2_048)
 
-export const integrationConfigSchema = z.object({
+const integrationConfigSchema = z.object({
   version: z.literal(1).default(1),
   endpoints: z
     .object({
@@ -75,7 +75,7 @@ export function normalizeIntegrationConfig(value: unknown): IntegrationConfig {
   }
 }
 
-export function configuredActions(config: IntegrationConfig): IntegrationAction[] {
+function configuredActions(config: IntegrationConfig): IntegrationAction[] {
   return INTEGRATION_ACTIONS.filter((action) => Boolean(config.endpoints[action]))
 }
 

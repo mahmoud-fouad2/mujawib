@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { and, eq } from 'drizzle-orm'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 import {
@@ -21,14 +22,18 @@ export type OperatorAccess = {
   name: string
   workspaceId: string
   role: string
+  twoFactorEnabled: boolean
 }
 
 export type PortalAccess = {
   userId: string
   email: string
+  name: string
   role: string
   workspace: typeof workspace.$inferSelect
 }
+
+export const PORTAL_WORKSPACE_COOKIE = 'mujawib.portal-workspace'
 
 const currentSession = cache(getSession)
 
@@ -56,6 +61,7 @@ export async function getOperatorAccess(): Promise<OperatorAccess | null> {
     name: session.user.name,
     workspaceId: access.workspaceId,
     role: access.role,
+    twoFactorEnabled: Boolean((session.user as { twoFactorEnabled?: boolean }).twoFactorEnabled),
   }
 }
 
@@ -63,7 +69,7 @@ export async function authorizeOperator(
   permission: OperatorPermission,
 ): Promise<OperatorAccess | null> {
   const access = await getOperatorAccess()
-  return access && canOperator(access.role, permission) ? access : null
+  return access?.twoFactorEnabled && canOperator(access.role, permission) ? access : null
 }
 
 export async function requireOperatorPage(returnTo = '/console'): Promise<OperatorAccess> {
@@ -73,12 +79,19 @@ export async function requireOperatorPage(returnTo = '/console'): Promise<Operat
   if (!access || !canOperator(access.role, 'console.view')) {
     redirect('/access-denied?area=console')
   }
+  const twoFactorEnabled = Boolean(
+    (session.user as { twoFactorEnabled?: boolean }).twoFactorEnabled,
+  )
+  if (!twoFactorEnabled) {
+    redirect('/account/security?required=operator')
+  }
   return {
     userId: session.user.id,
     email: session.user.email,
     name: session.user.name,
     workspaceId: access.workspaceId,
     role: access.role,
+    twoFactorEnabled,
   }
 }
 
@@ -110,25 +123,32 @@ const portalAccessForUser = cache(
       .orderBy(workspace.name)
 
     const access = rows.find((row) => isClientRole(row.role))
-    return access ? { userId, email: '', role: access.role, workspace: access.workspace } : null
+    return access
+      ? { userId, email: '', name: '', role: access.role, workspace: access.workspace }
+      : null
   },
 )
 
 export async function getPortalAccess(slug?: string): Promise<PortalAccess | null> {
   const session = await currentSession()
   if (!session) return null
-  const access = await portalAccessForUser(session.user.id, slug)
-  return access ? { ...access, email: session.user.email } : null
+  const selectedSlug = slug ?? (await cookies()).get(PORTAL_WORKSPACE_COOKIE)?.value
+  const access = await portalAccessForUser(session.user.id, selectedSlug)
+  const fallback = access ?? (selectedSlug ? await portalAccessForUser(session.user.id) : null)
+  return fallback ? { ...fallback, email: session.user.email, name: session.user.name } : null
 }
 
 export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAccess> {
   const session = await currentSession()
   if (!session) redirect(`/sign-in?next=${encodeURIComponent(returnTo)}`)
-  const access = await portalAccessForUser(session.user.id)
+  const selectedSlug = (await cookies()).get(PORTAL_WORKSPACE_COOKIE)?.value
+  const access =
+    (await portalAccessForUser(session.user.id, selectedSlug)) ??
+    (selectedSlug ? await portalAccessForUser(session.user.id) : null)
   if (!access || !canClient(access.role, 'portal.view')) {
     redirect('/access-denied?area=portal')
   }
-  return { ...access, email: session.user.email }
+  return { ...access, email: session.user.email, name: session.user.name }
 }
 
 export async function authorizeClientWorkspace(
@@ -154,6 +174,7 @@ export async function authorizeClientWorkspace(
   return {
     userId: session.user.id,
     email: session.user.email,
+    name: session.user.name,
     role: row.role,
     workspace: row.workspace,
   }

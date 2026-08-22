@@ -1,28 +1,8 @@
-import { neon, neonConfig } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/neon-http'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import { env } from '@/lib/env'
 import * as schema from './schema'
 
-/**
- * Importing `env` here validates the whole server environment the first time
- * anything touches the database — which is every request path. A missing or
- * malformed DATABASE_URL fails at boot naming the variable, instead of
- * surfacing as an opaque connection error on the first query.
- */
-
-const CONNECT_TIMEOUT_MS = 10_000
-const MAX_ATTEMPTS = 3
-
-/**
- * Neon on a scale-to-zero branch parks after a few minutes idle, and the first
- * request afterwards has to wait for the compute to wake. That wake can exceed
- * the default fetch timeout and surface as ETIMEDOUT, which is what was taking
- * pages down in production.
- *
- * Retrying with backoff covers the wake and any transient network blip. Only
- * connection-level failures are retried — a genuine SQL error is thrown on the
- * first attempt, because repeating a bad query just delays the real message.
- */
 function errorChain(error: unknown, depth = 0): string {
   if (depth > 5 || error === null || error === undefined) return ''
   if (error instanceof Error) {
@@ -40,40 +20,24 @@ function errorChain(error: unknown, depth = 0): string {
 }
 
 export function isDatabaseUnavailable(error: unknown): boolean {
-  return /fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network|EACCES/i.test(
+  return /fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network|connection terminated|57P01|57P03/i.test(
     errorChain(error),
   )
 }
 
-function isRetryable(error: unknown): boolean {
-  return isDatabaseUnavailable(error)
-}
+type SqlClient = ReturnType<typeof postgres>
+const globalForDatabase = globalThis as typeof globalThis & { mujawibSql?: SqlClient }
 
-const resilientFetch: typeof fetch = async (input, init) => {
-  let lastError: unknown
+const sqlClient =
+  globalForDatabase.mujawibSql ??
+  postgres(env.DATABASE_URL, {
+    max: env.NODE_ENV === 'production' ? 10 : 4,
+    connect_timeout: 10,
+    idle_timeout: 20,
+    max_lifetime: 60 * 30,
+    prepare: false,
+  })
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      return await fetch(input, {
-        ...init,
-        signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS),
-      })
-    } catch (error) {
-      lastError = error
-      if (!isRetryable(error) || attempt === MAX_ATTEMPTS) break
-      // 250ms, then 750ms — long enough for a cold branch to come up.
-      await new Promise((r) => setTimeout(r, 250 * 3 ** (attempt - 1)))
-    }
-  }
+if (env.NODE_ENV !== 'production') globalForDatabase.mujawibSql = sqlClient
 
-  throw lastError
-}
-
-// The custom fetch is installed on the driver config, not per-connection.
-neonConfig.fetchFunction = resilientFetch
-
-const sql = neon(env.DATABASE_URL)
-
-export const db = drizzle({ client: sql, schema })
-
-export type Database = typeof db
+export const db = drizzle(sqlClient, { schema })

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { PortalShell } from '@/components/portal/portal-shell'
-import { requirePortalPage } from '@/server/auth/access'
+import { getPortalWorkspacesForCurrentUser, requirePortalPage } from '@/server/auth/access'
 import { getNotificationsForCurrentUser } from '@/server/data/notifications'
 import { getPortalAgentHealth } from '@/server/data/portal'
 
@@ -10,17 +10,22 @@ export const metadata: Metadata = {
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const { workspace } = await requirePortalPage('/portal')
+  const access = await requirePortalPage('/portal')
+  const { workspace } = access
 
-  const [health, notifications] = await Promise.all([
+  const [health, notifications, workspaces] = await Promise.all([
     getPortalAgentHealth(workspace.id),
     getNotificationsForCurrentUser({ workspaceId: workspace.id }),
+    getPortalWorkspacesForCurrentUser(),
   ])
 
   return (
     <PortalShell
       workspaceId={workspace.id}
       workspaceName={workspace.name}
+      workspaceSlug={workspace.slug}
+      workspaces={workspaces.map(({ id, name, slug }) => ({ id, name, slug }))}
+      user={{ name: access.name, email: access.email }}
       health={{ state: health.state, label: health.label }}
       notifications={notifications}
     >

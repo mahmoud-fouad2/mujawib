@@ -14,13 +14,13 @@ export type RealtimeToolAction = {
   sourceId: string
 }
 
-export type RealtimeLifecycleAction = {
+type RealtimeLifecycleAction = {
   kind: 'lifecycle'
   state: 'connected' | 'speech_started' | 'speech_stopped'
   sourceId: string
 }
 
-export type RealtimeErrorAction = {
+type RealtimeErrorAction = {
   kind: 'error'
   code: string | null
   message: string

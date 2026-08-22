@@ -27,6 +27,7 @@ import {
   phoneNumber,
   pronunciation,
   qaResult,
+  salesInquiry,
   scenarioRun,
   scenarioTest,
   toolExecution,
@@ -34,10 +35,32 @@ import {
   workspace,
 } from '@/server/db/schema'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
-import { getVersionTestGate } from '@/server/test-lab/gate'
+import { revealJson } from '@/server/security/protected-data'
+import { getVersionTestGate, getVersionTestGates } from '@/server/test-lab/gate'
 
 /** Calls that are on the wire right now. */
 const LIVE_STATUSES = ['live', 'ringing', 'waiting_tool'] as const
+
+export async function getSalesInquiries(limit = 100) {
+  return db
+    .select({
+      id: salesInquiry.id,
+      name: salesInquiry.name,
+      company: salesInquiry.company,
+      email: salesInquiry.email,
+      phone: salesInquiry.phone,
+      need: salesInquiry.need,
+      monthlyCalls: salesInquiry.monthlyCalls,
+      locale: salesInquiry.locale,
+      status: salesInquiry.status,
+      ownerId: salesInquiry.ownerId,
+      createdAt: salesInquiry.createdAt,
+      updatedAt: salesInquiry.updatedAt,
+    })
+    .from(salesInquiry)
+    .orderBy(desc(salesInquiry.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 200))
+}
 
 function startOfToday() {
   const d = new Date()
@@ -372,7 +395,7 @@ export async function getPlatformStatus(): Promise<PlatformSignal[]> {
     .where(
       and(
         gte(toolExecution.executedAt, daysBack(1)),
-        eq(toolExecution.success, 'false'),
+        eq(toolExecution.status, 'failed'),
         eq(call.origin, 'live'),
       ),
     )
@@ -511,7 +534,9 @@ export async function getClients() {
         createdAt: workspace.createdAt,
       })
       .from(workspace)
-      .where(eq(workspace.type, 'client')),
+      .where(eq(workspace.type, 'client'))
+      .orderBy(workspace.name)
+      .limit(100),
     db
       .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
       .from(call)
@@ -555,7 +580,7 @@ export async function getClients() {
     .sort((a, b) => b.calls30d - a.calls30d)
 }
 
-export async function getClientBySlug(slug: string) {
+async function getClientBySlug(slug: string) {
   const [row] = await db.select().from(workspace).where(eq(workspace.slug, slug)).limit(1)
   return row ?? null
 }
@@ -696,8 +721,11 @@ export async function getAgentDetail(agentId: string) {
 
   const liveVersion = versions.find((v) => v.id === row.agent.liveVersionId) ?? null
   const draft = versions.find((v) => v.status === 'draft') ?? null
+  const versionUnderTest = draft ?? liveVersion
+  const liveVersionId = liveVersion?.id
+  const testedVersionId = versionUnderTest?.id
 
-  const [profile, flows, runs, callStats] = await Promise.all([
+  const [profile, flows, runs, callStats, draftTestGate] = await Promise.all([
     liveVersion?.voiceProfileId
       ? db
           .select()
@@ -705,14 +733,10 @@ export async function getAgentDetail(agentId: string) {
           .where(eq(voiceProfile.id, liveVersion.voiceProfileId))
           .limit(1)
       : Promise.resolve([]),
-    liveVersion
-      ? db
-          .select()
-          .from(flow)
-          .where(eq(flow.agentVersionId, liveVersion.id))
-          .orderBy(flow.sortOrder)
+    liveVersionId
+      ? db.select().from(flow).where(eq(flow.agentVersionId, liveVersionId)).orderBy(flow.sortOrder)
       : Promise.resolve([]),
-    liveVersion
+    testedVersionId
       ? db
           .select({
             name: scenarioTest.name,
@@ -724,7 +748,7 @@ export async function getAgentDetail(agentId: string) {
           })
           .from(scenarioRun)
           .innerJoin(scenarioTest, eq(scenarioRun.scenarioId, scenarioTest.id))
-          .where(eq(scenarioRun.agentVersionId, liveVersion.id))
+          .where(eq(scenarioRun.agentVersionId, testedVersionId))
           .orderBy(desc(scenarioRun.ranAt))
       : Promise.resolve([]),
     liveVersion
@@ -748,6 +772,7 @@ export async function getAgentDetail(agentId: string) {
             ),
           )
       : Promise.resolve([]),
+    draft ? getVersionTestGate(draft.id) : Promise.resolve(null),
   ])
 
   const stats = callStats[0] ?? { calls: 0, resolved: 0, closed: 0 }
@@ -759,6 +784,7 @@ export async function getAgentDetail(agentId: string) {
     versions,
     liveVersion,
     draft,
+    draftTestGate,
     voiceProfile: profile[0] ?? null,
     flows,
     runs,
@@ -785,6 +811,7 @@ export async function getAgents() {
     .from(agent)
     .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
     .orderBy(workspace.name)
+    .limit(100)
 
   const versions = await db
     .select({
@@ -796,29 +823,36 @@ export async function getAgents() {
       blockers: agentVersion.blockers,
       publishedAt: agentVersion.publishedAt,
       voiceProfileId: agentVersion.voiceProfileId,
+      updatedAt: agentVersion.updatedAt,
     })
     .from(agentVersion)
+    .where(
+      inArray(
+        agentVersion.agentId,
+        rows.map((row) => row.id),
+      ),
+    )
     .orderBy(desc(agentVersion.versionNumber))
 
   const profiles = await db.select().from(voiceProfile)
   const profileById = new Map(profiles.map((p) => [p.id, p]))
+  const drafts = versions.filter((version) => version.status === 'draft')
+  const testGates = await getVersionTestGates(drafts)
 
-  return Promise.all(
-    rows.map(async (a) => {
-      const own = versions.filter((v) => v.agentId === a.id)
-      const live = own.find((v) => v.id === a.liveVersionId) ?? null
-      const draft = own.find((v) => v.status === 'draft') ?? null
-      const draftTestGate = draft ? await getVersionTestGate(draft.id) : null
-      return {
-        ...a,
-        live,
-        draft,
-        draftTestGate,
-        versionCount: own.length,
-        voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
-      }
-    }),
-  )
+  return rows.map((a) => {
+    const own = versions.filter((v) => v.agentId === a.id)
+    const live = own.find((v) => v.id === a.liveVersionId) ?? null
+    const draft = own.find((v) => v.status === 'draft') ?? null
+    const draftTestGate = draft ? (testGates.get(draft.id) ?? null) : null
+    return {
+      ...a,
+      live,
+      draft,
+      draftTestGate,
+      versionCount: own.length,
+      voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
+    }
+  })
 }
 
 /* ─── Calls ──────────────────────────────────────────────────────────────── */
@@ -899,7 +933,7 @@ export async function getCallDetail(id: string) {
 
   if (!row) return null
 
-  const [events, tools, qa, relatedBooking, relatedLead] = await Promise.all([
+  const [events, rawTools, qa, relatedBooking, relatedLead] = await Promise.all([
     db.select().from(callEvent).where(eq(callEvent.callId, id)).orderBy(callEvent.occurredAt),
     db
       .select()
@@ -911,7 +945,14 @@ export async function getCallDetail(id: string) {
     db.select().from(lead).where(eq(lead.callId, id)).limit(1),
   ])
 
-  const transcript = normalizeTranscript(row.call.transcript)
+  const transcript = normalizeTranscript(
+    revealJson<unknown[]>(row.call.transcriptEncrypted, row.call.transcript ?? []),
+  )
+  const tools = rawTools.map((item) => ({
+    ...item,
+    request: revealJson(item.requestEncrypted, item.request ?? {}),
+    result: revealJson(item.resultEncrypted, item.result),
+  }))
   const bookingRecord = relatedBooking[0] ?? null
   const leadRecord = relatedLead[0] ?? null
   const intelligence = readCallIntelligenceState(row.call.metadata)
@@ -1071,8 +1112,8 @@ export async function getVoiceLab() {
       .limit(60),
   ])
 
-  const passed = runs.filter((r) => r.passed === 'true').length
-  const criticalFailed = runs.filter((r) => r.passed === 'false' && r.isCritical === 'true').length
+  const passed = runs.filter((r) => r.passed).length
+  const criticalFailed = runs.filter((r) => !r.passed && r.isCritical).length
 
   return {
     profiles,
@@ -1122,7 +1163,7 @@ export async function getIntegrations() {
     .select({
       toolName: toolExecution.toolName,
       total: sql<number>`count(*)`.mapWith(Number),
-      failed: sql<number>`count(*) filter (where ${toolExecution.success} = 'false')`.mapWith(
+      failed: sql<number>`count(*) filter (where ${toolExecution.status} = 'failed')`.mapWith(
         Number,
       ),
       p95: sql<number>`coalesce(round(percentile_cont(0.95) within group (order by ${toolExecution.latencyMs})), 0)`.mapWith(
@@ -1294,26 +1335,6 @@ export async function getSystemOverview() {
     .limit(20)
 
   return { counts: counts ?? null, latency: latency ?? { p50: 0, p95: 0 }, audit }
-}
-
-/* ─── Change requests (operator view) ────────────────────────────────────── */
-
-export async function getChangeRequests(workspaceId?: string) {
-  return db
-    .select({
-      id: changeRequest.id,
-      type: changeRequest.type,
-      title: changeRequest.title,
-      description: changeRequest.description,
-      status: changeRequest.status,
-      createdAt: changeRequest.createdAt,
-      updatedAt: changeRequest.updatedAt,
-      workspaceName: workspace.name,
-    })
-    .from(changeRequest)
-    .innerJoin(workspace, eq(changeRequest.workspaceId, workspace.id))
-    .where(workspaceId ? eq(changeRequest.workspaceId, workspaceId) : undefined)
-    .orderBy(desc(changeRequest.createdAt))
 }
 
 /* ─── Command palette index ──────────────────────────────────────────────── */

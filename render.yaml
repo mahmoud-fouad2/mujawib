@@ -25,9 +25,8 @@ services:
     # `corepack enable` fails on Render: it tries to symlink into /usr/bin,
     # which is read-only. Render already exposes pnpm, and COREPACK_ENABLE_STRICT=0
     # stops it rejecting a version that differs from packageManager.
-    # Access schema is additive/idempotent and runs before the new code goes live,
-    # so the previous deployment keeps working while a new build is prepared.
-    buildCommand: pnpm install --frozen-lockfile && pnpm db:access-schema && pnpm db:notification-schema && pnpm build
+    # Migrations are tracked in Git and run before the new code goes live.
+    buildCommand: pnpm install --frozen-lockfile && pnpm db:migrate && pnpm build
     startCommand: pnpm start
 
     healthCheckPath: /api/health
@@ -75,7 +74,12 @@ services:
       - key: EMAIL_FROM
         sync: false
 
-      # Optional — voice runtime, not required for the console to run.
+      # Required in production for caller numbers, SIP metadata, transcripts,
+      # and tool payloads. Generate with: openssl rand -base64 32
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+
+      # Voice runtime. Both are required before the health check reports ready.
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_WEBHOOK_SECRET

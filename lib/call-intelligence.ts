@@ -19,7 +19,7 @@ export const generatedCallSummarySchema = z
   })
   .strict()
 
-export type GeneratedCallSummary = z.infer<typeof generatedCallSummarySchema>
+type GeneratedCallSummary = z.infer<typeof generatedCallSummarySchema>
 
 export const CALL_SUMMARY_JSON_SCHEMA = {
   type: 'object',
@@ -58,7 +58,7 @@ const commonState = {
   attempt: z.number().int().positive(),
 }
 
-export const callIntelligenceStateSchema = z.discriminatedUnion('state', [
+const callIntelligenceStateSchema = z.discriminatedUnion('state', [
   z
     .object({
       ...commonState,

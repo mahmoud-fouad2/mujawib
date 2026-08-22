@@ -17,11 +17,14 @@ import {
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { type ReactNode, useEffect, useState } from 'react'
+import { AccountMenu } from '@/components/auth/account-menu'
 import { Logo } from '@/components/brand/logo'
 import { NotificationCenter } from '@/components/notifications/notification-center'
 import { Pill } from '@/components/ui/primitives'
+import { useAction } from '@/components/ui/row-actions'
 import { useTheme } from '@/components/ui/theme'
 import type { NotificationFeed } from '@/lib/notifications'
+import { selectPortalWorkspace } from '@/server/actions/portal'
 
 const NAV = [
   { href: '/portal', label: 'نظرة عامة', Icon: Home },
@@ -38,18 +41,25 @@ export function PortalShell({
   children,
   workspaceId,
   workspaceName,
+  workspaceSlug,
+  workspaces,
+  user,
   health,
   notifications,
 }: {
   children: ReactNode
   workspaceId: string
   workspaceName: string
+  workspaceSlug: string
+  workspaces: { id: string; name: string; slug: string }[]
+  user: { name: string; email: string }
   health: { state: 'excellent' | 'needs_attention'; label: string }
   notifications: NotificationFeed
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
   const [open, setOpen] = useState(false)
+  const { run, pending } = useAction()
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -65,7 +75,22 @@ export function PortalShell({
           </Link>
         </div>
 
-        <div className="sidebar__group">{workspaceName}</div>
+        <div className="sidebar__workspace">
+          <label htmlFor="portal-workspace">مساحة العمل</label>
+          <select
+            id="portal-workspace"
+            className="input"
+            value={workspaceSlug}
+            disabled={pending || workspaces.length < 2}
+            onChange={(event) => run(() => selectPortalWorkspace(event.target.value))}
+          >
+            {workspaces.map((item) => (
+              <option key={item.id} value={item.slug}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <nav className="sidebar__nav" aria-label="تنقل بوابة العميل">
           {NAV.map(({ href, label, Icon }) => {
@@ -115,6 +140,7 @@ export function PortalShell({
             <Link href="/portal/requests" className="btn btn--primary btn--sm">
               اطلب تعديلًا
             </Link>
+            <AccountMenu name={user.name} email={user.email} />
           </div>
         </header>
 

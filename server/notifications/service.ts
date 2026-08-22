@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { randomUUID } from 'node:crypto'
+import { randomUUID } from 'crypto'
 import { and, eq, inArray } from 'drizzle-orm'
 import { CLIENT_ROLES, type ClientRole, OPERATOR_ROLES, type OperatorRole } from '@/lib/access'
 import {

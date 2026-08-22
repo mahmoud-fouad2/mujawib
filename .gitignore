@@ -11,9 +11,6 @@ out/
 .env*.local
 !.env.example
 
-# Database
-drizzle/
-
 # Build / tooling
 *.tsbuildinfo
 .DS_Store

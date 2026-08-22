@@ -14,6 +14,7 @@ export type NavIconKey =
   | 'calls'
   | 'qa'
   | 'clients'
+  | 'inquiries'
   | 'agents'
   | 'templates'
   | 'voice'
@@ -23,7 +24,7 @@ export type NavIconKey =
   | 'access'
   | 'system'
 
-export type NavItem = {
+type NavItem = {
   id: string
   label: string
   href: string
@@ -84,6 +85,14 @@ export const CONSOLE_NAV: NavGroup[] = [
         icon: 'clients',
         requiredPermission: 'client.manage',
         keywords: ['clients', 'عملاء'],
+      },
+      {
+        id: 'inquiries',
+        label: 'طلبات العروض',
+        href: '/console/inquiries',
+        icon: 'inquiries',
+        requiredPermission: 'client.manage',
+        keywords: ['leads', 'sales', 'طلبات', 'عروض'],
       },
       {
         id: 'agents',

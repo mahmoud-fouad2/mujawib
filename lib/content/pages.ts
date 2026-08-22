@@ -6,9 +6,9 @@ import type { Locale } from '@/lib/i18n'
  * should not be rendered by the same component.
  */
 
-export type FaqItem = { q: string; a: string }
+type FaqItem = { q: string; a: string }
 
-export type PricingBand = {
+type PricingBand = {
   name: string
   forWho: string
   volume: string
@@ -593,5 +593,3 @@ const PAGES: Record<Locale, Pages> = { ar, en }
 export function pagesFor(locale: Locale): Pages {
   return PAGES[locale] ?? PAGES.ar
 }
-
-export type PagesCopy = Pages

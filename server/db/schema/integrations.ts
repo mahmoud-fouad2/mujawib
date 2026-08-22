@@ -1,4 +1,4 @@
-import { index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { workspace } from './workspaces'
 
 export const integrationHealthEnum = pgEnum('integration_health', [
@@ -39,7 +39,7 @@ export const tool = pgTable(
     category: text('category').notNull(),
     schema: jsonb('schema').$type<Record<string, unknown>>().default({}),
     integrationId: text('integration_id').references(() => integrationConnection.id),
-    isUniversal: text('is_universal').default('false'),
+    isUniversal: boolean('is_universal').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('tool_workspace_idx').on(t.workspaceId)],

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'crypto'
 
 const TOKEN_BYTES = 32
 

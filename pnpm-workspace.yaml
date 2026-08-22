@@ -1,9 +1,16 @@
 packages:
   - "."
 
-allowBuilds:
-  esbuild: set this to true or false
-  sharp: set this to true or false
+minimumReleaseAgeExclude:
+  - '@biomejs/biome@2.5.10'
+  - '@biomejs/cli-darwin-arm64@2.5.10'
+  - '@biomejs/cli-darwin-x64@2.5.10'
+  - '@biomejs/cli-linux-arm64-musl@2.5.10'
+  - '@biomejs/cli-linux-arm64@2.5.10'
+  - '@biomejs/cli-linux-x64-musl@2.5.10'
+  - '@biomejs/cli-linux-x64@2.5.10'
+  - '@biomejs/cli-win32-arm64@2.5.10'
+  - '@biomejs/cli-win32-x64@2.5.10'
 
 # Native post-install scripts pnpm is allowed to run.
 #   esbuild — backs tsx, used by `pnpm db:seed`
@@ -12,7 +19,5 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
 
-# pnpm 11 treats any remaining ignored build as a hard install failure. The two
-# above ship prebuilt platform binaries, so a skipped post-install is harmless;
-# failing the deploy over it is not. Warn instead.
-strictDepBuilds: false
+# Refuse an install when an unreviewed dependency asks to run a build script.
+strictDepBuilds: true

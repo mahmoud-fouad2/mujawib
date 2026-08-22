@@ -4,12 +4,12 @@ import { type Locale, localePath } from '@/lib/i18n'
 
 export const SITE_URL = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
 
-export const ORG_NAME_AR = 'مُجاوِب'
-export const ORG_NAME_EN = 'Mujawib'
-export const ORG_EMAIL = 'hello@mujawib.com'
-export const ORG_PHONE = '+966920012130'
+const ORG_NAME_AR = 'مُجاوِب'
+const ORG_NAME_EN = 'Mujawib'
+const ORG_EMAIL = 'hello@mujawib.com'
+const ORG_PHONE = '+966920012130'
 
-export function absolute(path: string) {
+function absolute(path: string) {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`
 }
 

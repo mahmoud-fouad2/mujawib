@@ -20,7 +20,13 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   ])
 
   return (
-    <ConsoleShell counts={counts} index={index} role={access.role} notifications={notifications}>
+    <ConsoleShell
+      counts={counts}
+      index={index}
+      role={access.role}
+      notifications={notifications}
+      user={{ name: access.name, email: access.email }}
+    >
       {children}
     </ConsoleShell>
   )

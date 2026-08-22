@@ -3,22 +3,28 @@
 ## التطوير المحلي
 
 ```bash
-pnpm install
-pnpm dev
+corepack enable
+corepack pnpm install --frozen-lockfile
+corepack pnpm db:migrate
+corepack pnpm dev
 ```
 
 يفتح التطبيق على [http://localhost:3000](http://localhost:3000).
+يتطلب المشروع Node.js `24.19.x` وpnpm `11.22.x` كما هو مثبت في
+`.node-version` و`packageManager`.
 
 ## تأسيس الوصول لأول مرة
 
 الهوية لا تمنح أي صلاحية تلقائيًا. بعد تجهيز قاعدة البيانات:
 
 ```bash
-pnpm db:access-schema
-pnpm db:notification-schema
-pnpm user:create owner@example.com "a-long-private-password" "Platform Owner"
-pnpm access:bootstrap owner@example.com
+corepack pnpm db:migrate
+corepack pnpm user:create owner@example.com "a-long-private-password" "Platform Owner"
+corepack pnpm access:bootstrap owner@example.com
 ```
+
+`db:migrate` هو المسار الوحيد المعتمد لتغييرات المخطط. لا توجد إجراءات schema
+جانبية أو أوامر `push` ضمن مسار النشر.
 
 بعد تسجيل الدخول، يدعو المالك فريق التشغيل والعملاء من `/console/access`.
 الرابط أحادي الاستخدام، صالح لسبعة أيام، ولا يُخزّن رمزه الخام. يقبل المستخدم
@@ -41,7 +47,8 @@ pnpm access:verify-db
 
 ## مسار المكالمة وما بعدها
 
-يستخدم مسار الصوت `OPENAI_API_KEY` و`OPENAI_WEBHOOK_SECRET`. بعد الإغلاق النظيف
+يستخدم مسار الصوت `OPENAI_API_KEY` و`OPENAI_WEBHOOK_SECRET` و`DATA_ENCRYPTION_KEY`.
+بعد الإغلاق النظيف
 يُنشئ السيرفر ملخصًا تشغيليًا من النص المحفوظ عبر Structured Output، من دون
 تغيير نتيجة المكالمة أو اعتبار كلام النموذج دليل تنفيذ. يمكن تثبيت نموذج هذه
 الخطوة مستقلًا عبر `OPENAI_POST_CALL_MODEL`؛ الافتراضي موثق في `.env.example`.

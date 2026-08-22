@@ -10,12 +10,12 @@ import {
   phoneNumber,
   workspace,
 } from '@/server/db/schema'
-import { getVersionTestGate } from '@/server/test-lab/gate'
+import { getVersionTestGates } from '@/server/test-lab/gate'
 
-export type ReadinessState = 'complete' | 'attention' | 'blocked'
-export type ReadinessKey = 'business' | 'agent' | 'phone' | 'integrations' | 'qa' | 'go_live'
+type ReadinessState = 'complete' | 'attention' | 'blocked'
+type ReadinessKey = 'business' | 'agent' | 'phone' | 'integrations' | 'qa' | 'go_live'
 
-export type ReadinessStep = {
+type ReadinessStep = {
   key: ReadinessKey
   label: string
   state: ReadinessState
@@ -85,6 +85,7 @@ export async function getClientReadinessById(
         liveVersionId: agent.liveVersionId,
         versionStatus: agentVersion.status,
         toolBindings: agentVersion.toolBindings,
+        versionUpdatedAt: agentVersion.updatedAt,
       })
       .from(agent)
       .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
@@ -119,9 +120,16 @@ export async function getClientReadinessById(
     .map((item) => item.liveVersionId)
     .filter((id): id is string => Boolean(id))
 
-  const testGates = (
-    await Promise.all(liveVersionIds.map((versionId) => getVersionTestGate(versionId)))
-  ).filter((gate): gate is NonNullable<typeof gate> => Boolean(gate))
+  const gateMap = await getVersionTestGates(
+    publishedAgents
+      .filter((item): item is typeof item & { liveVersionId: string; versionUpdatedAt: Date } =>
+        Boolean(item.liveVersionId && item.versionUpdatedAt),
+      )
+      .map((item) => ({ id: item.liveVersionId, updatedAt: item.versionUpdatedAt })),
+  )
+  const testGates = liveVersionIds
+    .map((versionId) => gateMap.get(versionId))
+    .filter((gate): gate is NonNullable<typeof gate> => Boolean(gate))
 
   const info = overrides.businessInfo ?? asRecord(ws.businessInfo)
   const hours = asRecord(info.hours)

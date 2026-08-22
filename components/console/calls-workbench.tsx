@@ -20,7 +20,7 @@ import type { getCallDetail, getCalls } from '@/server/data/console'
 type CallRow = Awaited<ReturnType<typeof getCalls>>[number]
 type CallDetail = NonNullable<Awaited<ReturnType<typeof getCallDetail>>>
 
-export const CALL_FILTERS = [
+const CALL_FILTERS = [
   { id: 'all', label: 'الكل' },
   { id: 'needs_review', label: 'تحتاج مراجعة' },
   { id: 'resolved', label: 'أُنجزت' },
@@ -286,7 +286,7 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
 
           {call.tools.map((t) => {
             const at = Math.max(0, Math.round((new Date(t.executedAt).getTime() - start) / 1000))
-            const ok = t.success === 'true'
+            const ok = t.status === 'succeeded'
             return (
               <div key={t.id} className="tl-row" data-tone={ok ? 'good' : 'bad'}>
                 <span className="tl-row__at">{duration(at)}</span>

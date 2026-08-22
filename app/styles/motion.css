@@ -217,29 +217,3 @@
   line-height: 1.6;
   opacity: 0.85;
 }
-
-/* ─── aurora: one soft light source, used sparingly ────────────────────── */
-
-.aurora {
-  position: absolute;
-  inline-size: min(720px, 68vw);
-  aspect-ratio: 1;
-  background: radial-gradient(circle, var(--signal-soft) 0%, transparent 68%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .aurora {
-    animation: aurora-drift 18s ease-in-out infinite alternate;
-  }
-}
-
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(4%, -3%, 0) scale(1.08);
-  }
-}

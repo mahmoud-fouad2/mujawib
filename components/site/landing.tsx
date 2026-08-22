@@ -8,9 +8,6 @@ import {
   DemoCalls,
   IntegrationWires,
   ProofStrip,
-  Results,
-  TrustRow,
-  WhyRows,
 } from '@/components/site/sections'
 import { LinkButton } from '@/components/ui/button'
 import { copyFor } from '@/lib/content/site'
@@ -24,7 +21,6 @@ import {
   getIndustryPacks,
   getLiveIntegrations,
   getPlatformProof,
-  getReferenceClients,
 } from '@/server/data/marketing'
 import { isDatabaseUnavailable } from '@/server/db'
 
@@ -38,7 +34,6 @@ export async function Landing({ locale }: { locale: Locale }) {
     getDemoCalls(),
     getIndustryPacks(),
     getLiveIntegrations(),
-    getReferenceClients(),
     getConsolePreview(),
   ]).catch((error: unknown) => {
     if (!isDatabaseUnavailable(error)) throw error
@@ -50,8 +45,7 @@ export async function Landing({ locale }: { locale: Locale }) {
   const demos = data?.[2] ?? []
   const packs = data?.[3] ?? []
   const integrations = data?.[4] ?? []
-  const clients = data?.[5] ?? []
-  const consolePreview = data?.[6] ?? {
+  const consolePreview = data?.[5] ?? {
     queue: [],
     counts: { live: 0, review: 0, degraded: 0 },
   }
@@ -128,12 +122,6 @@ export async function Landing({ locale }: { locale: Locale }) {
         </div>
       </section>
 
-      <TrustRow
-        label={copy.trust.label}
-        caption={copy.trust.caption}
-        names={clients.map((c) => c.name)}
-      />
-
       <DemoCalls
         locale={locale}
         copy={copy}
@@ -148,8 +136,6 @@ export async function Landing({ locale }: { locale: Locale }) {
       />
 
       <Capabilities copy={copy} />
-
-      <WhyRows copy={copy} />
 
       {packs.length > 0 ? (
         <section className="section section--tinted reveal" id="industries">
@@ -175,8 +161,6 @@ export async function Landing({ locale }: { locale: Locale }) {
           </div>
         </section>
       ) : null}
-
-      <Results copy={copy} />
 
       {integrations.length > 0 ? (
         <IntegrationWires

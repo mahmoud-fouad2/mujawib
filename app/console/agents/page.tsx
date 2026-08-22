@@ -13,12 +13,8 @@ export default async function AgentsPage() {
   const agents = await getAgents()
 
   const published = agents.filter((a) => a.live?.status === 'published').length
-  const blocked = agents.filter(
-    (a) => (a.draft?.blockers ?? []).length > 0 || Boolean(a.draft && !a.draftTestGate?.canPublish),
-  ).length
-  const readyToPublish = agents.filter(
-    (a) => a.draft && (a.draft.blockers ?? []).length === 0 && a.draftTestGate?.canPublish,
-  ).length
+  const blocked = agents.filter((a) => a.draft && !a.draftTestGate?.canPublish).length
+  const readyToPublish = agents.filter((a) => a.draft && a.draftTestGate?.canPublish).length
 
   return (
     <>
@@ -58,10 +54,7 @@ export default async function AgentsPage() {
             </thead>
             <tbody>
               {agents.map((a) => {
-                const blockers = [
-                  ...((a.draft?.blockers ?? []) as string[]),
-                  ...(a.draftTestGate?.blockers ?? []),
-                ]
+                const blockers = a.draftTestGate?.blockers ?? []
                 return (
                   <tr key={a.id}>
                     <td style={{ fontWeight: 500 }}>

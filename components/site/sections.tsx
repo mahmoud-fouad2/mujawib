@@ -7,7 +7,6 @@ import {
   FileText,
   Headphones,
   Languages,
-  Minus,
   PhoneForwarded,
 } from 'lucide-react'
 import Image from 'next/image'
@@ -34,61 +33,6 @@ export function SectionHead({
         {lead ? <p className="section__lead">{lead}</p> : null}
       </div>
     </header>
-  )
-}
-
-/* ─── trust ──────────────────────────────────────────────────────────────── */
-
-export function TrustRow({
-  label,
-  caption,
-  names,
-}: {
-  label: string
-  caption: string
-  names: string[]
-}) {
-  if (names.length === 0) return null
-  const uniqueNames = [...new Set(names)]
-
-  if (uniqueNames.length < 3) {
-    return (
-      <section className="trust">
-        <div className="container trust__inner">
-          <div className="trust__head">
-            <span className="trust__label">{label}</span>
-            <p>{caption}</p>
-          </div>
-          <div className="trust__names">
-            {uniqueNames.map((name) => (
-              <span key={name}>{name}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  // Repeat until the track is long enough for the loop to look continuous.
-  const band = [...uniqueNames, ...uniqueNames, ...uniqueNames]
-
-  return (
-    <section className="trust">
-      <div className="container trust__head-row">
-        <span className="trust__label">{label}</span>
-        <p>{caption}</p>
-      </div>
-      <Marquee duration={46} reverse>
-        {band.map((n, i) => (
-          // The band repeats the same names to fill the loop, so position is
-          // the only thing that distinguishes one copy from the next.
-          // biome-ignore lint/suspicious/noArrayIndexKey: repeated marquee set
-          <span key={`${n}-${i}`} className="trust-name">
-            {n}
-          </span>
-        ))}
-      </Marquee>
-    </section>
   )
 }
 
@@ -190,125 +134,6 @@ export function Capabilities({ copy }: { copy: SiteCopy }) {
   )
 }
 
-/* ─── why ────────────────────────────────────────────────────────────────── */
-
-export function WhyRows({ copy }: { copy: SiteCopy }) {
-  return (
-    <section className="section" id="quality">
-      <div className="container">
-        <SectionHead label={copy.why.label} title={copy.why.title} lead={copy.why.lead} />
-        <div className="rows reveal-group">
-          {copy.why.rows.map((row) => (
-            <article key={row.key} className="rows__item">
-              <span className="rows__key">{row.key}</span>
-              <div>
-                <h3>{row.title}</h3>
-                <p style={{ marginBlockStart: 'var(--s-3)' }}>{row.body}</p>
-              </div>
-              <dl className="rows__proof">
-                {row.proof.map((p) => (
-                  <div key={p.term}>
-                    <dt>
-                      <Check size={13} aria-hidden="true" />
-                      {p.term}
-                    </dt>
-                    <dd>{p.detail}</dd>
-                  </div>
-                ))}
-              </dl>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ─── results / before-after ─────────────────────────────────────────────── */
-
-export function Results({ copy }: { copy: SiteCopy }) {
-  return (
-    <section className="section" id="results">
-      <div className="container">
-        <SectionHead
-          label={copy.results.label}
-          title={copy.results.title}
-          lead={copy.results.lead}
-        />
-
-        <div className="ba reveal-group">
-          <div className="ba__col ba__col--before">
-            <h3>{copy.results.beforeTitle}</h3>
-            <ul>
-              {copy.results.before.map((b) => (
-                <li key={b}>
-                  <Minus size={14} aria-hidden="true" />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="ba__col ba__col--after">
-            <h3>{copy.results.afterTitle}</h3>
-            <ul>
-              {copy.results.after.map((a) => (
-                <li key={a}>
-                  <Check size={14} aria-hidden="true" />
-                  <span>{a}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <figure className="ba__quote">
-            <Image
-              src="/images/generated/enterprise-voice-ops-2027.webp"
-              alt=""
-              fill
-              sizes="(max-width: 980px) 100vw, 32vw"
-              className="ba__quote-img"
-            />
-            <span className="ba__quote-shade" aria-hidden="true" />
-            <blockquote>«{copy.results.quote}»</blockquote>
-            <figcaption>{copy.results.quoteBy}</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ─── deployment ─────────────────────────────────────────────────────────── */
-
-export function Deployment({ copy }: { copy: SiteCopy }) {
-  return (
-    <section className="section section--tinted" id="deployment">
-      <div className="container">
-        <SectionHead
-          label={copy.deployment.label}
-          title={copy.deployment.title}
-          lead={copy.deployment.lead}
-        />
-        {/* A genuine ordered sequence — the numbering carries real information. */}
-        <ol className="steps reveal-group">
-          {copy.deployment.steps.map((s) => (
-            <li key={s.n} className="step">
-              <span className="step__n">{s.n}</span>
-              <h3>{s.title}</h3>
-              <p>{s.body}</p>
-              <span className="step__out">
-                <Check size={13} aria-hidden="true" />
-                {s.output}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  )
-}
-
 /* ─── integrations ───────────────────────────────────────────────────────── */
 
 const PROVIDER_LOGO: Record<string, string> = {
@@ -384,71 +209,6 @@ export function IntegrationWires({
           <Check size={16} aria-hidden="true" />
           <strong>{copy.integrations.flowEnd}</strong>
           <span>{copy.integrations.note}</span>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ─── security ───────────────────────────────────────────────────────────── */
-
-export function Security({ copy }: { copy: SiteCopy }) {
-  return (
-    <section className="section section--tinted" id="security">
-      <div className="container">
-        <SectionHead
-          label={copy.security.label}
-          title={copy.security.title}
-          lead={copy.security.lead}
-        />
-        <div className="shields reveal-group">
-          {copy.security.items.map((i) => (
-            <article key={i.title} className="shield">
-              <h3>{i.title}</h3>
-              <p>{i.body}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* ─── pricing ────────────────────────────────────────────────────────────── */
-
-export function Pricing({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
-  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
-
-  return (
-    <section className="section" id="pricing">
-      <div className="container">
-        <SectionHead
-          label={copy.pricing.label}
-          title={copy.pricing.title}
-          lead={copy.pricing.lead}
-        />
-        <div className="pricing reveal">
-          <ul className="pricing__points">
-            {copy.pricing.points.map((p) => (
-              <li key={p}>
-                <Check size={16} aria-hidden="true" />
-                <span>{p}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="pricing__actions">
-            <LinkButton
-              href={localePath(locale, '/contact')}
-              variant="primary"
-              size="lg"
-              trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
-            >
-              {copy.pricing.primary}
-            </LinkButton>
-            <LinkButton href={localePath(locale, '/contact')} size="lg">
-              {copy.pricing.secondary}
-            </LinkButton>
-          </div>
         </div>
       </div>
     </section>

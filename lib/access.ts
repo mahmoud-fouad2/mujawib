@@ -5,7 +5,7 @@ export const CLIENT_ROLES = [
   'client_reviewer',
   'client_read_only',
 ] as const
-export const ACCESS_ROLES = [...OPERATOR_ROLES, ...CLIENT_ROLES] as const
+const ACCESS_ROLES = [...OPERATOR_ROLES, ...CLIENT_ROLES] as const
 
 export type OperatorRole = (typeof OPERATOR_ROLES)[number]
 export type ClientRole = (typeof CLIENT_ROLES)[number]

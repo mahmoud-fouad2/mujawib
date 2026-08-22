@@ -67,7 +67,7 @@ export type TestLabToolCall = {
   argumentsJson: string
 }
 
-export type TestLabCheck = {
+type TestLabCheck = {
   id: string
   label: string
   passed: boolean
@@ -244,7 +244,7 @@ export function evaluateScenario(input: {
 }
 
 export type GateRun = {
-  passed: string
+  passed: boolean
   ranAt: Date
   details: unknown
 }
@@ -252,7 +252,7 @@ export type GateRun = {
 export type GateScenario = {
   id: string
   name: string
-  isCritical: string | null
+  isCritical: boolean
   latestRun: GateRun | null
 }
 
@@ -266,10 +266,10 @@ export function assessVersionTestGate(versionUpdatedAt: Date, scenarios: GateSce
     (scenario) => scenario.latestRun && scenario.latestRun.ranAt < versionUpdatedAt,
   )
   const criticalFailed = scenarios.filter(
-    (scenario) => scenario.isCritical === 'true' && scenario.latestRun?.passed !== 'true',
+    (scenario) => scenario.isCritical && scenario.latestRun?.passed !== true,
   )
   const nonCriticalFailed = scenarios.filter(
-    (scenario) => scenario.isCritical !== 'true' && scenario.latestRun?.passed === 'false',
+    (scenario) => !scenario.isCritical && scenario.latestRun?.passed === false,
   )
 
   const blockers: string[] = []
@@ -292,7 +292,7 @@ export function assessVersionTestGate(versionUpdatedAt: Date, scenarios: GateSce
     blockers,
     total: scenarios.length,
     fresh: trustedRuns.length,
-    passed: trustedRuns.filter((scenario) => scenario.latestRun?.passed === 'true').length,
+    passed: trustedRuns.filter((scenario) => scenario.latestRun?.passed === true).length,
     criticalFailed: criticalFailed.length,
     nonCriticalFailed: nonCriticalFailed.length,
   }
