@@ -112,6 +112,7 @@ export function SignInForm({
             className="btn--google"
             onClick={onGoogle}
             disabled={pending !== null}
+            aria-busy={pending === 'google'}
             leading={pending === 'google' ? <Loader2 size={17} className="spin" /> : <GoogleMark />}
           >
             المتابعة بحساب Google
@@ -160,6 +161,7 @@ export function SignInForm({
           size="lg"
           block
           disabled={pending !== null}
+          aria-busy={pending === 'email'}
           trailing={
             pending === 'email' ? (
               <Loader2 size={17} className="spin" aria-hidden="true" />
@@ -173,8 +175,8 @@ export function SignInForm({
       </form>
 
       <p className="auth__foot">
-        مُجاوِب خدمة مُدارة — الحسابات تُنشأ بدعوة من فريق التشغيل. لا تملك حسابًا بعد؟{' '}
-        <Link href="/contact">احجز عرضًا</Link>.
+        الدخول مخصص لفرق العملاء المعتمدين. تحتاج إلى مساحة عمل؟{' '}
+        <Link href="/contact">تحدث مع فريق مُجاوِب</Link>.
       </p>
     </>
   )

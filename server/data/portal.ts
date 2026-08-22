@@ -16,6 +16,7 @@ import {
   toolExecution,
   workspace,
 } from '@/server/db/schema'
+import { sqlTimestamp } from '@/server/db/values'
 import { revealJson } from '@/server/security/protected-data'
 
 /**
@@ -50,28 +51,32 @@ export type PortalSummary = {
 export async function getPortalSummary(workspaceId: string): Promise<PortalSummary> {
   const since = daysBack(30)
   const priorStart = daysBack(60)
+  const sinceSql = sqlTimestamp(since)
+  const priorStartSql = sqlTimestamp(priorStart)
 
   const [calls] = await db
     .select({
-      answered: sql<number>`count(*) filter (where ${call.startedAt} >= ${since})`.mapWith(Number),
+      answered: sql<number>`count(*) filter (where ${call.startedAt} >= ${sinceSql})`.mapWith(
+        Number,
+      ),
       answeredPrior:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${priorStart} and ${call.startedAt} < ${since})`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${priorStartSql} and ${call.startedAt} < ${sinceSql})`.mapWith(
           Number,
         ),
       resolved:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${sinceSql} and ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
           Number,
         ),
       closed:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} is not null)`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${sinceSql} and ${call.outcome} is not null)`.mapWith(
           Number,
         ),
       afterHours:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${sinceSql} and (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
           Number,
         ),
       transfers:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${since} and ${call.outcome} = 'transfer')`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${sinceSql} and ${call.outcome} = 'transfer')`.mapWith(
           Number,
         ),
     })
@@ -80,11 +85,11 @@ export async function getPortalSummary(workspaceId: string): Promise<PortalSumma
 
   const [bookings] = await db
     .select({
-      current: sql<number>`count(*) filter (where ${booking.createdAt} >= ${since})`.mapWith(
+      current: sql<number>`count(*) filter (where ${booking.createdAt} >= ${sinceSql})`.mapWith(
         Number,
       ),
       prior:
-        sql<number>`count(*) filter (where ${booking.createdAt} >= ${priorStart} and ${booking.createdAt} < ${since})`.mapWith(
+        sql<number>`count(*) filter (where ${booking.createdAt} >= ${priorStartSql} and ${booking.createdAt} < ${sinceSql})`.mapWith(
           Number,
         ),
     })

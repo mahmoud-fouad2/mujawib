@@ -9,7 +9,9 @@ export const env = createEnv({
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_WEBHOOK_SECRET: z.string().min(1).optional(),
     OPENAI_POST_CALL_MODEL: z.string().min(1).optional(),
-    DATA_ENCRYPTION_KEY: z.string().min(43).optional(),
+    // Accept either a raw 32-byte key or a deployment passphrase. The
+    // protected-data boundary derives the latter into an isolated 256-bit key.
+    DATA_ENCRYPTION_KEY: z.string().min(1).optional(),
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),

@@ -34,6 +34,7 @@ import {
   voiceProfile,
   workspace,
 } from '@/server/db/schema'
+import { sqlTimestamp } from '@/server/db/values'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
 import { revealJson } from '@/server/security/protected-data'
 import { getVersionTestGate, getVersionTestGates } from '@/server/test-lab/gate'
@@ -120,27 +121,30 @@ export type OperationsSummary = {
 export async function getOperationsSummary(): Promise<OperationsSummary> {
   const today = startOfToday()
   const yesterday = daysBack(1)
+  const todaySql = sqlTimestamp(today)
+  const yesterdaySql = sqlTimestamp(yesterday)
+  const liveCutoffSql = sqlTimestamp(liveCutoff())
 
   const [calls] = await db
     .select({
-      today: sql<number>`count(*) filter (where ${call.startedAt} >= ${today})`.mapWith(Number),
+      today: sql<number>`count(*) filter (where ${call.startedAt} >= ${todaySql})`.mapWith(Number),
       prior:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${yesterday} and ${call.startedAt} < ${today})`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${yesterdaySql} and ${call.startedAt} < ${todaySql})`.mapWith(
           Number,
         ),
       resolvedToday:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${today} and ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${todaySql} and ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
           Number,
         ),
       closedToday:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${today} and ${call.outcome} is not null)`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${todaySql} and ${call.outcome} is not null)`.mapWith(
           Number,
         ),
-      live: sql<number>`count(*) filter (where ${call.status} in ('live','ringing','waiting_tool') and ${call.startedAt} >= ${liveCutoff()})`.mapWith(
+      live: sql<number>`count(*) filter (where ${call.status} in ('live','ringing','waiting_tool') and ${call.startedAt} >= ${liveCutoffSql})`.mapWith(
         Number,
       ),
       afterHours:
-        sql<number>`count(*) filter (where ${call.startedAt} >= ${today} and (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
+        sql<number>`count(*) filter (where ${call.startedAt} >= ${todaySql} and (${call.metadata} ->> 'afterHours') = 'true')`.mapWith(
           Number,
         ),
     })
@@ -149,9 +153,11 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
 
   const [bookings] = await db
     .select({
-      today: sql<number>`count(*) filter (where ${booking.createdAt} >= ${today})`.mapWith(Number),
+      today: sql<number>`count(*) filter (where ${booking.createdAt} >= ${todaySql})`.mapWith(
+        Number,
+      ),
       prior:
-        sql<number>`count(*) filter (where ${booking.createdAt} >= ${yesterday} and ${booking.createdAt} < ${today})`.mapWith(
+        sql<number>`count(*) filter (where ${booking.createdAt} >= ${yesterdaySql} and ${booking.createdAt} < ${todaySql})`.mapWith(
           Number,
         ),
     })

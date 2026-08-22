@@ -61,7 +61,7 @@ export function CallRecord({
   const complete = revealed >= items.length
 
   return (
-    <figure className="record">
+    <figure className="record" data-animate={animate ? 'true' : 'false'}>
       <div className="record__head">
         <span className="wave" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((i) => (

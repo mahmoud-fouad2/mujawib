@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
 import { env } from '@/lib/env'
 
 const VERSION = 'v1'
@@ -9,16 +9,25 @@ const IV_BYTES = 12
 const TAG_BYTES = 16
 
 function encryptionKey(): Buffer {
-  const configured = env.DATA_ENCRYPTION_KEY
+  const configured = env.DATA_ENCRYPTION_KEY?.trim()
   if (!configured) throw new Error('DATA_ENCRYPTION_KEY is required for protected data')
 
-  const key = /^[a-f\d]{64}$/i.test(configured)
-    ? Buffer.from(configured, 'hex')
-    : Buffer.from(configured, 'base64')
-  if (key.length !== 32) {
-    throw new Error('DATA_ENCRYPTION_KEY must decode to exactly 32 bytes')
+  if (/^[a-f\d]{64}$/i.test(configured)) {
+    return Buffer.from(configured, 'hex')
   }
-  return key
+
+  if (/^[A-Za-z\d+/_=-]{43,44}$/.test(configured)) {
+    const decoded = Buffer.from(configured, 'base64url')
+    if (decoded.length === 32) return decoded
+  }
+
+  // Render and other secret stores commonly generate opaque passphrases
+  // rather than encoded binary. Key derivation keeps that input stable while
+  // separating protected payloads from Better Auth's own signing use.
+  return createHmac('sha256', env.BETTER_AUTH_SECRET)
+    .update('mujawib:protected-data:v1\0', 'utf8')
+    .update(configured, 'utf8')
+    .digest()
 }
 
 export function protectedDataReady() {

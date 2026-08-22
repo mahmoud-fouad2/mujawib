@@ -31,11 +31,13 @@
   --line-strong: rgb(17 19 24 / 14%);
   --line-faint: rgb(17 19 24 / 5%);
 
-  /* ─── signal (the only accent) ───────────────────────────────────────── */
-  --signal: #4f5fdf;
-  --signal-hover: #4a59e6;
-  --signal-soft: rgb(93 108 255 / 10%);
-  --signal-line: rgb(93 108 255 / 26%);
+  /* ─── signal ────────────────────────────────────────────────────────────
+     Product actions are deliberately monochrome. Brand colour remains in the
+     official logo; status colours remain semantic and never become chrome. */
+  --signal: #111318;
+  --signal-hover: #2b2f35;
+  --signal-soft: rgb(17 19 24 / 7%);
+  --signal-line: rgb(17 19 24 / 20%);
 
   /* ─── status ─────────────────────────────────────────────────────────── */
   --good: #178a5b;
@@ -134,10 +136,10 @@
   --line-strong: rgb(255 255 255 / 16%);
   --line-faint: rgb(255 255 255 / 5%);
 
-  --signal: #7c88ff;
-  --signal-hover: #929cff;
-  --signal-soft: rgb(124 136 255 / 14%);
-  --signal-line: rgb(124 136 255 / 32%);
+  --signal: #f4f6f8;
+  --signal-hover: #ffffff;
+  --signal-soft: rgb(255 255 255 / 8%);
+  --signal-line: rgb(255 255 255 / 20%);
   /* The dark-mode accent is light, so filled controls take dark ink for contrast. */
   --text-on-signal: #0b0d10;
 
@@ -167,10 +169,10 @@
   --line: rgb(255 255 255 / 9%);
   --line-strong: rgb(255 255 255 / 16%);
   --line-faint: rgb(255 255 255 / 5%);
-  --signal: #7c88ff;
-  --signal-hover: #929cff;
-  --signal-soft: rgb(124 136 255 / 14%);
-  --signal-line: rgb(124 136 255 / 32%);
+  --signal: #f4f6f8;
+  --signal-hover: #ffffff;
+  --signal-soft: rgb(255 255 255 / 8%);
+  --signal-line: rgb(255 255 255 / 20%);
   --text-on-signal: #0b0d10;
   --good: #35b37e;
   --good-soft: rgb(53 179 126 / 14%);

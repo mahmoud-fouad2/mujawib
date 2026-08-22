@@ -107,7 +107,7 @@ export function ConsoleShell({
       <aside className="sidebar" data-open={mobileOpen}>
         <div className="sidebar__brand">
           <Link href="/console" aria-label="مُجاوِب — لوحة التشغيل">
-            {collapsed ? <LogoMark size={26} /> : <Logo size="sm" />}
+            {collapsed ? <LogoMark size={30} /> : <Logo size="md" />}
           </Link>
           <button
             type="button"

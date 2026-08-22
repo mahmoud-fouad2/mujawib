@@ -473,6 +473,11 @@
   border-block-end: 0;
 }
 
+.record[data-animate="false"] .line {
+  opacity: 1;
+  animation: none;
+}
+
 @keyframes line-in {
   from {
     opacity: 0;

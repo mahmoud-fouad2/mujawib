@@ -205,7 +205,7 @@ p {
   background: var(--btn-bg);
   color: var(--btn-fg);
   font-size: var(--step--1);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: var(--tracking-tight);
   white-space: nowrap;
   transition:
@@ -244,7 +244,7 @@ p {
    stay below it. */
 .btn--primary:hover {
   --btn-bg: var(--signal-hover);
-  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--signal) 70%, transparent);
+  box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--text) 48%, transparent);
 }
 
 .btn--danger:hover {
@@ -497,23 +497,27 @@ p {
 .brand-logo,
 .brand-mark {
   inline-size: auto;
-  transition:
-    filter var(--t-base) var(--ease),
-    opacity var(--t-base) var(--ease);
+  transition: opacity var(--t-base) var(--ease);
 }
 
-/**
- * The lockup is dark-navy artwork on transparency. On any ink ground it is
- * inverted to a clean white lockup — the behaviour the brand expects and the
- * reason a second "dark" asset is not needed.
- */
+.brand-logo {
+  content: url("/images/brand/logo-horizontal-ink.png");
+}
+
+.brand-mark {
+  content: url("/images/brand/logo-mark-ink.png");
+}
+
 :root[data-theme="dark"] .brand-logo,
 .on-ink .brand-logo {
-  filter: brightness(0) invert(1);
-  opacity: 0.95;
+  content: url("/images/brand/logo-horizontal-paper.png");
 }
 
-/* The mark carries the brand gradient and reads correctly on both grounds. */
+:root[data-theme="dark"] .brand-mark,
+.on-ink .brand-mark {
+  content: url("/images/brand/logo-mark-paper.png");
+}
+
 .brand-mark {
   border-radius: 7px;
 }

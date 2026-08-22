@@ -75,7 +75,8 @@ services:
         sync: false
 
       # Required in production for caller numbers, SIP metadata, transcripts,
-      # and tool payloads. Generate with: openssl rand -base64 32
+      # and tool payloads. Accepts a generated passphrase or a raw 32-byte key.
+      # Generate with: openssl rand -base64 32
       - key: DATA_ENCRYPTION_KEY
         sync: false
 

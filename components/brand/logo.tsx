@@ -1,11 +1,9 @@
 import Image from 'next/image'
 
 /**
- * The official lockup. The supplied artwork is one raster with a dark navy
- * wordmark, and the "dark" file shipped in the repo is byte-identical to the
- * light one — which is why dark mode never flipped. The image has a real alpha
- * channel, so inverting it on ink grounds (see .brand-logo in base.css) gives a
- * clean white lockup instead of a dark mark on a dark ground.
+ * The official lockup. Theme-aware variants are deterministically rebuilt from
+ * the supplied high-resolution artwork; CSS selects ink or paper while the
+ * isolated voice bars retain the single cool-blue brand signal.
  */
 
 const LOCKUP = '/images/brand/logo-horizontal-hq.png'

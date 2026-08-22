@@ -32,7 +32,7 @@
   gap: var(--s-2);
   padding: var(--s-4) var(--s-3);
   border-inline-end: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--canvas);
   position: sticky;
   inset-block-start: 0;
   block-size: 100dvh;
@@ -104,8 +104,10 @@
 }
 
 .nav-item[aria-current="page"] {
-  background: var(--signal-soft);
-  color: var(--signal);
+  border-inline-start: 2px solid var(--text);
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  background: var(--raised);
+  color: var(--text);
 }
 
 .nav-item svg {
@@ -120,7 +122,7 @@
 }
 
 .nav-item[aria-current="page"] .nav-item__count {
-  color: var(--signal);
+  color: var(--text);
 }
 
 .shell[data-collapsed="true"] .nav-item span:not(.nav-item__count),
@@ -192,7 +194,7 @@
   padding: 7px var(--s-3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
-  background: var(--surface);
+  background: transparent;
   color: var(--text-faint);
   font-size: var(--step--1);
   transition: border-color var(--t-fast) var(--ease);
@@ -493,7 +495,7 @@
 
 .content {
   flex: 1;
-  padding: var(--s-6) var(--s-5) var(--s-8);
+  padding: var(--s-6) clamp(var(--s-4), 3vw, var(--s-7)) var(--s-8);
   min-inline-size: 0;
 }
 
@@ -575,9 +577,8 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--surface);
+  border-block: 1px solid var(--line-strong);
+  background: transparent;
   overflow: hidden;
   margin-block-end: var(--s-5);
 }
@@ -585,7 +586,7 @@
 .metric {
   display: grid;
   gap: 4px;
-  padding: var(--s-4) var(--s-5);
+  padding: var(--s-5);
   border-inline-end: 1px solid var(--line);
 }
 
@@ -1408,9 +1409,8 @@
 /* ─── data table page ──────────────────────────────────────────────────── */
 
 .table-panel {
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: var(--surface);
+  border-block: 1px solid var(--line-strong);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -1418,7 +1418,8 @@
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  min-block-size: 52px;
+  padding: var(--s-3) 0;
   border-block-end: 1px solid var(--line);
   flex-wrap: wrap;
 }
@@ -1432,7 +1433,7 @@
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: var(--s-4);
+  gap: var(--s-6);
   margin-block-end: var(--s-5);
 }
 

@@ -250,26 +250,36 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: var(--s-6);
-  padding: clamp(var(--s-6), 5vw, var(--s-9));
-  max-inline-size: 560px;
+  gap: var(--s-5);
+  padding: clamp(var(--s-6), 5vw, var(--s-8));
+  max-inline-size: 520px;
   inline-size: 100%;
   margin-inline: auto;
 }
 
 .auth__head {
   display: grid;
-  gap: var(--s-3);
+  gap: var(--s-2);
 }
 
 .auth__head h1 {
-  font-size: var(--step-4);
+  font-size: clamp(2rem, 4vw, var(--step-4));
   letter-spacing: var(--tracking-display);
 }
 
 .auth__head p {
   color: var(--text-muted);
   line-height: 1.7;
+}
+
+.auth__eyebrow {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.auth__aside .line--tool .line__meta {
+  color: var(--text-muted);
 }
 
 .auth__form {
@@ -379,10 +389,11 @@
 }
 
 .auth__foot {
-  padding-block-start: var(--s-5);
+  padding-block-start: var(--s-4);
   border-block-start: 1px solid var(--line);
   font-size: var(--step--1);
   color: var(--text-muted);
+  line-height: 1.7;
 }
 
 .auth__foot a {
@@ -391,27 +402,134 @@
 }
 
 .auth__aside {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: var(--s-6);
-  padding: clamp(var(--s-6), 5vw, var(--s-9));
+  gap: var(--s-5);
+  padding: clamp(var(--s-6), 5vw, var(--s-8));
   border-inline-start: 1px solid var(--line);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.auth__aside > *:not(.auth__aside-art) {
+  position: relative;
+  z-index: 1;
+}
+
+.auth__aside-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url("/images/auth/voice-signal-architecture.webp") 32% 50% / cover no-repeat;
+  opacity: 0.24;
+  filter: saturate(0.55) contrast(1.05);
 }
 
 .auth__aside-copy {
-  max-inline-size: 46ch;
+  max-inline-size: 54ch;
 }
 
 .auth__aside-copy h2 {
-  font-size: var(--step-2);
-  letter-spacing: var(--tracking-tight);
+  margin-block-start: var(--s-3);
+  font-size: clamp(var(--step-3), 3.2vw, var(--step-4));
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .auth__aside-copy p {
   margin-block-start: var(--s-3);
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text) 72%, transparent);
   line-height: 1.7;
+}
+
+.auth__aside-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.auth__aside-kicker svg {
+  color: var(--good);
+}
+
+.auth__assurance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  padding-block: var(--s-3);
+  border-block: 1px solid var(--line);
+}
+
+.auth__assurance span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.auth__assurance svg {
+  color: var(--text);
+}
+
+.auth__aside .record {
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 80px -48px rgb(0 0 0 / 90%);
+}
+
+.auth-loading__form,
+.auth-loading__preview {
+  display: grid;
+  align-content: center;
+  gap: var(--s-4);
+  padding: clamp(var(--s-6), 5vw, var(--s-8));
+}
+
+.auth-loading__form {
+  inline-size: min(100%, 520px);
+  margin-inline: auto;
+}
+
+.auth-loading__preview {
+  border-inline-start: 1px solid var(--line);
+}
+
+.auth-loading__logo {
+  inline-size: 138px;
+  block-size: 40px;
+  margin-block-end: var(--s-6);
+}
+
+.auth-loading__title {
+  inline-size: 58%;
+  block-size: 50px;
+}
+
+.auth-loading__copy {
+  inline-size: 88%;
+  block-size: 24px;
+  margin-block-end: var(--s-5);
+}
+
+.auth-loading__field,
+.auth-loading__button {
+  block-size: 52px;
+}
+
+.auth-loading__preview-title {
+  inline-size: 68%;
+  block-size: 84px;
+}
+
+.auth-loading__record {
+  block-size: 440px;
 }
 
 /* Google button — official mark, neutral chrome. */

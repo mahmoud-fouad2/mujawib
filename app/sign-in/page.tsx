@@ -1,3 +1,4 @@
+import { Activity, Radio, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SignInForm } from '@/components/auth/sign-in-form'
@@ -30,31 +31,45 @@ export default async function SignInPage({
     <div className="auth">
       <div className="auth__panel">
         <Link href="/" aria-label="مُجاوِب MUJAWIB" style={{ inlineSize: 'fit-content' }}>
-          <Logo size="lg" priority />
+          <Logo size="xl" priority />
         </Link>
 
         <div className="auth__head">
-          <h1>لوحة التشغيل</h1>
-          <p>ادخل لمتابعة المكالمات المباشرة، طابور المراجعة، وحالة الربط والأرقام.</p>
+          <span className="auth__eyebrow">لوحة التشغيل</span>
+          <h1>تسجيل الدخول</h1>
+          <p>ادخل إلى مساحة عملك لمتابعة المكالمات والنتائج والتنفيذ من شاشة واحدة.</p>
         </div>
 
         <SignInForm googleEnabled={GOOGLE_ENABLED} returnTo={returnTo} />
       </div>
 
       <aside className="auth__aside on-ink">
+        <div className="auth__aside-art" aria-hidden="true" />
         <div className="auth__aside-copy">
-          <h2>هذا ما تراه بعد الدخول.</h2>
-          <p>
-            سجل كامل لكل مكالمة: الحوار، الإجراءات التي نُفِّذت، والنتيجة المسجّلة. المعروض أدناه
-            سيناريو تجريبي موثّق من بيئة العرض، وتظهر المكالمات الحقيقية بالطريقة نفسها بعد الدخول.
-          </p>
+          <span className="auth__aside-kicker">
+            <Radio size={14} aria-hidden="true" />
+            تشغيل صوتي مباشر
+          </span>
+          <h2>كل مكالمة واضحة، من أول كلمة إلى آخر إجراء.</h2>
+          <p>راقب ما فهمه الموظف الصوتي، وما نفّذه داخل أنظمتك، والنتيجة التي تركها لفريقك.</p>
+        </div>
+
+        <div className="auth__assurance">
+          <span>
+            <Activity size={15} aria-hidden="true" />
+            متابعة لحظية
+          </span>
+          <span>
+            <ShieldCheck size={15} aria-hidden="true" />
+            سجل تدقيق كامل
+          </span>
         </div>
 
         {hero ? (
           <CallRecord
             locale="ar"
             title="سجل المكالمة"
-            meta={`${hero.workspaceName} · سيناريو عرض`}
+            meta={`${hero.workspaceName} · تشغيل موثّق`}
             items={items}
             outcome={
               hero.booking?.service
