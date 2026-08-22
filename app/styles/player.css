@@ -5,6 +5,7 @@
 
 .player {
   display: grid;
+  min-block-size: 460px;
   margin: 0;
   border: 1px solid var(--line);
   border-radius: var(--r-hero);
@@ -63,11 +64,42 @@
   color: var(--text-faint);
 }
 
-.player__speak {
+.player__live {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   margin-inline-start: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.player__live i {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 4px var(--good-soft);
+}
+
+.player__live[data-playing="true"] i {
+  animation: player-live 1.4s ease-in-out infinite;
+}
+
+@keyframes player-live {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.player__speak {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-inline-start: 0;
   padding: 7px var(--s-3);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
@@ -84,7 +116,15 @@
 }
 
 @media (max-width: 560px) {
+  .player {
+    min-block-size: 440px;
+  }
+
   .player__speak span {
+    display: none;
+  }
+
+  .player__live {
     display: none;
   }
 }
@@ -171,7 +211,8 @@
 .player__body {
   display: grid;
   gap: var(--s-1);
-  max-block-size: 320px;
+  max-block-size: 250px;
+  min-block-size: 178px;
   overflow-y: auto;
   padding: var(--s-3) var(--s-5) var(--s-4);
   scroll-behavior: smooth;
@@ -190,6 +231,10 @@
   gap: var(--s-3);
   padding-block: var(--s-2);
   animation: pline-in 260ms var(--ease) both;
+}
+
+.pline.is-preview {
+  opacity: 0.76;
 }
 
 @keyframes pline-in {
@@ -243,8 +288,10 @@
   color: var(--text-muted);
 }
 
-.pline__tool code {
-  font-family: var(--font-mono);
+.pline__tool strong {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text);
 }
 
@@ -266,7 +313,7 @@
 .player__outcome .mono {
   margin-inline-start: auto;
   font-weight: 500;
-  opacity: 0.85;
+  opacity: 1;
 }
 
 /* States plainly that this is a transcript replay, not a recording. */

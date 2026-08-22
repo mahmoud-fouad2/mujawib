@@ -1,17 +1,23 @@
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   CalendarCheck,
   Check,
+  ChevronDown,
   Ear,
   FileText,
   Headphones,
   Languages,
   PhoneForwarded,
+  Play,
+  Quote,
+  ShieldCheck,
+  X,
 } from 'lucide-react'
 import Image from 'next/image'
 import { LinkButton } from '@/components/ui/button'
-import { Counter, Marquee } from '@/components/ui/motion'
+import { Counter } from '@/components/ui/motion'
 import type { SiteCopy } from '@/lib/content/site'
 import { duration, num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
@@ -47,6 +53,53 @@ export type DemoCall = {
   turns: { role: 'agent' | 'caller'; text: string; at: number }[]
 }
 
+const DEMO_TURNS: Record<Locale, DemoCall['turns'][]> = {
+  ar: [
+    [
+      { role: 'caller', text: 'أبحث عن شقة غرفتين قريبة من شمال الرياض.', at: 2 },
+      { role: 'agent', text: 'ممتاز. هل ميزانيتك للشراء أم للإيجار؟', at: 7 },
+      { role: 'caller', text: 'للإيجار، وفي حدود سبعين ألفًا سنويًا.', at: 13 },
+      { role: 'agent', text: 'وجدت خيارين مناسبين. أرتّب لك معاينة غدًا؟', at: 19 },
+    ],
+    [
+      { role: 'caller', text: 'كم سعر جلسة التنظيف؟', at: 2 },
+      { role: 'agent', text: 'تبدأ من 250 ريالًا بعد تقييم الطبيب.', at: 8 },
+      { role: 'caller', text: 'هل عندكم موعد مساء الخميس؟', at: 14 },
+      { role: 'agent', text: 'متاح 6:30 مساءً. أثبّت الموعد باسمك؟', at: 20 },
+    ],
+    [
+      { role: 'caller', text: 'أريد أعرف هل سيارتي جاهزة للاستلام.', at: 2 },
+      { role: 'agent', text: 'أرسل لي آخر أربعة أرقام من أمر الصيانة.', at: 8 },
+      { role: 'caller', text: 'أربعة، اثنان، سبعة، تسعة.', at: 14 },
+      { role: 'agent', text: 'اكتمل الفحص والسيارة جاهزة من الخامسة.', at: 20 },
+    ],
+  ],
+  en: [
+    [
+      { role: 'caller', text: 'I need a two-bedroom apartment in north Riyadh.', at: 2 },
+      { role: 'agent', text: 'Is that to rent or buy, and what is your budget?', at: 7 },
+      { role: 'caller', text: 'Rent, up to seventy thousand a year.', at: 13 },
+      { role: 'agent', text: 'I found two matches. Shall I arrange a viewing tomorrow?', at: 19 },
+    ],
+    [
+      { role: 'caller', text: 'How much is a cleaning session?', at: 2 },
+      { role: 'agent', text: 'It starts at SAR 250 after the dentist checks your case.', at: 8 },
+      { role: 'caller', text: 'Do you have a Thursday evening slot?', at: 14 },
+      { role: 'agent', text: '6:30 PM is available. Shall I confirm it in your name?', at: 20 },
+    ],
+    [
+      { role: 'caller', text: 'I want to know whether my car is ready.', at: 2 },
+      { role: 'agent', text: 'Please share the last four digits of the service order.', at: 8 },
+      { role: 'caller', text: 'Four, two, seven, nine.', at: 14 },
+      {
+        role: 'agent',
+        text: 'Inspection is complete. It is ready for collection from five.',
+        at: 20,
+      },
+    ],
+  ],
+}
+
 export function DemoCalls({
   locale,
   copy,
@@ -65,37 +118,49 @@ export function DemoCalls({
       <div className="container">
         <SectionHead label={copy.demo.label} title={copy.demo.title} lead={copy.demo.lead} />
         <div className="demos reveal-group">
-          {calls.map((c) => (
-            <article key={c.id} className="demo lift">
-              <div className="demo__head">
-                <span className="demo__wave" aria-hidden="true">
-                  {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                    <i key={i} style={{ animationDelay: `${i * 90}ms` }} />
+          {calls.map((c, index) => {
+            const turns = c.turns.length > 0 ? c.turns : (DEMO_TURNS[locale][index] ?? [])
+
+            return (
+              <details key={c.id} className="demo lift">
+                <summary className="demo__head">
+                  <span className="demo__play" aria-hidden="true">
+                    <Play size={15} />
+                  </span>
+                  <span className="demo__wave" aria-hidden="true">
+                    {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                      <i key={i} style={{ animationDelay: `${i * 90}ms` }} />
+                    ))}
+                  </span>
+                  <strong>{c.intent}</strong>
+                  <span className="demo__result">
+                    <Check size={13} aria-hidden="true" />
+                    {c.outcome}
+                  </span>
+                  <span className="demo__time">{duration(c.durationSeconds)}</span>
+                  <ChevronDown className="demo__chevron" size={16} aria-hidden="true" />
+                </summary>
+
+                <div className="demo__turns">
+                  {turns.slice(0, 4).map((t) => (
+                    <div
+                      key={`${c.id}-${t.at}-${t.role}`}
+                      className={`demo__turn${t.role === 'agent' ? ' is-agent' : ''}`}
+                    >
+                      <span>{t.role === 'agent' ? labels.agent : labels.caller}</span>
+                      <p>{t.text}</p>
+                    </div>
                   ))}
-                </span>
-                <strong>{c.intent}</strong>
-                <span className="demo__time">{duration(c.durationSeconds)}</span>
-              </div>
+                </div>
 
-              <div className="demo__turns">
-                {c.turns.slice(0, 4).map((t) => (
-                  <div
-                    key={`${c.id}-${t.at}-${t.role}`}
-                    className={`demo__turn${t.role === 'agent' ? ' is-agent' : ''}`}
-                  >
-                    <span>{t.role === 'agent' ? labels.agent : labels.caller}</span>
-                    <p>{t.text}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="demo__foot">
-                <Check size={14} aria-hidden="true" />
-                <strong>{c.outcome}</strong>
-                <span className="demo__client">{c.workspaceName}</span>
-              </div>
-            </article>
-          ))}
+                <div className="demo__foot">
+                  <Check size={14} aria-hidden="true" />
+                  <strong>{c.outcome}</strong>
+                  <span className="demo__client">{c.workspaceName}</span>
+                </div>
+              </details>
+            )
+          })}
         </div>
       </div>
     </section>
@@ -129,6 +194,76 @@ export function Capabilities({ copy }: { copy: SiteCopy }) {
             )
           })}
         </ul>
+
+        <div className="assurance-rail reveal">
+          <span className="assurance-rail__lead">
+            <ShieldCheck size={20} aria-hidden="true" />
+            <span>
+              <strong>{copy.security.title}</strong>
+              <small>{copy.security.lead}</small>
+            </span>
+          </span>
+          <ul>
+            {copy.security.items.slice(0, 4).map((item) => (
+              <li key={item.title}>
+                <Check size={14} aria-hidden="true" />
+                {item.title}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── operational outcome ─────────────────────────────────────────────── */
+
+export function OutcomeStory({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section section--tinted" id="outcomes">
+      <div className="container">
+        <SectionHead
+          label={copy.results.label}
+          title={copy.results.title}
+          lead={copy.results.lead}
+        />
+
+        <div className="outcome-shift reveal">
+          <div className="outcome-shift__side is-before">
+            <span className="outcome-shift__title">{copy.results.beforeTitle}</span>
+            <ul>
+              {copy.results.before.map((item) => (
+                <li key={item}>
+                  <X size={15} aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <span className="outcome-shift__arrow" aria-hidden="true">
+            <ArrowLeftRight size={18} />
+          </span>
+
+          <div className="outcome-shift__side is-after">
+            <span className="outcome-shift__title">{copy.results.afterTitle}</span>
+            <ul>
+              {copy.results.after.map((item) => (
+                <li key={item}>
+                  <Check size={15} aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <figure className="testimonial reveal">
+          <Quote size={26} aria-hidden="true" />
+          <blockquote>“{copy.results.quote}”</blockquote>
+          <figcaption>{copy.results.quoteBy}</figcaption>
+        </figure>
       </div>
     </section>
   )
@@ -168,10 +303,6 @@ export function IntegrationWires({
   const list = providers.filter((p) => PROVIDER_ACTION_LABEL[p.provider])
   if (list.length === 0) return null
 
-  // Repeat the connected set until the track is long enough to loop without a
-  // visible seam.
-  const band = [...list, ...list, ...list].slice(0, 12)
-
   return (
     <section className="section" id="integrations">
       <div className="container">
@@ -182,12 +313,12 @@ export function IntegrationWires({
         />
       </div>
 
-      {/* The band carries the provider AND what it does, so there is no second
-          grid repeating the same logos underneath. */}
-      <Marquee duration={48}>
-        {band.map((p, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: repeated marquee set
-          <span key={`${p.provider}-${i}`} className="wirechip">
+      <ul
+        className="integration-rail"
+        aria-label={locale === 'ar' ? 'التكاملات المتاحة' : 'Available integrations'}
+      >
+        {list.map((p) => (
+          <li key={p.provider} className="wirechip">
             <span className="wirechip__logo">
               <Image
                 src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
@@ -200,9 +331,9 @@ export function IntegrationWires({
               <strong>{p.label}</strong>
               <span>{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
             </span>
-          </span>
+          </li>
         ))}
-      </Marquee>
+      </ul>
 
       <div className="container">
         <div className="flow-end">
@@ -372,7 +503,14 @@ export function ProofStrip({
             <strong>
               {/* Counts up once on entry — these are real platform figures, so
                   drawing the eye to them is the point of the strip. */}
-              <Counter value={i.n} suffix={i.suffix} />
+              {i.n > 0 ? (
+                <Counter value={i.n} suffix={i.suffix} />
+              ) : (
+                <span>
+                  <span aria-hidden="true">—</span>
+                  <span className="visually-hidden">0</span>
+                </span>
+              )}
             </strong>
             <span>{i.label}</span>
           </div>

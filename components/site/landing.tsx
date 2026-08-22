@@ -7,6 +7,7 @@ import {
   ConsolePreview,
   DemoCalls,
   IntegrationWires,
+  OutcomeStory,
   ProofStrip,
 } from '@/components/site/sections'
 import { LinkButton } from '@/components/ui/button'
@@ -23,6 +24,16 @@ import {
   getPlatformProof,
 } from '@/server/data/marketing'
 import { isDatabaseUnavailable } from '@/server/db'
+
+const READY_INTEGRATIONS = [
+  { provider: 'whatsapp', label: 'WhatsApp' },
+  { provider: 'google_calendar', label: 'Google Calendar' },
+  { provider: 'microsoft_365', label: 'Microsoft 365' },
+  { provider: 'hubspot', label: 'HubSpot' },
+  { provider: 'zoho_crm', label: 'Zoho CRM' },
+  { provider: 'odoo', label: 'Odoo' },
+  { provider: 'rest_api', label: 'Webhooks / API' },
+] as const
 
 export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
@@ -49,6 +60,14 @@ export async function Landing({ locale }: { locale: Locale }) {
     queue: [],
     counts: { live: 0, review: 0, degraded: 0 },
   }
+  const integrationProviders = new Map<string, { provider: string; label: string }>(
+    READY_INTEGRATIONS.map((item) => [item.provider, { ...item }]),
+  )
+  for (const item of integrations) {
+    if (!integrationProviders.has(item.provider)) {
+      integrationProviders.set(item.provider, { provider: item.provider, label: item.label })
+    }
+  }
 
   // Tool executions carry an absolute time; place them on the call's own clock
   // so the player fires them at the moment they actually ran.
@@ -70,55 +89,71 @@ export async function Landing({ locale }: { locale: Locale }) {
   return (
     <>
       <section className="hero">
-        <div className="container hero__grid">
-          <div>
-            <span className="hero__eyebrow">
-              <span
-                className="pill__dot"
-                aria-hidden="true"
-                style={{ background: 'var(--signal)' }}
-              />
-              {copy.hero.eyebrow}
-            </span>
+        <div className="container">
+          <div className="hero__grid">
+            <div className="hero__copy">
+              <span className="hero__eyebrow">
+                <span
+                  className="pill__dot"
+                  aria-hidden="true"
+                  style={{ background: 'var(--signal)' }}
+                />
+                {copy.hero.eyebrow}
+              </span>
 
-            <h1>
-              {copy.hero.title}
-              <br />
-              <em>{copy.hero.titleMuted}</em>
-            </h1>
+              <h1>
+                {copy.hero.title}
+                <br />
+                <em>{copy.hero.titleMuted}</em>
+              </h1>
 
-            <p className="hero__lead">{copy.hero.lead}</p>
+              <p className="hero__lead">{copy.hero.lead}</p>
 
-            <div className="hero__actions">
-              <LinkButton
-                href={localePath(locale, '/contact')}
-                variant="primary"
-                size="lg"
-                trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
-              >
-                {copy.hero.primary}
-              </LinkButton>
-              <LinkButton href="#calls" size="lg">
-                {copy.hero.secondary}
-              </LinkButton>
+              <div className="hero__actions">
+                <LinkButton
+                  href={localePath(locale, '/contact')}
+                  variant="primary"
+                  size="lg"
+                  trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+                >
+                  {copy.hero.primary}
+                </LinkButton>
+                <LinkButton href="#calls" size="lg">
+                  {copy.hero.secondary}
+                </LinkButton>
+              </div>
+
+              <ul className="hero__assurance" aria-label={copy.hero.note}>
+                <li>{copy.hero.note}</li>
+                <li>{locale === 'ar' ? 'سيناريو من عملك' : 'Built around your workflow'}</li>
+                <li>
+                  {locale === 'ar' ? 'لا تشغيل قبل موافقتك' : 'Nothing goes live without approval'}
+                </li>
+              </ul>
             </div>
 
-            <p className="hero__note">{copy.hero.note}</p>
-
-            {proof ? <ProofStrip copy={copy} proof={proof} /> : null}
+            {hero ? (
+              <div className="hero__product">
+                <div className="hero__product-kicker">
+                  <span>{locale === 'ar' ? 'داخل مُجاوِب' : 'Inside Mujawib'}</span>
+                  <strong>
+                    {locale === 'ar' ? 'المكالمة، الإجراء، والنتيجة' : 'Call, action, outcome'}
+                  </strong>
+                </div>
+                <CallPlayer
+                  locale={locale}
+                  title={copy.hero.recordTitle}
+                  meta={`${hero.workspaceName} · ${copy.hero.recordMeta}`}
+                  turns={hero.turns}
+                  tools={heroToolEvents}
+                  totalSeconds={hero.durationSeconds ?? 60}
+                  outcome={heroOutcome ?? undefined}
+                />
+              </div>
+            ) : null}
           </div>
 
-          {hero ? (
-            <CallPlayer
-              locale={locale}
-              title={copy.hero.recordTitle}
-              meta={`${hero.workspaceName} · ${copy.hero.recordMeta}`}
-              turns={hero.turns}
-              tools={heroToolEvents}
-              totalSeconds={hero.durationSeconds ?? 60}
-              outcome={heroOutcome ?? undefined}
-            />
-          ) : null}
+          {proof ? <ProofStrip copy={copy} proof={proof} /> : null}
         </div>
       </section>
 
@@ -136,6 +171,12 @@ export async function Landing({ locale }: { locale: Locale }) {
       />
 
       <Capabilities copy={copy} />
+
+      <IntegrationWires
+        locale={locale}
+        copy={copy}
+        providers={[...integrationProviders.values()]}
+      />
 
       {packs.length > 0 ? (
         <section className="section section--tinted reveal" id="industries">
@@ -162,13 +203,7 @@ export async function Landing({ locale }: { locale: Locale }) {
         </section>
       ) : null}
 
-      {integrations.length > 0 ? (
-        <IntegrationWires
-          locale={locale}
-          copy={copy}
-          providers={integrations.map((i) => ({ provider: i.provider, label: i.label }))}
-        />
-      ) : null}
+      <OutcomeStory copy={copy} />
 
       <ConsolePreview
         locale={locale}

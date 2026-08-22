@@ -8,6 +8,12 @@ import type { Locale } from '@/lib/i18n'
 export type PlayerTurn = { role: 'agent' | 'caller'; text: string; at: number }
 export type PlayerTool = { name: string; success: boolean; latencyMs: number | null; at: number }
 
+const TOOL_LABELS: Record<string, { ar: string; en: string }> = {
+  check_availability: { ar: 'فحص المواعيد المتاحة', en: 'Checked availability' },
+  create_booking: { ar: 'تثبيت الموعد', en: 'Booked the appointment' },
+  send_confirmation: { ar: 'إرسال التأكيد', en: 'Sent confirmation' },
+}
+
 /**
  * Plays a call back on its own timeline.
  *
@@ -112,6 +118,8 @@ export function CallPlayer({
   }, [turns, tools])
 
   const visible = items.filter((i) => i.at <= t)
+  const displayed = !playing && t === 0 ? items.slice(0, 4) : visible
+  const isPreview = !playing && t === 0
   const finished = t >= total
 
   // Keep the newest line in view while playing.
@@ -186,6 +194,11 @@ export function CallPlayer({
           <span>{meta}</span>
         </span>
 
+        <span className="player__live" data-playing={playing}>
+          <i aria-hidden="true" />
+          {ar ? 'تجربة تفاعلية' : 'Interactive replay'}
+        </span>
+
         {canSpeak ? (
           <button
             type="button"
@@ -241,15 +254,17 @@ export function CallPlayer({
       </div>
 
       <div className="player__body" ref={scrollRef}>
-        {visible.length === 0 ? (
+        {displayed.length === 0 ? (
           <p className="player__hint">
             {ar ? 'اضغط تشغيل لتتابع المكالمة لحظة بلحظة.' : 'Press play to follow the call.'}
           </p>
         ) : (
-          visible.map((item, i) =>
+          displayed.map((item) =>
             item.kind === 'turn' ? (
-              // biome-ignore lint/suspicious/noArrayIndexKey: two events can share a second
-              <div key={`t-${item.at}-${i}`} className={`pline pline--${item.role}`}>
+              <div
+                key={`t-${item.at}-${item.role}-${item.text}`}
+                className={`pline pline--${item.role}${isPreview ? ' is-preview' : ''}`}
+              >
                 <span className="pline__at mono">{duration(item.at)}</span>
                 <div>
                   <span className="pline__who">
@@ -259,12 +274,11 @@ export function CallPlayer({
                 </div>
               </div>
             ) : (
-              // biome-ignore lint/suspicious/noArrayIndexKey: two events can share a second
-              <div key={`x-${item.at}-${i}`} className="pline pline--tool">
+              <div key={`x-${item.at}-${item.name}`} className="pline pline--tool">
                 <span className="pline__at mono">{duration(item.at)}</span>
                 <div className="pline__tool">
                   <Wrench size={13} aria-hidden="true" />
-                  <code>{item.name}</code>
+                  <strong>{TOOL_LABELS[item.name]?.[locale] ?? item.name}</strong>
                   {item.success ? (
                     <Check size={13} style={{ color: 'var(--good)' }} aria-hidden="true" />
                   ) : null}
@@ -287,8 +301,8 @@ export function CallPlayer({
       {!audioSrc ? (
         <p className="player__note">
           {ar
-            ? 'إعادة تشغيل زمنية للحوار والأدوات كما سُجّلت. التسجيل الصوتي يُضاف هنا عند توفره.'
-            : 'A timed replay of the recorded transcript and tool calls. Audio drops in here when available.'}
+            ? 'تجربة تفاعلية مبنية على سجل المكالمة؛ شغّلها لترى كيف يتحوّل الحوار إلى نتيجة.'
+            : 'An interactive call record. Play it to see the conversation become an outcome.'}
         </p>
       ) : null}
     </figure>

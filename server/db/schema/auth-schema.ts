@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 /** Better Auth core tables — synced via drizzle-kit */
 export const user = pgTable('user', {
@@ -36,6 +36,7 @@ export const account = pgTable(
     id: text('id').primaryKey(),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
+    issuer: text('issuer').notNull(),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -49,7 +50,10 @@ export const account = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('account_user_id_idx').on(t.userId)],
+  (t) => [
+    index('account_user_id_idx').on(t.userId),
+    uniqueIndex('account_issuer_account_id_uidx').on(t.issuer, t.accountId),
+  ],
 )
 
 export const verification = pgTable(

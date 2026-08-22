@@ -1,10 +1,12 @@
 'use client'
 
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import { useState } from 'react'
+import { LinkButton } from '@/components/ui/button'
 import type { SiteCopy } from '@/lib/content/site'
 import { num } from '@/lib/format'
-import type { Locale } from '@/lib/i18n'
+import { isRtl, type Locale, localePath } from '@/lib/i18n'
 
 export type IndustryPack = {
   packKey: string
@@ -16,7 +18,7 @@ export type IndustryPack = {
 
 /** One image per sector — switching the tab switches the scene, not just the text. */
 const SCENE: Record<string, string> = {
-  medical: '/images/industries/medical-clean-2027.webp',
+  medical: '/images/industries/clinic-reception-voice-2027.webp',
   realestate: '/images/industries/real-estate-clean-2027.webp',
   auto: '/images/industries/automotive-clean-2027.webp',
   reception: '/images/industries/customer-service-clean-2027.webp',
@@ -43,6 +45,7 @@ export function Industries({
 
   const pack = packs.find((p) => p.packKey === active)
   const text = copy.industries.packs[active]
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
   if (!text) return null
 
@@ -72,6 +75,7 @@ export function Industries({
               src={sceneFor(key)}
               alt=""
               fill
+              priority={key === 'medical'}
               sizes="(max-width: 980px) 100vw, 46vw"
               className={`sector__img${key === active ? ' is-active' : ''}`}
             />
@@ -103,6 +107,14 @@ export function Industries({
               </dl>
             </>
           ) : null}
+
+          <LinkButton
+            href={localePath(locale, '/contact')}
+            variant="primary"
+            trailing={<Arrow size={15} className="arrow" aria-hidden="true" />}
+          >
+            {locale === 'ar' ? `جرّب سيناريو ${text.title}` : `Try a ${text.title} scenario`}
+          </LinkButton>
         </div>
       </div>
     </div>

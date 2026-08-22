@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /* ─── counter ────────────────────────────────────────────────────────────── */
 
@@ -72,37 +72,6 @@ export function Counter({
       {NUMBER_FORMAT.format(shown)}
       {suffix}
     </span>
-  )
-}
-
-/* ─── marquee ────────────────────────────────────────────────────────────── */
-
-/**
- * Renders its children twice so the CSS loop has an identical second copy to
- * translate into. The clone is hidden from assistive tech and from the
- * reduced-motion layout.
- */
-export function Marquee({
-  children,
-  duration = 38,
-  reverse,
-}: {
-  children: ReactNode
-  duration?: number
-  reverse?: boolean
-}) {
-  return (
-    <div
-      className={`marquee${reverse ? ' marquee--reverse' : ''}`}
-      style={{ '--marquee-duration': `${duration}s` } as React.CSSProperties}
-    >
-      <div className="marquee__track">
-        <div className="marquee__set">{children}</div>
-        <div className="marquee__set" data-marquee-clone="true" aria-hidden="true">
-          {children}
-        </div>
-      </div>
-    </div>
   )
 }
 

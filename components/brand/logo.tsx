@@ -12,7 +12,7 @@ const LOCKUP = '/images/brand/logo-horizontal-hq.png'
 const MARK = '/images/brand/logo-mark.png'
 
 const LOCKUP_RATIO = 1319 / 382
-const HEIGHTS = { sm: 24, md: 28, lg: 34, xl: 44 } as const
+const HEIGHTS = { sm: 24, md: 30, lg: 38, xl: 48 } as const
 
 export type LogoSize = keyof typeof HEIGHTS
 

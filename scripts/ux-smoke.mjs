@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import AxeBuilder from '@axe-core/playwright'
 
 const require = createRequire(import.meta.url)
 const runtimeNodeModules =
@@ -135,6 +136,24 @@ async function assertPortalIsClientSafe(page, route) {
   }
 }
 
+async function assertAccessible(page, route, viewportName) {
+  if (route !== '/' && route !== '/sign-in') return
+
+  const result = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze()
+  const blocking = result.violations.filter(
+    (violation) => violation.impact === 'critical' || violation.impact === 'serious',
+  )
+
+  if (blocking.length > 0) {
+    const summary = blocking
+      .map((violation) => `${violation.id}:${violation.nodes.length}`)
+      .join(', ')
+    throw new Error(`${route} accessibility failures on ${viewportName}: ${summary}`)
+  }
+}
+
 async function assertVisible(page, selector, label) {
   const visible = await page.locator(selector).first().isVisible()
   if (!visible) {
@@ -161,15 +180,19 @@ async function resilientClick(locator, label) {
 
 async function runInteractionChecks(browser, failures) {
   try {
-    const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
+    const context = await browser.newContext({ viewport: { width: 390, height: 1000 } })
+    const page = await context.newPage()
     await gotoReady(page, '/')
+    const initialTheme = await page.evaluate(() => document.documentElement.dataset.theme)
     await resilientClick(page.getByLabel('تبديل الوضع'), 'theme toggle')
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', {
-      timeout: 10_000,
-    })
+    await page.waitForFunction(
+      (before) => document.documentElement.dataset.theme !== before,
+      initialTheme,
+      { timeout: 10_000 },
+    )
     await assertNoHorizontalOverflow(page, '/', 'mobile dark-toggle')
     console.log('ok interaction theme-toggle')
-    await page.close()
+    await context.close()
   } catch (error) {
     failures.push(
       `interaction theme-toggle: ${error instanceof Error ? error.message : String(error)}`,
@@ -177,7 +200,8 @@ async function runInteractionChecks(browser, failures) {
   }
 
   try {
-    const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
+    const context = await browser.newContext({ viewport: { width: 390, height: 1000 } })
+    const page = await context.newPage()
     await gotoReady(page, '/console')
     if (reachedAuthGate(page, '/console')) {
       console.log('skip interaction command-surface (authenticated session required)')
@@ -189,7 +213,7 @@ async function runInteractionChecks(browser, failures) {
       await page.keyboard.press('Escape')
       console.log('ok interaction command-surface')
     }
-    await page.close()
+    await context.close()
   } catch (error) {
     failures.push(
       `interaction command-surface: ${error instanceof Error ? error.message : String(error)}`,
@@ -197,7 +221,8 @@ async function runInteractionChecks(browser, failures) {
   }
 
   try {
-    const page = await browser.newPage({ viewport: { width: 390, height: 1000 } })
+    const context = await browser.newContext({ viewport: { width: 390, height: 1000 } })
+    const page = await context.newPage()
     await gotoReady(page, '/console/calls')
     if (reachedAuthGate(page, '/console/calls')) {
       console.log('skip interaction call-inspector (authenticated session required)')
@@ -207,7 +232,7 @@ async function runInteractionChecks(browser, failures) {
       await assertNoHorizontalOverflow(page, '/console/calls', 'mobile inspector')
       console.log('ok interaction call-inspector')
     }
-    await page.close()
+    await context.close()
   } catch (error) {
     failures.push(
       `interaction call-inspector: ${error instanceof Error ? error.message : String(error)}`,
@@ -224,9 +249,12 @@ async function main() {
 
   for (const viewport of viewports) {
     for (const route of routes) {
-      const page = await browser.newPage({
+      const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
+        colorScheme: viewport.name === 'mobile' ? 'dark' : 'light',
+        reducedMotion: 'reduce',
       })
+      const page = await context.newPage()
       try {
         const response = await gotoReady(page, route)
         if (!response?.ok()) {
@@ -234,6 +262,7 @@ async function main() {
         }
         await assertNoHorizontalOverflow(page, route, viewport.name)
         await assertPortalIsClientSafe(page, route)
+        await assertAccessible(page, route, viewport.name)
         console.log(
           reachedAuthGate(page, route)
             ? `ok ${viewport.name} auth-gate ${route}`
@@ -244,7 +273,7 @@ async function main() {
           `${viewport.name} ${route}: ${error instanceof Error ? error.message : String(error)}`,
         )
       } finally {
-        await page.close()
+        await context.close()
       }
     }
   }

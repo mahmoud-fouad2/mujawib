@@ -44,6 +44,7 @@ try {
       id: `acc_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
       accountId: userId,
       providerId: 'credential',
+      issuer: 'local:credential',
       userId,
       password: passwordHash,
       createdAt: now,

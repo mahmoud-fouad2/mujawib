@@ -45,60 +45,6 @@
   }
 }
 
-/* ─── marquee ──────────────────────────────────────────────────────────── */
-
-/**
- * Infinite horizontal band. The track holds the list twice and translates by
- * exactly -50%, so the loop is seamless without measuring anything in JS.
- */
-.marquee {
-  --marquee-duration: 38s;
-  position: relative;
-  overflow: hidden;
-  padding-block: var(--s-2);
-  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-}
-
-.marquee__track {
-  display: flex;
-  inline-size: max-content;
-  gap: var(--s-3);
-  /* Always LTR: the loop maths assume one direction, and a logo band has no
-     reading order to preserve. */
-  direction: ltr;
-  animation: marquee-slide var(--marquee-duration) linear infinite;
-}
-
-.marquee:hover .marquee__track {
-  animation-play-state: paused;
-}
-
-.marquee--reverse .marquee__track {
-  animation-direction: reverse;
-}
-
-@keyframes marquee-slide {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee__track {
-    animation: none;
-    flex-wrap: wrap;
-    inline-size: 100%;
-    justify-content: center;
-  }
-  .marquee {
-    mask-image: none;
-  }
-  /* The duplicate set is decorative once the loop stops. */
-  .marquee__track [data-marquee-clone="true"] {
-    display: none;
-  }
-}
-
 /* ─── live waveform ────────────────────────────────────────────────────── */
 
 /**

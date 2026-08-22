@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -340,6 +340,7 @@ export async function createInvitedWorkspaceAccount(
         id: id('acc'),
         accountId: userId,
         providerId: 'credential',
+        issuer: 'local:credential',
         userId,
         password: passwordHash,
         createdAt: now,

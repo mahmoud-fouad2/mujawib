@@ -2,8 +2,9 @@ packages:
   - "."
 
 overrides:
+  esbuild@<=0.24.2: 0.25.12
   nanoid: 3.3.18
-  postcss: 8.5.18
+  postcss: 8.5.23
   sharp: 0.35.3
 
 minimumReleaseAgeExclude:
