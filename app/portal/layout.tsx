@@ -26,6 +26,7 @@ export default async function PortalLayout({ children }: { children: React.React
       workspaceSlug={workspace.slug}
       workspaces={workspaces.map(({ id, name, slug }) => ({ id, name, slug }))}
       user={{ name: access.name, email: access.email }}
+      viewingAsOperator={access.viewingAsOperator === true}
       health={{ state: health.state, label: health.label }}
       notifications={notifications}
     >

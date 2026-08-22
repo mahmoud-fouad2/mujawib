@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { db } from '@/server/db'
 import { call } from '@/server/db/schema'
@@ -9,26 +9,57 @@ import { recoverStaleSidebands } from '@/server/voice/sideband'
 
 let lastRetentionSweep = 0
 
+/**
+ * Closes calls the runtime stopped reporting on.
+ *
+ * A call that is still `live` hours later did not last hours — the sideband
+ * that should have closed it went away, most often because the process
+ * handling the call was replaced. The row has to be closed by something, and
+ * that something is here.
+ *
+ * Two rules this deliberately follows:
+ *
+ * It does not call the result a failure. The webhook only writes a row after
+ * OpenAI answers the accept, so the caller reached the agent and had whatever
+ * conversation they had. What is missing is our record of it, not the call.
+ * Marking those `failed` is what made every real call on the platform show up
+ * as broken while the telephony path was in fact working.
+ *
+ * It does not invent a duration. `now - startedAt` is not how long the caller
+ * was on the phone; it is how long the row sat unclosed, which is why the
+ * console was showing forty-hour phone calls. We do not know the duration, so
+ * the column stays null and the UI says so.
+ */
 async function reconcileStaleCalls() {
   const now = new Date()
   const acceptingCutoff = new Date(now.getTime() - 10 * 60 * 1000)
   const liveCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000)
-  const stale = await db
+
+  // Never accepted: the caller heard nothing, so this one is a real failure.
+  const neverAccepted = await db
     .update(call)
-    .set({
-      status: 'failed',
-      endedAt: now,
-      durationSeconds: sql`greatest(0, round(extract(epoch from (now() - ${call.startedAt}))))`,
-    })
-    .where(
-      or(
-        and(eq(call.status, 'accepting'), lt(call.startedAt, acceptingCutoff)),
-        and(inArray(call.status, ['live', 'waiting_tool']), lt(call.startedAt, liveCutoff)),
-      ),
-    )
+    .set({ status: 'accept_failed', endedAt: now, durationSeconds: null })
+    .where(and(eq(call.status, 'accepting'), lt(call.startedAt, acceptingCutoff)))
     .returning({ id: call.id })
 
-  for (const item of stale) await enqueueCallIntelligence(item.id)
+  // Accepted, then lost track of. Whether a transcript survived decides
+  // whether the record is complete, not whether the call succeeded.
+  const abandonedByUs = await db
+    .update(call)
+    .set({
+      status: sql`case
+        when coalesce(jsonb_array_length(${call.transcript}), 0) > 0
+          or ${call.transcriptEncrypted} is not null
+        then 'completed'::call_status
+        else 'completed_no_transcript'::call_status
+      end`,
+      endedAt: now,
+      durationSeconds: null,
+    })
+    .where(and(inArray(call.status, ['live', 'waiting_tool']), lt(call.startedAt, liveCutoff)))
+    .returning({ id: call.id })
+
+  for (const item of [...neverAccepted, ...abandonedByUs]) await enqueueCallIntelligence(item.id)
 }
 
 async function runMaintenanceTick() {

@@ -3,7 +3,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DailyBars, Ratio, Sparkline } from '@/components/console/charts'
-import { ClientRowActions } from '@/components/console/client-actions'
+import {
+  type ClientBusinessInfo,
+  ClientRowActions,
+  clientEditable,
+} from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
@@ -21,6 +25,7 @@ import {
   relative,
   WORKSPACE_STATUS_LABEL,
 } from '@/lib/format'
+import { requireOperatorPage } from '@/server/auth/access'
 import { getClientDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +56,10 @@ const PHONE_STATUS: Record<string, { label: string; tone: 'good' | 'warn' | 'bad
 }
 
 export default async function ClientDetailPage({ params }: Props) {
-  const detail = await getClientDetail((await params).slug)
+  const [detail, access] = await Promise.all([
+    getClientDetail((await params).slug),
+    requireOperatorPage('/console/clients'),
+  ])
   if (!detail) notFound()
 
   const {
@@ -64,12 +72,7 @@ export default async function ClientDetailPage({ params }: Props) {
     knowledge,
     readiness,
   } = detail
-  const info = (ws.businessInfo ?? {}) as {
-    city?: string
-    hours?: { sun_thu?: string }
-    transferTo?: string
-    branches?: string[]
-  }
+  const info = (ws.businessInfo ?? {}) as ClientBusinessInfo & { branches?: string[] }
   const openRequests = requests.filter((r) => r.status !== 'live' && r.status !== 'rejected')
   const unhealthy = integrations.filter((i) => i.health !== 'connected')
 
@@ -93,12 +96,8 @@ export default async function ClientDetailPage({ params }: Props) {
               </LinkButton>
             ) : null}
             <ClientRowActions
-              workspaceId={ws.id}
-              name={ws.name}
-              status={ws.status}
-              city={info.city ?? ''}
-              hoursWeekday={info.hours?.sun_thu ?? ''}
-              transferTo={info.transferTo ?? ''}
+              client={clientEditable(ws, info as ClientBusinessInfo)}
+              canDelete={access.role === 'owner'}
             />
           </div>
         }

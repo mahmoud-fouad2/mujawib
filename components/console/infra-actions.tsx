@@ -1,11 +1,22 @@
 'use client'
 
-import { CircleCheck, PhoneCall, PlugZap, Power, Settings2 } from 'lucide-react'
-import { useState } from 'react'
+import {
+  ArrowLeftRight,
+  CircleCheck,
+  ExternalLink,
+  PhoneCall,
+  PlugZap,
+  Power,
+  Settings2,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Sheet } from '@/components/ui/overlays'
+import { Confirm, Sheet } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
 import {
+  getReassignTargets,
+  type ReassignTarget,
+  reassignPhoneNumber,
   requestPhoneTest,
   testIntegration,
   updateIntegrationConnection,
@@ -157,6 +168,8 @@ export function PhoneRowActions({
   fallbackDisabled,
   agentId,
   agents,
+  workspaceName,
+  agentName,
 }: {
   id: string
   e164: string
@@ -165,19 +178,28 @@ export function PhoneRowActions({
   fallbackDisabled: boolean
   agentId?: string | null
   agents?: { id: string; label: string }[]
+  workspaceName?: string | undefined
+  agentName?: string | null | undefined
 }) {
   const [open, setOpen] = useState(false)
   const [nextMode, setNextMode] = useState(mode)
   const [transfer, setTransfer] = useState(transferDestination ?? '')
   const [fallbackOff, setFallbackOff] = useState(fallbackDisabled)
   const [nextAgentId, setNextAgentId] = useState(agentId ?? '')
+  const [moving, setMoving] = useState(false)
   const { run, pending } = useAction()
 
   return (
     <>
       <RowActions>
+        <RowAction icon={<ExternalLink size={15} />} href={`/console/phone/${id}`}>
+          افتح تفاصيل الرقم
+        </RowAction>
         <RowAction icon={<Settings2 size={15} />} onClick={() => setOpen(true)}>
           تعديل التوجيه
+        </RowAction>
+        <RowAction icon={<ArrowLeftRight size={15} />} onClick={() => setMoving(true)}>
+          انقله إلى عميل آخر
         </RowAction>
         <RowAction
           icon={<PhoneCall size={15} />}
@@ -187,6 +209,15 @@ export function PhoneRowActions({
           اطلب مكالمة اختبار
         </RowAction>
       </RowActions>
+
+      <PhoneReassignSheet
+        open={moving}
+        onClose={() => setMoving(false)}
+        phoneId={id}
+        e164={e164}
+        currentWorkspaceName={workspaceName ?? '—'}
+        currentAgentName={agentName ?? null}
+      />
 
       <Sheet
         open={open}
@@ -313,5 +344,168 @@ export function PhoneLifecycleActions({ id, status }: { id: string; status: stri
         </Button>
       ) : null}
     </div>
+  )
+}
+
+/* ─── moving a number between clients ────────────────────────────────────── */
+
+/**
+ * Reassignment of a DID to a different client and voice employee.
+ *
+ * Kept beside the routing sheet rather than on its own screen, because the
+ * operator reaches for it from the same place — the number's row — and the
+ * distinction that matters is between changing how a number behaves for its
+ * client and changing which client it belongs to. The second one wipes the
+ * number's verification, so it asks for confirmation and says what it costs.
+ */
+export function PhoneReassignSheet({
+  open,
+  onClose,
+  phoneId,
+  e164,
+  currentWorkspaceName,
+  currentAgentName,
+}: {
+  open: boolean
+  onClose: () => void
+  phoneId: string
+  e164: string
+  currentWorkspaceName: string
+  currentAgentName: string | null
+}) {
+  const [targets, setTargets] = useState<ReassignTarget[] | null>(null)
+  const [workspaceId, setWorkspaceId] = useState('')
+  const [agentId, setAgentId] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const { run, pending } = useAction()
+
+  // Loaded when the sheet opens rather than with the page: this list is only
+  // needed by the operator who is actually moving a number.
+  useEffect(() => {
+    if (!open || targets) return
+    let cancelled = false
+    getReassignTargets().then((result) => {
+      if (!cancelled && result.ok) setTargets(result.data)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, targets])
+
+  const selectedWorkspace = targets?.find((target) => target.workspaceId === workspaceId)
+  const selectedAgent = selectedWorkspace?.agents.find((agent) => agent.agentId === agentId)
+  const ready = Boolean(selectedAgent?.publishable)
+
+  function choose(nextWorkspaceId: string) {
+    setWorkspaceId(nextWorkspaceId)
+    // Pre-pick the only agent that can answer, if there is exactly one.
+    const workspace = targets?.find((target) => target.workspaceId === nextWorkspaceId)
+    const publishable = workspace?.agents.filter((agent) => agent.publishable) ?? []
+    setAgentId(publishable.length === 1 ? (publishable[0]?.agentId ?? '') : '')
+  }
+
+  return (
+    <>
+      <Sheet
+        open={open}
+        onClose={onClose}
+        title={`نقل ${e164} إلى عميل آخر`}
+        description="الرقم الواحد يخدم عميلًا واحدًا فقط. النقل يحوّل كل المكالمات القادمة على هذا الرقم إلى الموظف الصوتي الذي تختاره."
+        footer={
+          <>
+            <Button onClick={onClose} disabled={pending}>
+              إلغاء
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!ready || pending}
+              onClick={() => setConfirming(true)}
+            >
+              راجع النقل
+            </Button>
+          </>
+        }
+      >
+        <dl className="route-now">
+          <dt>يرد عليه الآن</dt>
+          <dd>
+            {currentWorkspaceName}
+            {currentAgentName ? ` · ${currentAgentName}` : ''}
+          </dd>
+        </dl>
+
+        {targets === null ? (
+          <p className="muted">جارٍ تحميل العملاء…</p>
+        ) : (
+          <>
+            <div className="field">
+              <label htmlFor={`ws-${phoneId}`}>العميل الجديد</label>
+              <select
+                id={`ws-${phoneId}`}
+                className="input"
+                value={workspaceId}
+                onChange={(event) => choose(event.target.value)}
+              >
+                <option value="">اختر عميلًا…</option>
+                {targets.map((target) => (
+                  <option key={target.workspaceId} value={target.workspaceId}>
+                    {target.workspaceName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedWorkspace ? (
+              <div className="field">
+                <label htmlFor={`ag-${phoneId}`}>الموظف الصوتي الذي سيرد</label>
+                <select
+                  id={`ag-${phoneId}`}
+                  className="input"
+                  value={agentId}
+                  onChange={(event) => setAgentId(event.target.value)}
+                >
+                  <option value="">اختر موظفًا…</option>
+                  {selectedWorkspace.agents.map((agent) => (
+                    <option key={agent.agentId} value={agent.agentId} disabled={!agent.publishable}>
+                      {agent.agentName}
+                      {agent.publishable
+                        ? ` — v${agent.versionNumber} منشورة`
+                        : ' — لا توجد نسخة منشورة'}
+                    </option>
+                  ))}
+                </select>
+                {selectedWorkspace.agents.length === 0 ? (
+                  <span className="field__error">
+                    لا يوجد موظف صوتي لدى هذا العميل. أنشئ موظفًا وانشر نسخة منه أولًا.
+                  </span>
+                ) : (
+                  <span className="field__hint">
+                    الموظف بلا نسخة منشورة لا يستطيع الرد، فلا يمكن توجيه الرقم إليه.
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </>
+        )}
+      </Sheet>
+
+      <Confirm
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() =>
+          run(
+            () => reassignPhoneNumber({ phoneId, workspaceId, agentId }),
+            () => {
+              setConfirming(false)
+              onClose()
+            },
+          )
+        }
+        title={`نقل ${e164}؟`}
+        body={`سيرد «${selectedAgent?.agentName ?? ''}» لدى ${selectedWorkspace?.workspaceName ?? ''} على كل مكالمة قادمة على هذا الرقم. توثيق المسار الحالي ووجهة التحويل يسقطان، ويحتاج الرقم مكالمة حقيقية جديدة ليعود موثّقًا.`}
+        confirmLabel="انقل الرقم"
+        pending={pending}
+      />
+    </>
   )
 }

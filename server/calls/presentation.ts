@@ -150,7 +150,13 @@ export function buildCallSummary(input: SummaryInput): CallSummary {
   const failedTools = input.tools.filter((tool) => tool.status === 'failed')
   const warnings: string[] = []
 
-  if (input.transcript.length === 0) warnings.push('نص الحوار غير متاح لهذه المكالمة.')
+  if (input.transcript.length === 0) {
+    warnings.push(
+      input.status === 'completed_no_transcript'
+        ? 'المكالمة تم قبولها وتسجيلها، لكن نص الحوار غير متاح بعد.'
+        : 'نص الحوار غير متاح لهذه المكالمة.',
+    )
+  }
   if (failedTools.length > 0) warnings.push(`${failedTools.length} إجراء لم يكتمل بنجاح.`)
   if (!input.endedAt && input.status === 'live') {
     warnings.push('لم تصل إشارة نهاية المكالمة بعد؛ لا يمكن اعتماد نتيجة نهائية.')
@@ -227,6 +233,20 @@ export function buildCallSummary(input: SummaryInput): CallSummary {
       } else if (input.status === 'completed') {
         headline = 'انتهت بلا نتيجة مسجلة'
         resolution = 'المكالمة مكتملة تقنيًا، لكن نتيجتها التشغيلية غير محددة.'
+      } else if (input.status === 'completed_no_transcript') {
+        // The call itself worked; what is missing is our recording of it.
+        headline = 'تم استقبال المكالمة والرد عليها'
+        resolution =
+          'قبلت المنصة المكالمة ورد عليها الموظف الصوتي، لكن لم يصل نص الحوار قبل انتهاء الجلسة.'
+        nextAction = 'راجع اتصال الجلسة الجانبية حتى تُحفظ نصوص المكالمات القادمة.'
+      } else if (input.status === 'accept_failed') {
+        headline = 'لم تُقبل المكالمة'
+        resolution = 'وصلت المكالمة إلى المنصة لكن تعذّر بدء جلسة الرد، فلم يسمع المتصل الموظف.'
+        nextAction = 'راجع سجل القبول ومفاتيح الاتصال بمزوّد الصوت.'
+      } else if (input.status === 'route_failed') {
+        headline = 'لم يُعرف الرقم المطلوب'
+        resolution = 'وصلت مكالمة على رقم غير مربوط بأي عميل، فرُفضت بدل الرد عليها بموظف خاطئ.'
+        nextAction = 'اربط الرقم بعميل وموظف صوتي منشور، أو تجاهل المكالمة.'
       }
   }
 

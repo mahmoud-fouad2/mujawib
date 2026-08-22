@@ -11,6 +11,21 @@ import {
 import { agent, agentVersion } from './agents'
 import { workspace } from './workspaces'
 
+/**
+ * How a call ended, from the platform's point of view.
+ *
+ * Only states the runtime actually writes are listed. A state nothing can
+ * reach is worse than no state at all: it reads as coverage in the UI while
+ * describing nothing, and the next person has to prove it is dead before they
+ * can remove it.
+ *
+ * The distinction that matters operationally is between a call the telephony
+ * path never carried and a call it carried but whose bookkeeping is
+ * incomplete. `accept_failed` and `route_failed` are the former — the caller
+ * heard nothing. `completed_no_transcript` is the latter — the caller had a
+ * conversation and we simply do not hold a record of it. Collapsing the two
+ * into `failed` is what made every real call in the console look broken.
+ */
 export const callStatusEnum = pgEnum('call_status', [
   'accepting',
   'ringing',
@@ -18,6 +33,9 @@ export const callStatusEnum = pgEnum('call_status', [
   'waiting_tool',
   'transferred',
   'completed',
+  'completed_no_transcript',
+  'route_failed',
+  'accept_failed',
   'failed',
   'abandoned',
 ])

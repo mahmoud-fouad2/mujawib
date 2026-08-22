@@ -33,6 +33,7 @@
     "voice:verify-privacy": "node --conditions=react-server --import tsx scripts/verify-voice-privacy.ts",
     "voice:verify-realtime": "tsx scripts/verify-realtime-events.ts",
     "voice:verify-session": "node --conditions=react-server --import tsx --env-file=.env.local scripts/verify-realtime-session.ts",
+    "calls:repair-reaped": "tsx --env-file=.env.local scripts/repair-reaped-calls.ts",
     "calls:verify-presentation": "tsx scripts/verify-call-presentation.ts",
     "calls:verify-intelligence": "tsx scripts/verify-call-intelligence.ts",
     "integrations:verify-contract": "tsx scripts/verify-integration-contract.ts",

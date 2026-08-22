@@ -1,7 +1,7 @@
 'use server'
 
 import { randomUUID } from 'crypto'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { OperatorPermission } from '@/lib/access'
@@ -18,6 +18,7 @@ import {
   agent,
   agentVersion,
   auditLog,
+  call,
   changeRequest,
   flow,
   integrationConnection,
@@ -27,6 +28,7 @@ import {
   salesInquiry,
   scenarioTest,
   workspace,
+  workspaceAccess,
 } from '@/server/db/schema'
 import { invokeIntegration } from '@/server/integrations/runtime'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
@@ -857,18 +859,40 @@ export async function deletePronunciation(pronunciationId: string): Promise<Acti
 
 /* ─── Clients ────────────────────────────────────────────────────────────── */
 
+const optionalPhone = z
+  .string()
+  .trim()
+  .max(20)
+  .refine((value) => !value || /^\+?[0-9\s-]{8,20}$/.test(value), 'رقم غير صحيح')
+  .optional()
+
 const clientSchema = z.object({
   workspaceId: z.string().min(1),
   name: z.string().trim().min(2, 'اسم الشركة مطلوب').max(160),
   status: z.enum(['discovery', 'setup', 'pilot', 'live', 'paused']),
+  legalName: z.string().trim().max(160).optional(),
+  industry: z.string().trim().max(80).optional(),
   city: z.string().trim().max(80).optional(),
-  hoursWeekday: z.string().trim().max(40).optional(),
-  transferTo: z
+  country: z.string().trim().max(80).optional(),
+  website: z
     .string()
     .trim()
-    .max(20)
-    .refine((value) => !value || /^\+?[0-9\s-]{8,20}$/.test(value), 'رقم التحويل غير صحيح')
+    .max(200)
+    .refine(
+      (value) => !value || /^https?:\/\/[^\s]+\.[^\s]{2,}$/i.test(value),
+      'رابط الموقع يجب أن يبدأ بـ http أو https',
+    )
     .optional(),
+  supportEmail: z
+    .string()
+    .trim()
+    .max(160)
+    .refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(value), 'بريد غير صحيح')
+    .optional(),
+  publicPhone: optionalPhone,
+  hoursWeekday: z.string().trim().max(40).optional(),
+  transferTo: optionalPhone,
+  notes: z.string().trim().max(1000).optional(),
 })
 
 const STATUS_LABEL: Record<string, string> = {
@@ -877,6 +901,7 @@ const STATUS_LABEL: Record<string, string> = {
   pilot: 'تجريبي',
   live: 'تشغيل',
   paused: 'موقوف',
+  archived: 'مؤرشف',
 }
 
 export async function updateClient(input: z.input<typeof clientSchema>): Promise<ActionResult> {
@@ -894,13 +919,29 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
     .limit(1)
   if (!row) return { ok: false, error: 'العميل غير موجود.' }
 
+  if (row.status === 'archived') {
+    return { ok: false, error: 'العميل مؤرشف. استعده أولًا قبل تعديل بياناته.' }
+  }
+
   const info = (row.businessInfo ?? {}) as Record<string, unknown>
   const hours = (info.hours ?? {}) as Record<string, string>
+
+  // An empty string is a cleared field, not "leave it as it was" — only an
+  // absent key falls back to the stored value.
+  const keep = (next: string | undefined, current: unknown) => (next === undefined ? current : next)
+
   const nextBusinessInfo = {
     ...info,
-    city: parsed.data.city ?? info.city,
+    legalName: keep(parsed.data.legalName, info.legalName),
+    industry: keep(parsed.data.industry, info.industry),
+    city: keep(parsed.data.city, info.city),
+    country: keep(parsed.data.country, info.country),
+    website: keep(parsed.data.website, info.website),
+    supportEmail: keep(parsed.data.supportEmail, info.supportEmail),
+    publicPhone: keep(parsed.data.publicPhone, info.publicPhone),
+    notes: keep(parsed.data.notes, info.notes),
     hours: { ...hours, sun_thu: parsed.data.hoursWeekday ?? hours.sun_thu },
-    transferTo: parsed.data.transferTo ?? info.transferTo,
+    transferTo: keep(parsed.data.transferTo, info.transferTo),
   }
 
   if (row.status !== 'live' && parsed.data.status === 'live') {
@@ -941,4 +982,502 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
   revalidatePath(`/console/clients/${row.slug}`)
   revalidatePath('/console')
   return { ok: true, message: `حُدّثت بيانات ${parsed.data.name}.` }
+}
+
+/* ─── Client lifecycle: archive, restore, delete ─────────────────────────── */
+
+/**
+ * What a permanent delete would destroy.
+ *
+ * Counted from the database rather than estimated, and shown before the
+ * confirmation. "Delete this client" reads as a small act until you see that
+ * it also means several thousand call records; an operator who can see the
+ * number can decide whether archiving is what they actually wanted.
+ */
+export type ClientDeletionImpact = {
+  workspaceId: string
+  name: string
+  agents: number
+  versions: number
+  calls: number
+  liveCalls: number
+  phoneNumbers: number
+  activeRoutes: number
+  integrations: number
+  users: number
+  requests: number
+}
+
+const TALLY = { n: sql<number>`count(*)`.mapWith(Number) }
+
+async function countRows(query: PromiseLike<{ n: number }[]>): Promise<number> {
+  return (await query)[0]?.n ?? 0
+}
+
+export async function getClientDeletionImpact(
+  workspaceId: string,
+): Promise<ActionResult<ClientDeletionImpact>> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const [row] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+
+  const [agents, versions, calls, liveCalls, phones, activeRoutes, integrations, users, requests] =
+    await Promise.all([
+      countRows(db.select(TALLY).from(agent).where(eq(agent.workspaceId, workspaceId))),
+      countRows(
+        db
+          .select(TALLY)
+          .from(agentVersion)
+          .innerJoin(agent, eq(agentVersion.agentId, agent.id))
+          .where(eq(agent.workspaceId, workspaceId)),
+      ),
+      countRows(db.select(TALLY).from(call).where(eq(call.workspaceId, workspaceId))),
+      countRows(
+        db
+          .select(TALLY)
+          .from(call)
+          .where(
+            and(eq(call.workspaceId, workspaceId), inArray(call.status, ['live', 'waiting_tool'])),
+          ),
+      ),
+      countRows(db.select(TALLY).from(phoneNumber).where(eq(phoneNumber.workspaceId, workspaceId))),
+      countRows(
+        db
+          .select(TALLY)
+          .from(phoneNumber)
+          .where(
+            and(
+              eq(phoneNumber.workspaceId, workspaceId),
+              inArray(phoneNumber.sipStatus, ['verified', 'active']),
+            ),
+          ),
+      ),
+      countRows(
+        db
+          .select(TALLY)
+          .from(integrationConnection)
+          .where(eq(integrationConnection.workspaceId, workspaceId)),
+      ),
+      countRows(
+        db.select(TALLY).from(workspaceAccess).where(eq(workspaceAccess.workspaceId, workspaceId)),
+      ),
+      countRows(
+        db.select(TALLY).from(changeRequest).where(eq(changeRequest.workspaceId, workspaceId)),
+      ),
+    ])
+
+  return {
+    ok: true,
+    message: 'حُسبت السجلات المرتبطة.',
+    data: {
+      workspaceId,
+      name: row.name,
+      agents,
+      versions,
+      calls,
+      liveCalls,
+      phoneNumbers: phones,
+      activeRoutes,
+      integrations,
+      users,
+      requests,
+    },
+  }
+}
+
+/**
+ * Takes a client out of service without destroying anything.
+ *
+ * Archiving disables its phone routes too. A number that still rings through
+ * to an archived client is the worst of both worlds: invisible in every
+ * console view, and answering real callers.
+ */
+export async function archiveClient(workspaceId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const [row] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+  if (row.type === 'operator') return { ok: false, error: 'لا يمكن أرشفة مساحة عمل المنصة.' }
+  if (row.status === 'archived') return { ok: false, error: 'العميل مؤرشف بالفعل.' }
+
+  const liveCalls = await countRows(
+    db
+      .select(TALLY)
+      .from(call)
+      .where(
+        and(eq(call.workspaceId, workspaceId), inArray(call.status, ['live', 'waiting_tool'])),
+      ),
+  )
+  if (liveCalls > 0) {
+    return {
+      ok: false,
+      error: `لدى العميل ${liveCalls} مكالمة جارية. انتظر انتهاءها ثم أعد المحاولة.`,
+    }
+  }
+
+  const now = new Date()
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workspace)
+      .set({ status: 'archived', updatedAt: now })
+      .where(eq(workspace.id, workspaceId))
+    await tx
+      .update(phoneNumber)
+      .set({ sipStatus: 'disabled', updatedAt: now })
+      .where(eq(phoneNumber.workspaceId, workspaceId))
+  })
+
+  await audit({
+    workspaceId,
+    action: 'client.archive',
+    resourceType: 'workspace',
+    resourceId: workspaceId,
+    note: `أُرشف «${row.name}» وعُطّلت أرقامه`,
+  })
+
+  revalidatePath('/console/clients')
+  revalidatePath(`/console/clients/${row.slug}`)
+  revalidatePath('/console/phone')
+  return { ok: true, message: `أُرشف «${row.name}». بياناته محفوظة ويمكن استعادته.` }
+}
+
+/**
+ * Brings an archived client back, paused rather than live.
+ *
+ * Its phone routes stay disabled: the archive switched them off, and turning
+ * them back on is a decision about answering real callers that belongs to the
+ * phone screen, not to a restore button.
+ */
+export async function restoreClient(workspaceId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const [row] = await db.select().from(workspace).where(eq(workspace.id, workspaceId)).limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+  if (row.status !== 'archived') return { ok: false, error: 'العميل غير مؤرشف.' }
+
+  await db
+    .update(workspace)
+    .set({ status: 'paused', updatedAt: new Date() })
+    .where(eq(workspace.id, workspaceId))
+
+  await audit({
+    workspaceId,
+    action: 'client.restore',
+    resourceType: 'workspace',
+    resourceId: workspaceId,
+    note: `استُعيد «${row.name}» بحالة موقوف`,
+  })
+
+  revalidatePath('/console/clients')
+  revalidatePath(`/console/clients/${row.slug}`)
+  return {
+    ok: true,
+    message: `استُعيد «${row.name}» بحالة موقوف. فعّل أرقامه من شاشة الهاتف عند الجاهزية.`,
+  }
+}
+
+const deleteClientSchema = z.object({
+  workspaceId: z.string().min(1),
+  /** The operator retypes the exact client name. Nothing else unlocks this. */
+  confirmation: z.string().trim().min(1),
+})
+
+/**
+ * Destroys a client and everything that references it.
+ *
+ * Restricted to the platform owner, gated behind retyping the client's exact
+ * name, and refused outright while a call is in progress. Every other path
+ * here prefers archiving; this exists for what archiving cannot answer, such
+ * as a client who asks to be erased.
+ */
+export async function deleteClientPermanently(
+  input: z.input<typeof deleteClientSchema>,
+): Promise<ActionResult> {
+  const access = await authorizeOperator('client.manage')
+  if (!access) return { ok: false, error: 'لا تملك صلاحية تنفيذ هذا الإجراء.' }
+  if (access.role !== 'owner') {
+    return {
+      ok: false,
+      error: 'الحذف النهائي متاح لمالك المنصة فقط. يمكنك أرشفة العميل بدلًا منه.',
+    }
+  }
+
+  const parsed = deleteClientSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'بيانات غير صحيحة.' }
+
+  const [row] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, parsed.data.workspaceId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+  if (row.type === 'operator') return { ok: false, error: 'لا يمكن حذف مساحة عمل المنصة.' }
+  if (parsed.data.confirmation !== row.name) {
+    return { ok: false, error: 'الاسم المكتوب لا يطابق اسم العميل. لم يُحذف شيء.' }
+  }
+
+  const liveCalls = await countRows(
+    db
+      .select(TALLY)
+      .from(call)
+      .where(
+        and(
+          eq(call.workspaceId, parsed.data.workspaceId),
+          inArray(call.status, ['live', 'waiting_tool']),
+        ),
+      ),
+  )
+  if (liveCalls > 0) return { ok: false, error: 'لا يمكن الحذف أثناء وجود مكالمة جارية.' }
+
+  // Written before the delete: afterwards there is no workspace row left to
+  // hang an audit entry on, and this is the one action worth looking up later.
+  await audit({
+    workspaceId: null,
+    action: 'client.delete',
+    resourceType: 'workspace',
+    resourceId: row.id,
+    note: `حذف نهائي لـ «${row.name}» (${row.slug})`,
+  })
+
+  // Every child table cascades from workspace.
+  await db.delete(workspace).where(eq(workspace.id, parsed.data.workspaceId))
+
+  revalidatePath('/console/clients')
+  revalidatePath('/console')
+  revalidatePath('/console/phone')
+  return { ok: true, message: `حُذف «${row.name}» نهائيًا.` }
+}
+
+/* ─── Phone reassignment ─────────────────────────────────────────────────── */
+
+/** One client's assignable voice employees, for the reassignment picker. */
+export type ReassignTarget = {
+  workspaceId: string
+  workspaceName: string
+  slug: string
+  status: string
+  agents: {
+    agentId: string
+    agentName: string
+    versionId: string | null
+    versionNumber: number | null
+    publishable: boolean
+  }[]
+}
+
+/**
+ * Everywhere a DID could legitimately be pointed.
+ *
+ * Only clients that are not archived, and within them only agents carrying a
+ * published version, can receive a route — the same rule the inbound webhook
+ * applies. Agents without one are still listed, marked unpublishable, so the
+ * operator sees why the option is unavailable rather than wondering where the
+ * voice employee they just created went.
+ */
+export async function getReassignTargets(): Promise<ActionResult<ReassignTarget[]>> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
+
+  const rows = await db
+    .select({
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      slug: workspace.slug,
+      status: workspace.status,
+      agentId: agent.id,
+      agentName: agent.name,
+      liveVersionId: agent.liveVersionId,
+      versionNumber: agentVersion.versionNumber,
+      versionStatus: agentVersion.status,
+    })
+    .from(workspace)
+    .leftJoin(agent, eq(agent.workspaceId, workspace.id))
+    .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+    .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'archived')))
+    .orderBy(workspace.name, agent.name)
+
+  const byWorkspace = new Map<string, ReassignTarget>()
+  for (const row of rows) {
+    let target = byWorkspace.get(row.workspaceId)
+    if (!target) {
+      target = {
+        workspaceId: row.workspaceId,
+        workspaceName: row.workspaceName,
+        slug: row.slug,
+        status: row.status,
+        agents: [],
+      }
+      byWorkspace.set(row.workspaceId, target)
+    }
+    if (!row.agentId) continue
+    target.agents.push({
+      agentId: row.agentId,
+      agentName: row.agentName ?? '—',
+      versionId: row.liveVersionId,
+      versionNumber: row.versionNumber,
+      publishable: Boolean(row.liveVersionId) && row.versionStatus === 'published',
+    })
+  }
+
+  return { ok: true, message: 'جاهز.', data: [...byWorkspace.values()] }
+}
+
+const reassignSchema = z.object({
+  phoneId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  agentId: z.string().min(1),
+})
+
+/**
+ * Points an existing DID at a different client and voice employee.
+ *
+ * This is the operation the console was missing: a number could be created
+ * against a client and its routing mode edited, but never moved, so testing
+ * how a second client answers meant editing the database by hand.
+ *
+ * Three things make it safe to run against production:
+ *
+ * A DID has exactly one route. `phone_number.e164` is unique, and this moves
+ * that single row rather than adding a second one, so a number can never be
+ * pointed at two clients at once — which would make which agent answers a race.
+ *
+ * The target must be able to answer. The agent has to belong to the chosen
+ * client and carry a published version, the same condition the inbound webhook
+ * checks; refusing here means the operator finds out now rather than when a
+ * caller hears silence.
+ *
+ * Verification does not survive the move. The number was proved against a
+ * different client's agent, and that evidence says nothing about the new one,
+ * so it returns to `pending` and has to earn `verified` with a real call
+ * again. Carrying the old badge across would be the exact thing the phone
+ * lifecycle exists to prevent.
+ */
+export async function reassignPhoneNumber(
+  input: z.input<typeof reassignSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
+
+  const parsed = reassignSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'بيانات غير صحيحة.' }
+
+  const [row] = await db
+    .select()
+    .from(phoneNumber)
+    .where(eq(phoneNumber.id, parsed.data.phoneId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'الرقم غير موجود.' }
+
+  const [target] = await db
+    .select({
+      workspaceName: workspace.name,
+      workspaceStatus: workspace.status,
+      workspaceSlug: workspace.slug,
+      agentId: agent.id,
+      agentName: agent.name,
+      liveVersionId: agent.liveVersionId,
+      versionNumber: agentVersion.versionNumber,
+      versionStatus: agentVersion.status,
+    })
+    .from(agent)
+    .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+    .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+    .where(and(eq(agent.id, parsed.data.agentId), eq(agent.workspaceId, parsed.data.workspaceId)))
+    .limit(1)
+
+  if (!target) return { ok: false, error: 'الموظف الصوتي لا يتبع العميل المختار.' }
+  if (target.workspaceStatus === 'archived') {
+    return { ok: false, error: 'لا يمكن توجيه رقم إلى عميل مؤرشف.' }
+  }
+  if (!target.liveVersionId || target.versionStatus !== 'published') {
+    return {
+      ok: false,
+      error: `«${target.agentName}» ليس لديه نسخة منشورة. انشر نسخة أولًا حتى يستطيع الرد.`,
+    }
+  }
+
+  const liveCalls = await countRows(
+    db
+      .select(TALLY)
+      .from(call)
+      .where(and(eq(call.phoneNumberId, row.id), inArray(call.status, ['live', 'waiting_tool']))),
+  )
+  if (liveCalls > 0) {
+    return { ok: false, error: 'الرقم عليه مكالمة جارية الآن. انتظر انتهاءها ثم أعد التوجيه.' }
+  }
+
+  const unchanged =
+    row.workspaceId === parsed.data.workspaceId && row.agentId === parsed.data.agentId
+  if (unchanged) return { ok: false, error: 'الرقم موجّه بالفعل إلى هذا الموظف.' }
+
+  const [previous] = await db
+    .select({ workspaceName: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, row.workspaceId))
+    .limit(1)
+
+  const now = new Date()
+  const rules = (row.routingRules ?? {}) as Record<string, unknown>
+  const history = Array.isArray(rules.history) ? (rules.history as unknown[]) : []
+
+  await db
+    .update(phoneNumber)
+    .set({
+      workspaceId: parsed.data.workspaceId,
+      agentId: parsed.data.agentId,
+      // The move invalidates what the old route proved.
+      sipStatus: 'pending',
+      verifiedAt: null,
+      verificationEvidence: null,
+      // Escalation belonged to the previous client's team.
+      transferDestination: null,
+      routingRules: {
+        ...rules,
+        history: [
+          ...history.slice(-19),
+          {
+            at: now.toISOString(),
+            fromWorkspaceId: row.workspaceId,
+            fromWorkspaceName: previous?.workspaceName ?? null,
+            fromAgentId: row.agentId,
+            toWorkspaceId: parsed.data.workspaceId,
+            toWorkspaceName: target.workspaceName,
+            toAgentId: parsed.data.agentId,
+            toAgentName: target.agentName,
+            toVersionNumber: target.versionNumber,
+          },
+        ],
+      },
+      updatedAt: now,
+    })
+    .where(eq(phoneNumber.id, row.id))
+
+  // Recorded against both sides: the client that lost the number and the one
+  // that gained it each need it in their own trail.
+  await audit({
+    workspaceId: row.workspaceId,
+    action: 'phone.reassigned_away',
+    resourceType: 'phone_number',
+    resourceId: row.id,
+    note: `نُقل ${row.e164} إلى ${target.workspaceName}`,
+  })
+  await audit({
+    workspaceId: parsed.data.workspaceId,
+    action: 'phone.reassigned_to',
+    resourceType: 'phone_number',
+    resourceId: row.id,
+    note: `استلم ${row.e164} من ${previous?.workspaceName ?? 'عميل سابق'} — ${target.agentName} v${target.versionNumber}`,
+  })
+
+  revalidatePath('/console/phone')
+  revalidatePath(`/console/phone/${row.id}`)
+  revalidatePath('/console/clients')
+  return {
+    ok: true,
+    message: `${row.e164} يرد عليه الآن «${target.agentName}» لدى ${target.workspaceName}. اتصل بالرقم لإعادة توثيق المسار.`,
+  }
 }

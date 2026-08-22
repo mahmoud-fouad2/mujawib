@@ -1211,7 +1211,7 @@ export async function getPhoneNumbers() {
         select max(${call.startedAt}) from ${call}
         where ${call.phoneNumberId} = ${phoneNumber.id}
           and ${call.origin} = 'live'
-          and ${call.status} <> 'failed'
+          and ${call.status} not in ('failed', 'accept_failed', 'route_failed')
       )`,
       calls30d: sql<number>`(
         select count(*) from ${call}
@@ -1252,7 +1252,7 @@ export async function getPhoneNumberDetail(phoneId: string) {
         select max(${call.startedAt}) from ${call}
         where ${call.phoneNumberId} = ${phoneNumber.id}
           and ${call.origin} = 'live'
-          and ${call.status} <> 'failed'
+          and ${call.status} not in ('failed', 'accept_failed', 'route_failed')
       )`,
     })
     .from(phoneNumber)

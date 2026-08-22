@@ -12,12 +12,20 @@ import {
 import { organization, user } from './auth-schema'
 
 export const workspaceTypeEnum = pgEnum('workspace_type', ['operator', 'client'])
+/**
+ * `archived` is the resting place for a client that has left, and the default
+ * answer to "delete this client". It keeps the calls, versions and audit trail
+ * intact and readable while removing the workspace from every operational
+ * view. Permanent deletion stays available, but it is a separate, deliberate
+ * act rather than the easy one.
+ */
 export const workspaceStatusEnum = pgEnum('workspace_status', [
   'discovery',
   'setup',
   'pilot',
   'live',
   'paused',
+  'archived',
 ])
 
 /** Client company / tenant workspace */

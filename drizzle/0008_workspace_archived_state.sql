@@ -1,0 +1,1 @@
+ALTER TYPE "public"."workspace_status" ADD VALUE 'archived';

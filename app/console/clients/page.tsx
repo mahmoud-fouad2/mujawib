@@ -1,10 +1,15 @@
 import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ClientRowActions } from '@/components/console/client-actions'
+import {
+  type ClientBusinessInfo,
+  ClientRowActions,
+  clientEditable,
+} from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { Pill } from '@/components/ui/primitives'
 import { num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
+import { requireOperatorPage } from '@/server/auth/access'
 import { getClients } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'العملاء' }
@@ -18,7 +23,13 @@ const PACK_LABEL: Record<string, string> = {
 }
 
 export default async function ClientsPage() {
-  const clients = await getClients()
+  const [clients, access] = await Promise.all([
+    getClients(),
+    requireOperatorPage('/console/clients'),
+  ])
+  // Permanent deletion is the owner's alone; everyone else sees it disabled
+  // with the reason rather than not at all.
+  const canDelete = access.role === 'owner'
   const live = clients.filter((c) => c.status === 'live').length
   const calls30d = clients.reduce((s, c) => s + c.calls30d, 0)
   const bookings30d = clients.reduce((s, c) => s + c.bookings30d, 0)
@@ -67,11 +78,7 @@ export default async function ClientsPage() {
             </thead>
             <tbody>
               {clients.map((c) => {
-                const info = (c.businessInfo ?? {}) as {
-                  city?: string
-                  hours?: { sun_thu?: string }
-                  transferTo?: string
-                }
+                const info = (c.businessInfo ?? {}) as ClientBusinessInfo
                 return (
                   <tr key={c.id}>
                     <td style={{ fontWeight: 500 }}>
@@ -98,14 +105,7 @@ export default async function ClientsPage() {
                     </td>
                     <td className="muted">{relative(c.createdAt)}</td>
                     <td>
-                      <ClientRowActions
-                        workspaceId={c.id}
-                        name={c.name}
-                        status={c.status}
-                        city={info.city ?? ''}
-                        hoursWeekday={info.hours?.sun_thu ?? ''}
-                        transferTo={info.transferTo ?? ''}
-                      />
+                      <ClientRowActions client={clientEditable(c, info)} canDelete={canDelete} />
                     </td>
                   </tr>
                 )

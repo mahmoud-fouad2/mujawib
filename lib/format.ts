@@ -81,13 +81,28 @@ export function maskPhone(e164: string | null | undefined): string {
 /* ─── domain vocabulary ─────────────────────────────────────────────────── */
 
 export const CALL_STATUS_LABEL: Record<string, string> = {
+  accepting: 'قيد القبول',
   ringing: 'يرن',
   live: 'مباشرة',
   waiting_tool: 'بانتظار أداة',
   transferred: 'محوّلة',
   completed: 'مكتملة',
+  completed_no_transcript: 'مكتملة بدون نص حوار',
+  route_failed: 'فشل تحديد المسار',
+  accept_failed: 'فشل قبول المكالمة',
   failed: 'فشلت',
   abandoned: 'مقطوعة',
+}
+
+/** True when the telephony path carried the call, whatever the record shows. */
+export function callWasAnswered(status: string): boolean {
+  return (
+    status === 'live' ||
+    status === 'waiting_tool' ||
+    status === 'transferred' ||
+    status === 'completed' ||
+    status === 'completed_no_transcript'
+  )
 }
 
 export const CALL_OUTCOME_LABEL: Record<string, string> = {
@@ -176,18 +191,28 @@ export function outcomeTone(outcome: string | null): Tone {
   }
 }
 
+/**
+ * `completed_no_transcript` is amber rather than red on purpose. The caller
+ * reached the agent and the conversation happened; what is missing is our
+ * transcript. Painting it red made a working telephony path look like an
+ * outage, and left no colour free to mean "the caller heard nothing".
+ */
 export function statusTone(status: string): Tone {
   switch (status) {
     case 'live':
     case 'ringing':
+    case 'accepting':
       return 'signal'
     case 'completed':
       return 'good'
     case 'waiting_tool':
     case 'transferred':
-      return 'warn'
-    case 'failed':
+    case 'completed_no_transcript':
     case 'abandoned':
+      return 'warn'
+    case 'route_failed':
+    case 'accept_failed':
+    case 'failed':
       return 'bad'
     default:
       return 'neutral'
@@ -215,6 +240,49 @@ export function workspaceTone(status: string): Tone {
       return 'signal'
     case 'paused':
       return 'bad'
+    default:
+      return 'warn'
+  }
+}
+
+/**
+ * The phone lifecycle, in the operator's words.
+ *
+ * The console previously showed only "موثّق" or "بانتظار اختبار", which
+ * collapsed the two states that need different actions: a number no call has
+ * ever reached, and one calls reach but we cannot answer. Those are a carrier
+ * problem and a platform problem respectively.
+ */
+export const PHONE_LIFECYCLE_LABEL: Record<string, string> = {
+  pending: 'بانتظار أول مكالمة',
+  verifying: 'وصلت مكالمة ولم يُرد عليها',
+  verified: 'موثّق بمكالمة حقيقية',
+  active: 'يعمل ويستقبل مكالمات',
+  degraded: 'متعثر',
+  disabled: 'معطّل',
+}
+
+/** What to do next about a number, given where it is in its lifecycle. */
+export const PHONE_LIFECYCLE_HINT: Record<string, string> = {
+  pending: 'لم تصل أي مكالمة بعد — راجع تحويل الرقم عند مزوّد الاتصال.',
+  verifying: 'المكالمة تصل إلى المنصة لكن تعذّر الرد — راجع سجل القبول.',
+  verified: 'المسار مثبت بمكالمة حقيقية واحدة على الأقل.',
+  active: 'الرقم يستقبل المكالمات بشكل منتظم.',
+  degraded: 'المسار كان يعمل ثم تعثر — راجع آخر خطأ.',
+  disabled: 'المسار موقوف يدويًا ولا يستقبل مكالمات.',
+}
+
+export function phoneLifecycleTone(status: string | null): Tone {
+  switch (status) {
+    case 'active':
+    case 'verified':
+      return 'good'
+    case 'verifying':
+      return 'warn'
+    case 'degraded':
+      return 'bad'
+    case 'disabled':
+      return 'neutral'
     default:
       return 'warn'
   }

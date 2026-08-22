@@ -582,12 +582,15 @@
   color: var(--text);
 }
 
+/*
+ * Rendered into a portal on <body> and positioned in viewport coordinates by
+ * the component, so no table's `overflow` can clip it. `left`/`top` are set
+ * inline; they are physical on purpose — the component has already resolved
+ * the writing direction when it measured the trigger.
+ */
 .row-actions__menu {
-  position: absolute;
-  inset-block-start: calc(100% + 4px);
-  inset-inline-end: 0;
-  z-index: 40;
-  min-inline-size: 210px;
+  position: fixed;
+  z-index: 120;
   padding: 5px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
@@ -599,6 +602,7 @@
 .row-actions__item {
   display: flex;
   align-items: center;
+  text-decoration: none;
   gap: var(--s-3);
   inline-size: 100%;
   padding: 8px 10px;
@@ -1009,4 +1013,116 @@
   .readiness-step__owner {
     grid-column: 2;
   }
+}
+
+/* ─── sheet sections ───────────────────────────────────────────────────── */
+
+/*
+ * A long edit form needs headings, not a run of twelve identical inputs. The
+ * groups match how an operator thinks about a client — who they are, how they
+ * run, how to reach them — so the field you want is findable by section.
+ */
+.sheet__group + .sheet__group {
+  margin-block-start: var(--s-6);
+  padding-block-start: var(--s-5);
+  border-block-start: 1px solid var(--line);
+}
+
+.sheet__group > h3 {
+  margin-block-end: var(--s-4);
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.sheet__lead {
+  margin-block-end: var(--s-4);
+  font-size: var(--step--1);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+/* ─── deletion impact ──────────────────────────────────────────────────── */
+
+/*
+ * The record count stands opposite its label so the numbers form a column the
+ * eye can run down. Someone about to delete a client should be able to see
+ * "3,059 calls" without reading a sentence.
+ */
+.impact-list {
+  display: grid;
+  gap: 1px;
+  margin-block-end: var(--s-5);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--line);
+  overflow: hidden;
+  list-style: none;
+}
+
+.impact-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: 9px var(--s-4);
+  background: var(--surface);
+  font-size: var(--step--1);
+}
+
+.impact-list li > span {
+  color: var(--text-muted);
+}
+
+.impact-list li > strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ─── route state ──────────────────────────────────────────────────────── */
+
+.route-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/*
+ * The status alone says what is true; the marker beside it carries why, and
+ * what to do about it. Two of the six states are failures with different
+ * causes, and an operator should not have to guess which.
+ */
+.route-state__why {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-faint);
+  cursor: help;
+}
+
+.route-state__why:hover {
+  color: var(--text-muted);
+}
+
+.route-now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-block-end: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--raised);
+  font-size: var(--step--1);
+}
+
+.route-now dt {
+  color: var(--text-faint);
+}
+
+.route-now dd {
+  margin: 0;
+  font-weight: 500;
+  color: var(--text);
 }

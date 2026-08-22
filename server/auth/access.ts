@@ -31,6 +31,13 @@ export type PortalAccess = {
   name: string
   role: string
   workspace: typeof workspace.$inferSelect
+  /**
+   * True when an operator is looking at a client's portal rather than the
+   * client themselves. The portal must say so on screen: the two look
+   * identical otherwise, and an operator who forgets which one they are in
+   * will read "your calls" as their own.
+   */
+  viewingAsOperator?: boolean
 }
 
 export const PORTAL_WORKSPACE_COOKIE = 'mujawib.portal-workspace'
@@ -134,8 +141,50 @@ export async function getPortalAccess(slug?: string): Promise<PortalAccess | nul
   if (!session) return null
   const selectedSlug = slug ?? (await cookies()).get(PORTAL_WORKSPACE_COOKIE)?.value
   const access = await portalAccessForUser(session.user.id, selectedSlug)
-  const fallback = access ?? (selectedSlug ? await portalAccessForUser(session.user.id) : null)
+  const fallback =
+    access ??
+    (selectedSlug ? await portalAccessForUser(session.user.id) : null) ??
+    (await operatorPortalView(session.user.id, selectedSlug))
   return fallback ? { ...fallback, email: session.user.email, name: session.user.name } : null
+}
+
+/**
+ * Lets an operator open a client's portal without holding a client role.
+ *
+ * The platform owner could see every one of a client's calls in the console
+ * yet was refused their portal, because portal access was keyed purely on a
+ * client role in a client workspace. That made "open their portal" — the
+ * fastest way to answer "what is the customer actually seeing?" — impossible
+ * for the person running the platform.
+ *
+ * The view is read-only. It borrows the lowest client role rather than an
+ * administrative one, so an operator can look but cannot file requests or
+ * change business data as if they were the customer, and the returned access
+ * is flagged so the portal can label itself.
+ */
+async function operatorPortalView(
+  userId: string,
+  slug: string | undefined,
+): Promise<PortalAccess | null> {
+  const operator = await operatorAccessForUser(userId)
+  if (!operator || !canOperator(operator.role, 'client.manage')) return null
+
+  const [row] = await db
+    .select()
+    .from(workspace)
+    .where(and(eq(workspace.type, 'client'), slug ? eq(workspace.slug, slug) : undefined))
+    .orderBy(workspace.name)
+    .limit(1)
+  if (!row) return null
+
+  return {
+    userId,
+    email: '',
+    name: '',
+    role: 'client_read_only',
+    workspace: row,
+    viewingAsOperator: true,
+  }
 }
 
 export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAccess> {
@@ -144,7 +193,8 @@ export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAcc
   const selectedSlug = (await cookies()).get(PORTAL_WORKSPACE_COOKIE)?.value
   const access =
     (await portalAccessForUser(session.user.id, selectedSlug)) ??
-    (selectedSlug ? await portalAccessForUser(session.user.id) : null)
+    (selectedSlug ? await portalAccessForUser(session.user.id) : null) ??
+    (await operatorPortalView(session.user.id, selectedSlug))
   if (!access || !canClient(access.role, 'portal.view')) {
     redirect('/access-denied?area=portal')
   }

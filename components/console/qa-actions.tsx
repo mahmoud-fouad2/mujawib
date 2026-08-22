@@ -1,7 +1,6 @@
 'use client'
 
 import { Check, ExternalLink, RotateCcw } from 'lucide-react'
-import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/overlays'
@@ -50,8 +49,8 @@ export function QaRowActions({
           إعادة الفتح
         </RowAction>
         <RowActionSeparator />
-        <RowAction icon={<ExternalLink size={15} />} onClick={() => {}}>
-          <Link href={`/console/calls?call=${callId}`}>فتح المكالمة</Link>
+        <RowAction icon={<ExternalLink size={15} />} href={`/console/calls?call=${callId}`}>
+          فتح المكالمة
         </RowAction>
       </RowActions>
 

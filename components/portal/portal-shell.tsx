@@ -2,6 +2,7 @@
 
 import {
   CalendarCheck,
+  Eye,
   FileText,
   Home,
   Menu,
@@ -46,6 +47,7 @@ export function PortalShell({
   user,
   health,
   notifications,
+  viewingAsOperator,
 }: {
   children: ReactNode
   workspaceId: string
@@ -55,6 +57,8 @@ export function PortalShell({
   user: { name: string; email: string }
   health: { state: 'excellent' | 'needs_attention'; label: string }
   notifications: NotificationFeed
+  /** Set when a MUJAWIB operator is viewing, not the client themselves. */
+  viewingAsOperator?: boolean
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
@@ -67,7 +71,21 @@ export function PortalShell({
   }, [pathname])
 
   return (
-    <div className="shell">
+    <div className="shell" data-operator-view={viewingAsOperator ? 'true' : undefined}>
+      {/*
+        Stated plainly and permanently. The portal is identical whoever opens
+        it, and an operator reading "مكالماتك" without this banner would be
+        reading the client's numbers as their own.
+      */}
+      {viewingAsOperator ? (
+        <div className="operator-view-bar" role="status">
+          <Eye size={14} aria-hidden="true" />
+          <span>
+            تعرض بوابة <strong>{workspaceName}</strong> بصفتك فريق مُجاوِب — قراءة فقط.
+          </span>
+          <Link href="/console/clients">عودة إلى لوحة التشغيل</Link>
+        </div>
+      ) : null}
       <aside className="sidebar" data-open={open}>
         <div className="sidebar__brand">
           <Link href="/portal" aria-label="مُجاوِب — بوابة العميل">

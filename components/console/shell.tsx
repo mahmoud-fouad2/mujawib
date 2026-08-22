@@ -8,8 +8,8 @@ import {
   LayoutGrid,
   Menu,
   Moon,
-  PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
   Phone,
   Plug,
   Radio,
@@ -54,6 +54,8 @@ const ICONS: Record<NavIconKey, typeof Home> = {
 
 export type NavCounts = { live: number; review: number }
 
+const SIDEBAR_PIN_KEY = 'mujawib.sidebar.pin'
+
 export function ConsoleShell({
   children,
   counts,
@@ -71,18 +73,42 @@ export function ConsoleShell({
 }) {
   const pathname = usePathname()
   const { mode, toggle } = useTheme()
-  const [collapsed, setCollapsed] = useState(false)
+  /**
+   * Pinned open is the operator's stated preference; the rail is the default.
+   * `null` means we have not read the stored preference yet, which keeps the
+   * first client render identical to the server's and avoids a hydration
+   * mismatch on an element as large as the sidebar.
+   */
+  const [pinned, setPinned] = useState<boolean | null>(null)
+  /** Transient expansion from pointer or keyboard — never persisted. */
+  const [peeking, setPeeking] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
-  // Collapse to icons on laptop widths — Bible §6.
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1280px)')
-    const sync = () => setCollapsed(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
+    const stored = window.localStorage.getItem(SIDEBAR_PIN_KEY)
+    if (stored === 'pinned' || stored === 'rail') {
+      setPinned(stored === 'pinned')
+      return
+    }
+    // No preference yet: pin on displays with room to spare, rail otherwise.
+    setPinned(window.matchMedia('(min-width: 1440px)').matches)
   }, [])
+
+  const togglePin = useCallback(() => {
+    setPinned((current) => {
+      const next = !current
+      window.localStorage.setItem(SIDEBAR_PIN_KEY, next ? 'pinned' : 'rail')
+      // Peeking would otherwise keep the rail open right after unpinning.
+      if (!next) setPeeking(false)
+      return next
+    })
+  }, [])
+
+  const rail = pinned === false
+  // Expanded while peeking, but the layout still reserves only the rail's
+  // width, so the page underneath never reflows as it opens.
+  const expanded = pinned === true || peeking
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -103,19 +129,38 @@ export function ConsoleShell({
   }, [])
 
   return (
-    <div className="shell" data-collapsed={collapsed}>
-      <aside className="sidebar" data-open={mobileOpen}>
+    <div className="shell" data-rail={rail} data-expanded={expanded}>
+      <aside
+        className="sidebar"
+        data-open={mobileOpen}
+        // Pointer and keyboard both expand the rail. `focus-within` alone
+        // would miss the pointer, and hover alone would strand keyboard users
+        // on a strip of unlabelled icons.
+        onMouseEnter={() => rail && setPeeking(true)}
+        onMouseLeave={() => setPeeking(false)}
+        onFocus={() => rail && setPeeking(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPeeking(false)
+        }}
+      >
         <div className="sidebar__brand">
           <Link href="/console" aria-label="مُجاوِب — لوحة التشغيل">
-            {collapsed ? <LogoMark size={30} /> : <Logo size="md" />}
+            <span className="sidebar__mark">
+              <LogoMark size={30} />
+            </span>
+            <span className="sidebar__wordmark">
+              <Logo size="md" />
+            </span>
           </Link>
           <button
             type="button"
-            className="icon-btn"
-            onClick={() => setCollapsed((v) => !v)}
-            aria-label={collapsed ? 'توسيع الشريط الجانبي' : 'طي الشريط الجانبي'}
+            className="icon-btn sidebar__pin"
+            onClick={togglePin}
+            aria-pressed={pinned === true}
+            title={rail ? 'تثبيت الشريط مفتوحًا' : 'طي الشريط إلى أيقونات'}
+            aria-label={rail ? 'تثبيت الشريط مفتوحًا' : 'طي الشريط إلى أيقونات'}
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {rail ? <PanelLeftOpen size={16} /> : <PanelRightClose size={16} />}
           </button>
         </div>
 
@@ -138,14 +183,17 @@ export function ConsoleShell({
                       key={item.id}
                       href={item.href}
                       className="nav-item"
-                      title={collapsed ? item.label : undefined}
                       {...(active ? { 'aria-current': 'page' as const } : {})}
                     >
                       <Icon size={16} aria-hidden="true" />
-                      <span>{item.label}</span>
+                      <span className="nav-item__label">{item.label}</span>
                       {item.badge && count > 0 ? (
                         <span className="nav-item__count">{num(count)}</span>
                       ) : null}
+                      {/* Shown by CSS only while the rail is closed. */}
+                      <span className="nav-item__tip" aria-hidden="true">
+                        {item.label}
+                      </span>
                     </Link>
                   )
                 })}
@@ -156,7 +204,10 @@ export function ConsoleShell({
         <div className="sidebar__foot">
           <Link href="/portal" className="nav-item">
             <Users size={16} aria-hidden="true" />
-            <span>بوابة العميل</span>
+            <span className="nav-item__label">بوابة العميل</span>
+            <span className="nav-item__tip" aria-hidden="true">
+              بوابة العميل
+            </span>
           </Link>
         </div>
       </aside>
