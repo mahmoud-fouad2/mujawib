@@ -15,9 +15,9 @@ minimumReleaseAgeExclude:
 # Native post-install scripts pnpm is allowed to run.
 #   esbuild — backs tsx, used by `pnpm db:seed`
 #   sharp   — Next's image optimiser
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
+allowBuilds:
+  esbuild: true
+  sharp: true
 
 # Refuse an install when an unreviewed dependency asks to run a build script.
 strictDepBuilds: true
