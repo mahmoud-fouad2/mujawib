@@ -1,3 +1,4 @@
+import { CircleAlert, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import { MetricStrip, PageHead, Section } from '@/components/console/ui'
 import { clock, fullDate, num, relative } from '@/lib/format'
@@ -11,10 +12,13 @@ const ACTION_LABEL: Record<string, string> = {
   'integration.connect': 'ربط تكامل',
   'phone.route_change': 'تغيير مسار رقم',
   'qa.review': 'مراجعة جودة',
+  'system.secret_baseline': 'تسجيل مرجعي لمفتاح تشفير',
+  'system.secret_drift': 'تغيّر مفتاح تشفير',
 }
 
 export default async function SystemPage() {
-  const { counts, latency, audit } = await getSystemOverview()
+  const { counts, latency, audit, secretHealth } = await getSystemOverview()
+  const recentChange = secretHealth.some((s) => s.status === 'recent-change')
 
   return (
     <>
@@ -22,6 +26,42 @@ export default async function SystemPage() {
         title="حالة المنصة"
         sub="حجم البيانات، زمن استجابة الصوت، وسجل التدقيق لكل تغيير على الإنتاج"
       />
+
+      {/*
+        Written by server/security/secret-drift.ts at every boot. A change
+        here means a signing or encryption key no longer matches what it was
+        when data under it was created — every two-factor enrolment made
+        under the old key stops verifying, and every value protected under
+        the old encryption key reads back empty rather than erroring. The
+        loud version of this lives in the boot log; this is the version that
+        survives past whatever log retention Render applies.
+      */}
+      <Section
+        title="صحة مفاتيح التشفير"
+        meta={recentChange ? 'تغيّر حديثًا — راجع أدناه' : undefined}
+      >
+        <div className="secret-health">
+          {secretHealth.map((s) => (
+            <div key={s.key} className="secret-health__row" data-status={s.status}>
+              {s.status === 'recent-change' ? (
+                <CircleAlert size={16} aria-hidden="true" />
+              ) : (
+                <ShieldCheck size={16} aria-hidden="true" />
+              )}
+              <div>
+                <strong>{s.label}</strong>
+                <span>
+                  {s.status === 'unknown'
+                    ? 'لم يُرصد بعد — يُسجَّل عند أول إقلاع للخادم.'
+                    : s.status === 'recent-change'
+                      ? `تغيّرت القيمة الفعلية منذ ${s.since ? relative(s.since) : '—'}. الحسابات المسجَّلة بخطوتين قبل هذا التاريخ تحتاج إعادة تعيين: pnpm 2fa:status <email>`
+                      : `مستقرة منذ ${s.since ? fullDate(s.since) : '—'}.`}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       <MetricStrip
         metrics={[

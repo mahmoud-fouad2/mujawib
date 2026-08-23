@@ -1340,7 +1340,68 @@ export async function getSystemOverview() {
     .orderBy(desc(auditLog.createdAt))
     .limit(20)
 
-  return { counts: counts ?? null, latency: latency ?? { p50: 0, p95: 0 }, audit }
+  return {
+    counts: counts ?? null,
+    latency: latency ?? { p50: 0, p95: 0 },
+    audit,
+    secretHealth: await getSecretHealth(),
+  }
+}
+
+const SECRET_LABEL: Record<string, string> = {
+  better_auth_secret: 'مفتاح توقيع الجلسات والتحقق بخطوتين',
+  data_encryption_key: 'مفتاح تشفير البيانات المحمية',
+}
+
+export type SecretHealth = {
+  key: string
+  label: string
+  /**
+   * `recent-change` means the current value took effect within the last two
+   * days — the window where a locked-out account is plausibly still this
+   * incident rather than something else. Older than that, it is just
+   * `stable`: a true, permanent fact ("in effect since X"), not a stale alarm
+   * that stays red forever after the actual problem was already resolved.
+   */
+  status: 'stable' | 'recent-change' | 'unknown'
+  since: Date | null
+}
+
+const RECENT_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+
+/**
+ * The most recent thing known about each tracked secret, from the audit rows
+ * `checkSecretDrift` writes at boot — see server/security/secret-drift.ts for
+ * why this exists. `since` is when the CURRENT fingerprint took effect, which
+ * is either the last recorded change or, if it has never changed, the first
+ * boot that ever observed it.
+ */
+async function getSecretHealth(): Promise<SecretHealth[]> {
+  const rows = await db
+    .select({
+      resourceId: auditLog.resourceId,
+      action: auditLog.action,
+      createdAt: auditLog.createdAt,
+    })
+    .from(auditLog)
+    .where(eq(auditLog.resourceType, 'system_secret'))
+    .orderBy(auditLog.createdAt)
+
+  const now = Date.now()
+
+  return Object.entries(SECRET_LABEL).map(([key, label]) => {
+    const forKey = rows.filter((r) => r.resourceId === key)
+    const last = forKey[forKey.length - 1]
+    if (!last) return { key, label, status: 'unknown' as const, since: null }
+
+    const recent = now - last.createdAt.getTime() < RECENT_WINDOW_MS
+    return {
+      key,
+      label,
+      status: recent ? ('recent-change' as const) : ('stable' as const),
+      since: last.createdAt,
+    }
+  })
 }
 
 /* ─── Command palette index ──────────────────────────────────────────────── */

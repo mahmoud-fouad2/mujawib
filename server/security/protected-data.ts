@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto'
 import { env } from '@/lib/env'
 
 const VERSION = 'v1'
@@ -36,6 +36,28 @@ export function protectedDataReady() {
     return true
   } catch {
     return false
+  }
+}
+
+/**
+ * A short, one-way fingerprint of the key actually protecting stored data —
+ * safe to log or persist, unlike the key itself.
+ *
+ * `DATA_ENCRYPTION_KEY` derives through `BETTER_AUTH_SECRET` whenever it is
+ * configured as an opaque passphrase rather than raw key bytes (see
+ * `encryptionKey` above), so this fingerprint moves if either input changes.
+ * That coupling is exactly what makes it worth tracking: a `BETTER_AUTH_SECRET`
+ * rotation can silently change this key too, and everything protected under
+ * the old one — caller numbers, transcripts, tool payloads — starts reading
+ * back as `null` with no error, because `revealString` fails closed. Compared
+ * against a fingerprint recorded at last boot, a change here is the one signal
+ * that actually says so.
+ */
+export function dataEncryptionKeyFingerprint(): string | null {
+  try {
+    return createHash('sha256').update(encryptionKey()).digest('hex').slice(0, 16)
+  } catch {
+    return null
   }
 }
 
