@@ -25,9 +25,14 @@ export function middleware(request: NextRequest) {
   if (PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name))
     if (!hasSession) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/sign-in'
-      url.search = `?next=${encodeURIComponent(pathname)}`
+      // Not request.nextUrl.clone(): behind Render's proxy, the origin
+      // Next.js sees on the incoming request is the container's own internal
+      // address, not the public site — cloning it carries that internal
+      // origin into the redirect. NEXT_PUBLIC_APP_URL is inlined at build
+      // time (it is a NEXT_PUBLIC_ var, so this works in the Edge runtime
+      // without pulling in lib/env.ts's full server-side validation).
+      const url = new URL('/sign-in', process.env.NEXT_PUBLIC_APP_URL)
+      url.searchParams.set('next', pathname)
       return NextResponse.redirect(url)
     }
   }
