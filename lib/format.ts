@@ -240,6 +240,10 @@ export function workspaceTone(status: string): Tone {
       return 'signal'
     case 'paused':
       return 'bad'
+    case 'archived':
+      // Dormant by choice, not a problem waiting on anyone — amber would read
+      // as "needs attention," which an archived client does not.
+      return 'neutral'
     default:
       return 'warn'
   }
