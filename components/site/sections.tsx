@@ -22,9 +22,11 @@ import type { SiteCopy } from '@/lib/content/site'
 import { intentLabel } from '@/lib/content/vocabulary'
 import { duration, num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
+import { withArabicRuns } from '@/lib/lang-runs'
 
 /** Points the way the page reads. */
-export function ArrowIcon({
+/** Used only inside this file — not exported, since nothing outside imports it. */
+function ArrowIcon({
   locale,
   ...rest
 }: { locale: Locale } & React.ComponentProps<typeof ArrowRight>) {
@@ -585,7 +587,7 @@ export function ProofStrip({
  * on the site a competitor cannot copy verbatim — dialect handling, how a
  * ten-digit number said twice is heard, rollback — so it belongs on the page.
  */
-export function ArabicFirst({ copy }: { copy: SiteCopy }) {
+export function ArabicFirst({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
   return (
     <section className="section" id="arabic">
       <div className="container">
@@ -595,7 +597,8 @@ export function ArabicFirst({ copy }: { copy: SiteCopy }) {
             <article key={row.key} className="why">
               <span className="why__key">{row.key}</span>
               <h3>{row.title}</h3>
-              <p>{row.body}</p>
+              {/* The dialect row quotes Arabic inside an English sentence. */}
+              <p>{locale === 'en' ? withArabicRuns(row.body) : row.body}</p>
               <dl className="why__proof">
                 {row.proof.map((item) => (
                   <div key={item.term}>

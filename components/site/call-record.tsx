@@ -4,6 +4,7 @@ import { Check, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { duration } from '@/lib/format'
 import type { Locale } from '@/lib/i18n'
+import { withArabicRuns } from '@/lib/lang-runs'
 
 export type RecordItem =
   | { kind: 'turn'; at: number; role: 'agent' | 'caller'; text: string }
@@ -88,7 +89,11 @@ export function CallRecord({
                 <span className="line__who">
                   {item.role === 'agent' ? labels.agent : labels.caller}
                 </span>
-                <p className="line__text">{item.text}</p>
+                {/* The dialogue stays Arabic on both locales — it is the
+                    product. On /en that makes it a foreign-language run. */}
+                <p className="line__text">
+                  {locale === 'en' ? withArabicRuns(item.text) : item.text}
+                </p>
               </div>
             </div>
           ) : (
