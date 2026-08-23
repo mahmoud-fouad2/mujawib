@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  locale: 'ar',
+  path: '/privacy',
   title: 'سياسة الخصوصية',
   description: 'كيف يتعامل مُجاوِب مع بيانات مكالماتك وبيانات عملائك.',
-}
+})
 
 export default function PrivacyPage() {
   return (

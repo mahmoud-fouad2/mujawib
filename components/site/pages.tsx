@@ -177,7 +177,7 @@ export function PricingPage({ locale }: { locale: Locale }) {
                   block
                   trailing={<Arrow size={16} className="arrow" aria-hidden="true" />}
                 >
-                  {site.pricing.primary}
+                  {site.common.bookDemo}
                 </LinkButton>
               </article>
             ))}

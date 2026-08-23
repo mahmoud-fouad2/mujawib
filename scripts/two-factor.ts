@@ -17,8 +17,8 @@
  *   3. Lockout — ten consecutive failures freeze the account for 15 minutes.
  */
 import { createHmac } from 'node:crypto'
-import { eq } from 'drizzle-orm'
 import { symmetricDecrypt } from 'better-auth/crypto'
+import { eq } from 'drizzle-orm'
 import { env } from '../lib/env.ts'
 import { db } from '../server/db/index.ts'
 import { twoFactor, user } from '../server/db/schema/index.ts'
@@ -95,9 +95,7 @@ if (command === 'status') {
   const locked = enrolment.lockedUntil && enrolment.lockedUntil.getTime() > Date.now()
   console.log(`verified           ${enrolment.verified ? 'yes' : 'no — setup was never completed'}`)
   console.log(`failed attempts    ${enrolment.failedVerificationCount ?? 0} (locks at 10)`)
-  console.log(
-    `locked until       ${locked ? enrolment.lockedUntil?.toISOString() : 'not locked'}`,
-  )
+  console.log(`locked until       ${locked ? enrolment.lockedUntil?.toISOString() : 'not locked'}`)
 
   let secret: string | null = null
   try {
@@ -116,7 +114,9 @@ if (command === 'status') {
 
   console.log('stored secret      decrypts correctly')
   console.log('')
-  console.log(`expected code now  ${totp(secret)}   (previous ${totp(secret, -1)}, next ${totp(secret, 1)})`)
+  console.log(
+    `expected code now  ${totp(secret)}   (previous ${totp(secret, -1)}, next ${totp(secret, 1)})`,
+  )
   console.log('')
   console.log('If the authenticator app shows one of these, the enrolment is sound and the')
   console.log('failure is the lock or an expired challenge — run 2fa:unlock and sign in again.')

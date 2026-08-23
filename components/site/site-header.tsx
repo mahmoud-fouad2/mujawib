@@ -25,8 +25,10 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Close the sheet on navigation.
-  useEffect(() => setOpen(false), [])
+  // Close the sheet on navigation. Keyed on the path: an empty dependency list
+  // only ran on mount, so tapping a link left the sheet covering the new page.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger
+  useEffect(() => setOpen(false), [pathname])
 
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
@@ -82,7 +84,7 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
             </Link>
 
             <LinkButton
-              href={localePath(locale, '/sign-in')}
+              href={localePath(locale, '/contact')}
               variant="primary"
               size="sm"
               className="site-header__cta"
@@ -115,7 +117,7 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
             <LinkButton href="/sign-in" size="md" block>
               {copy.common.signIn}
             </LinkButton>
-            <LinkButton href={localePath(locale, '/sign-in')} variant="primary" size="md" block>
+            <LinkButton href={localePath(locale, '/contact')} variant="primary" size="md" block>
               {copy.common.bookDemo}
             </LinkButton>
           </div>

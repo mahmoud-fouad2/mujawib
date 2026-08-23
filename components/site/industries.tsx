@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { LinkButton } from '@/components/ui/button'
 import type { SiteCopy } from '@/lib/content/site'
+import { flowLabel } from '@/lib/content/vocabulary'
 import { num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
 
@@ -90,21 +91,22 @@ export function Industries({
 
           {pack ? (
             <>
+              {/* The two facts that used to sit here were a client count that
+                  reads 0 until the sector has customers, and an internal pack
+                  version number that means nothing to a business owner. The
+                  flows are the part a buyer can judge. */}
               <div className="sector__flows">
                 {pack.flows.map((f) => (
-                  <span key={f}>{f}</span>
+                  <span key={f}>{flowLabel(f, locale)}</span>
                 ))}
               </div>
-              <dl className="sector__facts">
-                <div>
-                  <dt>{locale === 'ar' ? 'شركات تشغّله' : 'Businesses running it'}</dt>
-                  <dd className="mono">{num(pack.clients)}</dd>
-                </div>
-                <div>
-                  <dt>{locale === 'ar' ? 'نسخة القالب' : 'Pack version'}</dt>
-                  <dd className="mono">{pack.version}</dd>
-                </div>
-              </dl>
+              {pack.clients > 0 ? (
+                <p className="sector__fact">
+                  {locale === 'ar'
+                    ? `${num(pack.clients)} من عملائنا يشغّلون هذا القطاع اليوم.`
+                    : `${num(pack.clients)} of our clients run this sector today.`}
+                </p>
+              ) : null}
             </>
           ) : null}
 

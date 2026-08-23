@@ -147,12 +147,13 @@ export function serviceSchema(locale: Locale) {
           'Handover with full call context',
           'A complete record per call',
         ],
+    // Quote-based. `price: '0'` used to sit here, which tells a search engine
+    // the product is free — a claim we would then have to walk back on the
+    // pricing page. A PriceSpecification with no figure says "on request",
+    // which is the truth.
     offers: {
       '@type': 'Offer',
       priceCurrency: 'SAR',
-      // Quote-based: we publish that price is on request rather than a number
-      // we would have to invent.
-      price: '0',
       priceSpecification: {
         '@type': 'PriceSpecification',
         priceCurrency: 'SAR',

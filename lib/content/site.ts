@@ -24,9 +24,11 @@ type Copy = {
     recordTitle: string
     recordMeta: string
   }
-  proofLabels: { calls: string; bookings: string; resolved: string; response: string }
+  proofLabels: { calls: string; bookings: string; resolved: string }
+  /** Shown once live volume is meaningful; below that the assurances run instead. */
   proofNote: string
-  trust: { label: string; caption: string }
+  assurances: { title: string; body: string }[]
+  assuranceNote: string
   demo: { label: string; title: string; lead: string }
   can: {
     label: string
@@ -48,14 +50,14 @@ type Copy = {
     before: string[]
     afterTitle: string
     after: string[]
-    quote: string
-    quoteBy: string
+    honesty: { title: string; body: string; cta: string }
   }
-  deployment: {
+  failure: {
     label: string
     title: string
     lead: string
-    steps: { n: string; title: string; body: string; output: string }[]
+    rows: { situation: string; handling: string }[]
+    note: string
   }
   industries: {
     label: string
@@ -69,14 +71,6 @@ type Copy = {
     title: string
     lead: string
     items: { title: string; body: string }[]
-  }
-  pricing: {
-    label: string
-    title: string
-    lead: string
-    points: string[]
-    primary: string
-    secondary: string
   }
   console: { label: string; title: string; lead: string; points: string[]; cta: string }
   cta: { title: string; body: string; note: string; primary: string; secondary: string }
@@ -103,37 +97,41 @@ type Copy = {
 const ar: Copy = {
   nav: [
     { label: 'كيف يعمل', href: '/how-it-works' },
-    { label: 'القطاعات', href: '#industries' },
-    { label: 'الموثوقية', href: '/security' },
+    // Anchors are written against the home page: a bare `#industries` is a
+    // dead click from /pricing or /faq, which is where most visitors are.
+    { label: 'القطاعات', href: '/#industries' },
+    { label: 'الأمان', href: '/security' },
     { label: 'الأسعار', href: '/pricing' },
     { label: 'الأسئلة', href: '/faq' },
   ],
   hero: {
-    eyebrow: 'تجربة مكالمة، لحظة بلحظة',
-    title: 'كل مكالمة تُردّ.',
-    titleMuted: 'وكل طلب يُنجَز.',
-    lead: 'عميلك يتصل، فيجد ردًا عربيًا فورًا في أي وقت — يفهم ما يريد، يحجز له الموعد، ويرسل التأكيد. أنت تصحو على نتائج، لا على مكالمات فائتة.',
-    primary: 'احجز عرضًا',
+    eyebrow: 'استقبال هاتفي بالعربية · خدمة مُدارة',
+    title: 'موظف استقبال يرد على عملائك بالعربية،',
+    titleMuted: 'ويحجز الموعد قبل أن تنتهي المكالمة.',
+    lead: 'للعيادات والمعارض والشركات التي تصلها مكالمات أكثر مما يستوعبه الاستقبال. يرد مُجاوِب في أي ساعة، يفهم الطلب حتى بلهجة المتصل، يثبّت الموعد في تقويمك ويرسل التأكيد على واتساب — ويحوّل المكالمة لفريقك في الحالات التي تحددها أنت.',
+    primary: 'احجز مكالمة مع الفريق',
     secondary: 'شاهد مكالمة كاملة',
-    note: 'نجهّز لك الموظف الصوتي ونختبره قبل أن يرد على أول عميل.',
+    note: 'نجهّزه على نشاطك ونختبره قبل أن يرد على أول عميل.',
     recordTitle: 'سيناريو تجريبي',
-    recordMeta: 'مسار حجز نموذجي',
+    recordMeta: 'مكالمة حجز بالعربية — سيناريو تجريبي',
   },
   proofLabels: {
-    calls: 'مكالمة وصلت للمنصة',
-    bookings: 'موعدًا حُجز تلقائيًا',
+    calls: 'مكالمة رُدّ عليها',
+    bookings: 'موعدًا ثُبّت في التقويم',
     resolved: 'انتهت دون تدخل موظف',
-    response: 'متوسط زمن الرد',
   },
-  proofNote: 'بيانات التشغيل المباشر — آخر 30 يومًا.',
-  trust: {
-    label: 'يشتغل اليوم مع',
-    caption: 'شركات تعتمد على المكالمة كقناة بيع وخدمة أساسية.',
-  },
+  proofNote: 'أرقام فعلية من مكالمات عملائنا خلال آخر 30 يومًا.',
+  assurances: [
+    { title: 'نجهّزه ونختبره', body: 'على خدماتك وأسعارك وفروعك، قبل أول مكالمة' },
+    { title: 'لا تأكيد بلا تنفيذ', body: 'لا يقول «تم الحجز» قبل أن يرجع تقويمك بموعد' },
+    { title: 'إيقاف بضغطة', body: 'كل المكالمات تتحوّل لفريقك فورًا' },
+    { title: 'سجل لكل مكالمة', body: 'الحوار، ما نُفِّذ، والنتيجة' },
+  ],
+  assuranceNote: 'ما نلتزم به من أول يوم تشغيل — لا أرقام قبل أن نقيسها.',
   demo: {
     label: 'سيناريوهات واقعية',
-    title: 'اسمع كيف تنتهي المكالمة، لا كيف تبدأ.',
-    lead: 'ثلاثة سيناريوهات من قطاعات مختلفة توضّح الحوار والنتيجة المتوقعة.',
+    title: 'شاهد المكالمة كاملة، والنتيجة التي خرجت منها.',
+    lead: 'ثلاثة سيناريوهات من قطاعات مختلفة: ما قاله المتصل، وما نفّذه مُجاوِب، وأين انتهت المكالمة.',
   },
   can: {
     label: 'الإمكانات',
@@ -167,25 +165,25 @@ const ar: Copy = {
     ],
   },
   why: {
-    label: 'لماذا يختلف',
-    title: 'الفرق أنه لا يَعِد بشيء لم يحدث.',
-    lead: 'ثلاثة أشياء تفصل بين موظف صوتي تثق به في شركتك، وبين تجربة تبدو جيدة في العرض فقط.',
+    label: 'العربية أولًا',
+    title: 'العربية هنا ليست ترجمة فوق منتج إنجليزي.',
+    lead: 'ثلاثة أشياء تفصل بين موظف صوتي يصلح لعميل سعودي، وبين واحد يبدو جيدًا في العرض فقط.',
     rows: [
       {
-        key: 'الوعد',
-        title: 'لا يقول «تم الحجز» قبل أن يتم فعلًا',
-        body: 'التأكيد لا يخرج من فمه إلا بعد أن يرجع التقويم بموعد مثبّت. وإذا تعذّر، يسجّل طلب معاودة اتصال أو يحوّل لفريقك — ولا يترك عميلك بوعد لم يحدث.',
+        key: 'اللهجة',
+        title: 'يفهم المتصل كما يتكلم، لا كما نتمنى أن يتكلم',
+        body: 'سعودي، خليجي، مصري أو فصحى. يقاطعه العميل فيتوقف ويكمل من حيث انتهى، ويخلط كلمة إنجليزية في نص الجملة فيمشي معه — «أبغى appointment بكرة الصبح» تُفهم كما هي.',
         proof: [
-          { term: 'لكل حالة فشل بديل', detail: 'تعطّل التقويم لا يُنتج حجزًا وهميًا' },
-          { term: 'كل خطوة مسجّلة', detail: 'تعرف ما حدث بالضبط ومتى' },
+          { term: 'مقاطعة بلا ارتباك', detail: 'يتوقف فورًا ويلتقط الخيط' },
+          { term: 'عربي وإنجليزي في جملة', detail: 'لا يطلب من العميل يعيد كلامه' },
         ],
       },
       {
-        key: 'الصوت',
-        title: 'يُختبر على عربي حقيقي قبل أن يرد على عميلك',
-        body: 'اسم مركّب، رقم جوال من عشر خانات، سعر بالريال، «الساعة ٦:٣٠ مساءً»، وعميل يصحّح رقمه في منتصف الجملة. يمر على هذه كلها أولًا — أو لا يعمل.',
+        key: 'التفاصيل',
+        title: 'الأسماء والأرقام والمواعيد كما تُقال فعلًا',
+        body: 'اسم مركّب مثل «عبدالرحمن آل سعيد»، رقم جوال من عشر خانات يقوله العميل مرتين ويصحّحه في المنتصف، سعر بالريال، و«الساعة ٦:٣٠ مساء» و«بعد المغرب» و«يوم الأحد الجاي». يمر على هذه كلها في الاختبار — أو لا يعمل.',
         proof: [
-          { term: 'قاموس نطق خاص بك', detail: 'أسماء الأطباء والفروع والعلامات' },
+          { term: 'قاموس نطق خاص بك', detail: 'أسماء الأطباء والفروع والعلامات التجارية' },
           { term: 'لا تشغيل قبل النجاح', detail: 'الاختبار شرط، ليس خطوة اختيارية' },
         ],
       },
@@ -218,39 +216,47 @@ const ar: Copy = {
       'فريقك يتفرّغ للحالات التي تحتاجه فعلًا',
       'تقرير يومي بما حدث وما يحتاج تدخلك',
     ],
-    quote: 'المكالمة اللي كانت بتضيع بعد السادسة، بقت موعد مؤكد في التقويم.',
-    quoteBy: 'مدير تشغيل — قطاع العيادات',
+    honesty: {
+      title: 'لن تجد هنا شعارات عملاء ولا نسبًا لم نقسها.',
+      body: 'مُجاوِب في بداية تشغيله التجاري. حين تصبح لدينا نتائج من شركات حقيقية سنعرضها باسمها وأرقامها وبإذنها، لا قبل ذلك. حتى تلك اللحظة، احكم عليه من مكالمة تسمعها بنفسك على سيناريو من عملك أنت.',
+      cta: 'جرّبه على سيناريو من عملك',
+    },
   },
-  deployment: {
-    label: 'كيف نبدأ',
-    title: 'من أول مكالمة معك، إلى أول عميل يُخدَم.',
-    lead: 'لا تحتاج فريقًا تقنيًا ولا إعدادات معقّدة. نحن نبني ونختبر، وأنت تراجع وتوافق.',
-    steps: [
+  failure: {
+    label: 'حين لا تسير المكالمة كما يجب',
+    title: 'أهم شيء تعرفه: ماذا يفعل حين يفشل.',
+    lead: 'كل موظف صوتي ينجح في العرض. الفرق يظهر في المكالمة التي لا تسير كما خُطّط لها.',
+    rows: [
       {
-        n: '01',
-        title: 'نفهم عملك',
-        body: 'نسمع منك: من يتصل، وماذا يطلب، ومتى يجب أن يصل لموظف.',
-        output: 'خطة تشغيل واضحة',
+        situation: 'لم يفهم ما يريده المتصل',
+        handling: 'يستوضح مرة واحدة بسؤال محدد. إن لم يتضح، يحوّل المكالمة لفريقك بدل أن يخمّن.',
       },
       {
-        n: '02',
-        title: 'نبني الموظف',
-        body: 'نجهّزه بخدماتك وأسعارك وفروعك، ونربطه بتقويمك وأنظمتك.',
-        output: 'نسخة جاهزة للتجربة',
+        situation: 'التقويم لا يستجيب',
+        handling:
+          'لا يقول «تم الحجز». يسجّل طلب معاودة اتصال أو يحوّل المكالمة، ويظهر التعطّل في لوحتك في نفس اللحظة.',
       },
       {
-        n: '03',
-        title: 'نختبره معك',
-        body: 'تسمع مكالمات تجريبية بنفسك وتقول: هذه نبرة شركتي، أو غيّروها.',
-        output: 'موافقتك قبل التشغيل',
+        situation: 'الـCRM أو نظامك غير متاح',
+        handling:
+          'يكمل المكالمة ويحفظ بيانات العميل عندنا، ثم يُعيد إرسالها لنظامك تلقائيًا عند عودته.',
       },
       {
-        n: '04',
-        title: 'نشغّله ونتابع',
-        body: 'نربط رقمك، ونراقب الأسبوع الأول، ونحسّن حسب مكالمات حقيقية.',
-        output: 'تحسين مستمر',
+        situation: 'السؤال خارج ما يعرفه',
+        handling: 'يقول إنه لا يملك الإجابة ويحوّل للمختص. لا يؤلّف سعرًا ولا موعدًا ولا سياسة.',
+      },
+      {
+        situation: 'المتصل طلب موظفًا بشريًا',
+        handling:
+          'يحوّل مباشرة، ويصل الموظف وقد قرأ ما دار في المكالمة — فلا يعيد العميل كلامه من أوله.',
+      },
+      {
+        situation: 'خارج الدوام ولا أحد يرد',
+        handling:
+          'ينهي ما يستطيع إنهاءه، ويترك الباقي في قائمة مرتّبة تجدها صباحًا مع رقم كل متصل وسبب اتصاله.',
       },
     ],
+    note: 'هذه القواعد تُكتب معك في الإعداد، وتقدر تغيّرها في أي وقت.',
   },
   industries: {
     label: 'القطاعات',
@@ -302,18 +308,6 @@ const ar: Copy = {
       { title: 'خطة بديلة دائمًا', body: 'إذا تعطّل أي نظام، المكالمة تصل لموظف بدل أن تسقط.' },
     ],
   },
-  pricing: {
-    label: 'الأسعار',
-    title: 'خطتك تُحدَّد حسب حجم مكالماتك.',
-    lead: 'لا باقات جامدة ولا مفاجآت. نبدأ بسيناريو واحد من عملك، ونتفق على الخطة بعد أن ترى النتيجة.',
-    points: [
-      'إعداد وتجهيز واختبار — يتولاه فريقنا بالكامل',
-      'السعر مرتبط بعدد المكالمات، لا بعدد المستخدمين',
-      'تبدأ بقطاع أو فرع واحد، وتوسّع حسب النتائج',
-    ],
-    primary: 'احجز عرضًا',
-    secondary: 'تحدّث مع المبيعات',
-  },
   console: {
     label: 'لوحتك',
     title: 'ماذا حدث اليوم، ومن يحتاج تدخلك.',
@@ -329,8 +323,8 @@ const ar: Copy = {
     title: 'ابدأ بالمكالمة الأكثر أهمية.',
     body: 'نأخذ سيناريو واحدًا من عملك، نجهّزه، وتسمع نتيجته بنفسك قبل أن تقرر التوسّع.',
     note: 'بدون إعداد تقني من طرفك.',
-    primary: 'احجز عرضًا',
-    secondary: 'تحدّث مع الفريق',
+    primary: 'احجز مكالمة 20 دقيقة',
+    secondary: 'أرسل تفاصيل حالتك',
   },
   footer: {
     tagline: 'مكالمة أفضل. عميل أقرب. فريق أسرع.',
@@ -342,19 +336,11 @@ const ar: Copy = {
       {
         title: 'المنتج',
         links: [
-          { label: 'كيف يعمل', href: '#calls' },
-          { label: 'الإمكانات', href: '#can' },
-          { label: 'لوحة التشغيل', href: '#console' },
-          { label: 'التكاملات', href: '#integrations' },
-        ],
-      },
-      {
-        title: 'القطاعات',
-        links: [
-          { label: 'العيادات', href: '#industries' },
-          { label: 'العقارات', href: '#industries' },
-          { label: 'خدمات السيارات', href: '#industries' },
-          { label: 'خدمة العملاء', href: '#industries' },
+          { label: 'مكالمات كاملة', href: '/#calls' },
+          { label: 'الإمكانات', href: '/#can' },
+          { label: 'عند تعذّر التنفيذ', href: '/#failure' },
+          { label: 'التكاملات', href: '/#integrations' },
+          { label: 'القطاعات', href: '/#industries' },
         ],
       },
       {
@@ -362,10 +348,18 @@ const ar: Copy = {
         links: [
           { label: 'من نحن', href: '/about' },
           { label: 'كيف نبدأ', href: '/how-it-works' },
-          { label: 'الموثوقية', href: '/security' },
+          { label: 'الأمان والخصوصية', href: '/security' },
           { label: 'الأسعار', href: '/pricing' },
           { label: 'الأسئلة الشائعة', href: '/faq' },
           { label: 'تواصل معنا', href: '/contact' },
+        ],
+      },
+      {
+        title: 'الحساب',
+        links: [
+          { label: 'تسجيل الدخول', href: '/sign-in' },
+          { label: 'سياسة الخصوصية', href: '/privacy' },
+          { label: 'شروط الاستخدام', href: '/terms' },
         ],
       },
     ],
@@ -375,7 +369,7 @@ const ar: Copy = {
   },
   common: {
     signIn: 'تسجيل الدخول',
-    bookDemo: 'احجز عرضًا',
+    bookDemo: 'احجز مكالمة',
     menu: 'القائمة',
     close: 'إغلاق',
     theme: 'تبديل الوضع',
@@ -386,37 +380,44 @@ const ar: Copy = {
 const en: Copy = {
   nav: [
     { label: 'How it works', href: '/how-it-works' },
-    { label: 'Industries', href: '#industries' },
-    { label: 'Reliability', href: '/security' },
+    { label: 'Industries', href: '/#industries' },
+    { label: 'Security', href: '/security' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'FAQ', href: '/faq' },
   ],
   hero: {
-    eyebrow: 'A call scenario, moment by moment',
-    title: 'Every call answered.',
-    titleMuted: 'Every request done.',
-    lead: 'Your customer calls and gets a natural Arabic answer at any hour — it understands what they want, books the appointment, and sends the confirmation. You wake up to results, not missed calls.',
-    primary: 'Book a demo',
+    eyebrow: 'Arabic phone reception · managed service',
+    title: 'A receptionist who answers your callers in Arabic,',
+    titleMuted: 'and books the slot before the call ends.',
+    lead: 'For clinics, showrooms and businesses taking more calls than a front desk can absorb. Mujawib answers at any hour, follows the request in the caller’s own dialect, locks the slot in your calendar and sends the WhatsApp confirmation — and hands the call to your team in the cases you decide.',
+    primary: 'Book a call with the team',
     secondary: 'Watch a full call',
-    note: 'We build and test your voice agent before it answers a single customer.',
+    note: 'We build it around your business and test it before it answers a single customer.',
     recordTitle: 'Demo scenario',
-    recordMeta: 'sample booking path',
+    // The transcript below stays in Arabic: it is the product, not an
+    // untranslated string. Say so, so an English reader knows what they see.
+    recordMeta: 'A booking call in Arabic — demo scenario',
   },
   proofLabels: {
-    calls: 'calls received by the platform',
-    bookings: 'appointments booked automatically',
-    resolved: 'ended without a human',
-    response: 'average response time',
+    calls: 'calls answered',
+    bookings: 'slots locked in a calendar',
+    resolved: 'closed without a human',
   },
-  proofNote: 'Live operations data — last 30 days.',
-  trust: {
-    label: 'Working today with',
-    caption: 'Businesses where the phone is a primary sales and service channel.',
-  },
+  proofNote: 'Real figures from client calls over the last 30 days.',
+  assurances: [
+    { title: 'Built and tested', body: 'On your services, prices and branches, before call one' },
+    {
+      title: 'No confirmation without the action',
+      body: 'Never “booked” until your calendar says so',
+    },
+    { title: 'One switch to stop', body: 'Every call routes to your team immediately' },
+    { title: 'A record per call', body: 'The conversation, what ran, and the outcome' },
+  ],
+  assuranceNote: 'What we commit to from day one — no figures before we have measured them.',
   demo: {
     label: 'Realistic scenarios',
-    title: 'Hear how the call ends, not how it opens.',
-    lead: 'Three sector scenarios showing the expected conversation and outcome.',
+    title: 'Watch the whole call, and the outcome it produced.',
+    lead: 'Three sector scenarios: what the caller said, what Mujawib carried out, and where the call landed.',
   },
   can: {
     label: 'Capabilities',
@@ -450,26 +451,26 @@ const en: Copy = {
     ],
   },
   why: {
-    label: 'What differs',
-    title: 'It never promises something that did not happen.',
-    lead: 'Three things separate a voice agent you trust in your business from one that only demos well.',
+    label: 'Arabic first',
+    title: 'The Arabic here is not a translation layer over an English product.',
+    lead: 'Three things separate a voice agent that works for a Saudi caller from one that only demos well.',
     rows: [
       {
-        key: 'The promise',
-        title: 'It never says "booked" before it is',
-        body: 'The confirmation only leaves its mouth after your calendar returns a locked slot. If that fails, it logs a callback or hands over to your team — it never leaves your customer with a promise that did not happen.',
+        key: 'Dialect',
+        title: 'It follows the caller as they speak, not as we wish they spoke',
+        body: 'Saudi, Gulf, Egyptian or MSA. Cut in and it stops and picks the thread back up. Drop an English word mid-sentence and it keeps going — "أبغى appointment بكرة الصبح" lands as one request.',
         proof: [
+          { term: 'Interruption without confusion', detail: 'It stops at once and resumes' },
           {
-            term: 'A fallback for every failure',
-            detail: 'A calendar outage never fakes a booking',
+            term: 'Arabic and English in one sentence',
+            detail: 'The caller never repeats themselves',
           },
-          { term: 'Every step recorded', detail: 'You know exactly what happened, and when' },
         ],
       },
       {
-        key: 'The voice',
-        title: 'Tested on real Arabic before it answers you',
-        body: 'A compound name, a ten-digit mobile number, a price in riyals, "6:30 in the evening", and a customer correcting their number mid-sentence. It clears all of these first — or it does not go live.',
+        key: 'Detail',
+        title: 'Names, numbers and times the way they are actually said',
+        body: 'A compound name, a ten-digit mobile said twice and corrected halfway through, a price in riyals, and "6:30 in the evening", "after Maghrib", "this coming Sunday". It clears all of these in testing — or it does not go live.',
         proof: [
           { term: 'Your own pronunciation list', detail: 'Doctors, branches, brand names' },
           { term: 'No launch without a pass', detail: 'Testing is the gate, not a nice-to-have' },
@@ -504,39 +505,49 @@ const en: Copy = {
       'Your team is free for the cases that need them',
       'A daily read on what happened and what needs you',
     ],
-    quote: 'The call that used to disappear after six is now a confirmed slot in the calendar.',
-    quoteBy: 'Operations manager — clinics',
+    honesty: {
+      title: 'You will not find customer logos or unmeasured percentages here.',
+      body: 'Mujawib is early in commercial operation. When we have results from real businesses we will publish them by name, with their numbers and their permission — not before. Until then, judge it on a call you hear yourself, built on a scenario from your own business.',
+      cta: 'Try it on one of your scenarios',
+    },
   },
-  deployment: {
-    label: 'How we start',
-    title: 'From our first call, to your first customer served.',
-    lead: 'No technical team and no complex setup. We build and test; you review and approve.',
-    steps: [
+  failure: {
+    label: 'When a call goes wrong',
+    title: 'The part that matters: what it does when it fails.',
+    lead: 'Every voice agent looks good in a demo. The difference shows in the call that does not go to plan.',
+    rows: [
       {
-        n: '01',
-        title: 'We learn your business',
-        body: 'Who calls, what they ask for, and when it must reach a person.',
-        output: 'A clear plan',
+        situation: 'It did not understand the caller',
+        handling:
+          'It asks one specific clarifying question. If that does not settle it, the call goes to your team rather than to a guess.',
       },
       {
-        n: '02',
-        title: 'We build the agent',
-        body: 'Loaded with your services, prices and branches, connected to your calendar and systems.',
-        output: 'A version to try',
+        situation: 'The calendar does not respond',
+        handling:
+          'It never says “booked”. It logs a callback or transfers the call, and the outage shows in your console the same moment.',
       },
       {
-        n: '03',
-        title: 'We test it with you',
-        body: 'You hear trial calls yourself and say: that is my brand voice — or change it.',
-        output: 'Your sign-off',
+        situation: 'Your CRM is unreachable',
+        handling:
+          'It finishes the call and holds the customer record with us, then pushes it to your system automatically once it is back.',
       },
       {
-        n: '04',
-        title: 'We launch and watch',
-        body: 'We connect your number, watch week one, and improve from real calls.',
-        output: 'Continuous improvement',
+        situation: 'The question is outside what it knows',
+        handling:
+          'It says it does not have the answer and routes to someone who does. It does not invent a price, a slot or a policy.',
+      },
+      {
+        situation: 'The caller asks for a person',
+        handling:
+          'It transfers straight away, and your colleague picks up already knowing what was said — the caller does not start over.',
+      },
+      {
+        situation: 'Out of hours, nobody to transfer to',
+        handling:
+          'It closes what it can and leaves the rest in a ranked list you find in the morning, with every number and every reason for calling.',
       },
     ],
+    note: 'These rules are written with you during setup, and you can change them at any time.',
   },
   industries: {
     label: 'Industries',
@@ -603,18 +614,6 @@ const en: Copy = {
       },
     ],
   },
-  pricing: {
-    label: 'Pricing',
-    title: 'Your plan follows your call volume.',
-    lead: 'No rigid tiers, no surprises. We start with one scenario from your business and agree the plan once you have seen the result.',
-    points: [
-      'Setup, build and testing — handled entirely by our team',
-      'Priced on calls handled, not on seats',
-      'Start with one branch or sector, expand on results',
-    ],
-    primary: 'Book a demo',
-    secondary: 'Talk to sales',
-  },
   console: {
     label: 'Your console',
     title: 'What happened today, and who needs you.',
@@ -630,8 +629,8 @@ const en: Copy = {
     title: 'Start with the call that matters most.',
     body: 'We take one scenario from your business, build it, and you hear the result yourself before deciding to expand.',
     note: 'No technical setup on your side.',
-    primary: 'Book a demo',
-    secondary: 'Talk to the team',
+    primary: 'Book a 20-minute call',
+    secondary: 'Send us your case',
   },
   footer: {
     tagline: 'Better calls. Closer customers. A faster team.',
@@ -643,19 +642,11 @@ const en: Copy = {
       {
         title: 'Product',
         links: [
-          { label: 'How it works', href: '#calls' },
-          { label: 'Capabilities', href: '#can' },
-          { label: 'Console', href: '#console' },
-          { label: 'Integrations', href: '#integrations' },
-        ],
-      },
-      {
-        title: 'Industries',
-        links: [
-          { label: 'Clinics', href: '#industries' },
-          { label: 'Real estate', href: '#industries' },
-          { label: 'Auto service', href: '#industries' },
-          { label: 'Customer service', href: '#industries' },
+          { label: 'Full call replays', href: '/#calls' },
+          { label: 'Capabilities', href: '/#can' },
+          { label: 'When it cannot complete', href: '/#failure' },
+          { label: 'Integrations', href: '/#integrations' },
+          { label: 'Industries', href: '/#industries' },
         ],
       },
       {
@@ -663,10 +654,18 @@ const en: Copy = {
         links: [
           { label: 'About', href: '/about' },
           { label: 'How we start', href: '/how-it-works' },
-          { label: 'Reliability', href: '/security' },
+          { label: 'Security and privacy', href: '/security' },
           { label: 'Pricing', href: '/pricing' },
           { label: 'FAQ', href: '/faq' },
           { label: 'Contact', href: '/contact' },
+        ],
+      },
+      {
+        title: 'Account',
+        links: [
+          { label: 'Sign in', href: '/sign-in' },
+          { label: 'Privacy policy', href: '/privacy' },
+          { label: 'Terms of use', href: '/terms' },
         ],
       },
     ],
@@ -676,7 +675,7 @@ const en: Copy = {
   },
   common: {
     signIn: 'Sign in',
-    bookDemo: 'Book a demo',
+    bookDemo: 'Book a call',
     menu: 'Menu',
     close: 'Close',
     theme: 'Toggle theme',

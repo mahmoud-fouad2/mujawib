@@ -8,7 +8,7 @@
  * Batched: rows are collected in memory and flushed in chunks — neon-http is
  * one round trip per statement, so per-row inserts would take hours.
  */
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -81,6 +81,9 @@ function batchFor<T extends PgTable>(table: T, label: string): Batch<T> {
   batches.push(b as unknown as Batch<PgTable>)
   return b
 }
+
+/** Agent → live version pointers, applied after both tables are populated. */
+const liveVersionLinks: { agentId: string; versionId: string }[] = []
 
 async function flushAll() {
   for (const b of batches) {
@@ -583,9 +586,12 @@ function build() {
       workspaceId: client.id,
       name: client.agentName,
       templateId: templateIdByKey.get(client.pack),
-      liveVersionId: published ? liveVersionId : null,
+      // Set after the versions land — the two tables reference each other, so
+      // neither can be inserted complete before the other exists.
+      liveVersionId: null,
       createdAt: daysAgo(activeDays + 25),
     })
+    if (published) liveVersionLinks.push({ agentId, versionId: liveVersionId })
 
     B.agentVersion.add({
       id: liveVersionId,
@@ -1050,6 +1056,12 @@ async function main() {
   const totalCalls = build()
   console.log('· inserting…')
   await flushAll()
+  for (const link of liveVersionLinks) {
+    await db
+      .update(schema.agent)
+      .set({ liveVersionId: link.versionId })
+      .where(eq(schema.agent.id, link.agentId))
+  }
   console.log(`\n✓ seed complete — ${totalCalls} calls across ${CLIENTS.length} client workspaces`)
 }
 
