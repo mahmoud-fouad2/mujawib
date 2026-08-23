@@ -56,6 +56,13 @@ async function sendPasswordResetEmail(input: {
 }
 
 export const auth = betterAuth({
+  // Passed explicitly rather than left to Better Auth's own env-var-name
+  // convention (it would find BETTER_AUTH_URL either way): every redirect
+  // this issues — post-sign-in, post-2FA, every callback — resolves against
+  // this value, so it should be readable by grep, not implied by a variable
+  // name nothing in this file references. lib/env.ts refuses to boot in
+  // production if it is ever a localhost URL.
+  baseURL: env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema: {

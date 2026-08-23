@@ -39,3 +39,11 @@ export const env = createEnv({
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,
 })
+
+// The BETTER_AUTH_URL / NEXT_PUBLIC_APP_URL sanity check lives in
+// instrumentation.ts, not here. `next build` always runs with
+// NODE_ENV=production regardless of .env.local's dev-appropriate localhost
+// values, and this module loads during that build — a check gated on
+// NODE_ENV alone would fail every local production build, not just a real
+// misconfigured deploy. instrumentation.ts's register() only runs when a
+// server actually starts serving traffic, which is the boundary that matters.
