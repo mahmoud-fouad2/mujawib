@@ -518,6 +518,16 @@ p {
   content: url("/images/brand/logo-mark-paper.png");
 }
 
+/* English-only lockup — marketing header/footer on /en pages. */
+.brand-logo--en {
+  content: url("/images/brand/logo-horizontal-en-ink.png");
+}
+
+:root[data-theme="dark"] .brand-logo--en,
+.on-ink .brand-logo--en {
+  content: url("/images/brand/logo-horizontal-en-paper.png");
+}
+
 .brand-mark {
   border-radius: 7px;
 }

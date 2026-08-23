@@ -5,6 +5,7 @@ const root = resolve(import.meta.dirname, '..')
 
 const assets = [
   { source: 'logo-horizontal-hq.png', stem: 'logo-horizontal', markOnly: false },
+  { source: 'logo-horizontal-en-hq.png', stem: 'logo-horizontal-en', markOnly: false },
   { source: 'logo-mark.png', stem: 'logo-mark', markOnly: true },
 ]
 

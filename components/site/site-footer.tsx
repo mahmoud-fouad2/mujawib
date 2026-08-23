@@ -25,7 +25,7 @@ export function SiteFooter({ locale, copy }: { locale: Locale; copy: SiteCopy })
         <div className="site-footer__grid">
           <div className="site-footer__brand">
             <Link href={localePath(locale, '/')} aria-label="مُجاوِب MUJAWIB">
-              <Logo size="xl" />
+              <Logo size="xl" locale={locale} />
             </Link>
             <strong className="site-footer__tagline">{copy.footer.tagline}</strong>
             <p>{copy.footer.description}</p>
