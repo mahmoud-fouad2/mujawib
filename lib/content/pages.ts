@@ -1,3 +1,4 @@
+import { CONTACT, CONTACT_WHATSAPP_URL } from '@/lib/content/contact'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -69,20 +70,20 @@ const ar: Pages = {
     channels: [
       {
         label: 'البريد',
-        value: 'hello@mujawib.com',
-        href: 'mailto:hello@mujawib.com',
+        value: CONTACT.email,
+        href: `mailto:${CONTACT.email}`,
         note: 'نرد خلال يوم عمل واحد.',
       },
       {
         label: 'الهاتف',
-        value: '+966 920 012 130',
-        href: 'tel:+966920012130',
+        value: CONTACT.phoneDisplay,
+        href: `tel:${CONTACT.phoneE164}`,
         note: 'الأحد إلى الخميس، 9 صباحًا – 6 مساءً بتوقيت الرياض.',
       },
       {
         label: 'واتساب',
-        value: '+966 920 012 130',
-        href: 'https://wa.me/966920012130',
+        value: CONTACT.phoneDisplay,
+        href: CONTACT_WHATSAPP_URL,
         note: 'للأسئلة السريعة قبل الاجتماع.',
       },
     ],
@@ -356,20 +357,20 @@ const en: Pages = {
     channels: [
       {
         label: 'Email',
-        value: 'hello@mujawib.com',
-        href: 'mailto:hello@mujawib.com',
+        value: CONTACT.email,
+        href: `mailto:${CONTACT.email}`,
         note: 'We reply within one working day.',
       },
       {
         label: 'Phone',
-        value: '+966 920 012 130',
-        href: 'tel:+966920012130',
+        value: CONTACT.phoneDisplay,
+        href: `tel:${CONTACT.phoneE164}`,
         note: 'Sunday to Thursday, 9am – 6pm Riyadh time.',
       },
       {
         label: 'WhatsApp',
-        value: '+966 920 012 130',
-        href: 'https://wa.me/966920012130',
+        value: CONTACT.phoneDisplay,
+        href: CONTACT_WHATSAPP_URL,
         note: 'For quick questions before a meeting.',
       },
     ],

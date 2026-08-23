@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { CONTACT } from '@/lib/content/contact'
 import { env } from '@/lib/env'
 import { type Locale, localePath } from '@/lib/i18n'
 
@@ -6,8 +7,8 @@ export const SITE_URL = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
 
 const ORG_NAME_AR = 'مُجاوِب'
 const ORG_NAME_EN = 'Mujawib'
-const ORG_EMAIL = 'hello@mujawib.com'
-const ORG_PHONE = '+966920012130'
+const ORG_EMAIL = CONTACT.email
+const ORG_PHONE = CONTACT.phoneE164
 
 function absolute(path: string) {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`

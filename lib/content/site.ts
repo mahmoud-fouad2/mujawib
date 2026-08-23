@@ -1,3 +1,4 @@
+import { CONTACT } from '@/lib/content/contact'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -334,8 +335,8 @@ const ar: Copy = {
     tagline: 'مكالمة أفضل. عميل أقرب. فريق أسرع.',
     description:
       'مُجاوِب يرد على مكالمات شركتك بالعربية على مدار الساعة، ويحوّل كل اتصال إلى نتيجة مسجّلة.',
-    email: 'hello@mujawib.com',
-    phone: '+966 920 012 130',
+    email: CONTACT.email,
+    phone: CONTACT.phoneDisplay,
     columns: [
       {
         title: 'المنتج',
@@ -644,8 +645,8 @@ const en: Copy = {
     tagline: 'Better calls. Closer customers. A faster team.',
     description:
       'Mujawib answers your business calls in Arabic around the clock, and turns every one into a recorded outcome.',
-    email: 'hello@mujawib.com',
-    phone: '+966 920 012 130',
+    email: CONTACT.email,
+    phone: CONTACT.phoneDisplay,
     columns: [
       {
         title: 'Product',

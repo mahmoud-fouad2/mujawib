@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
+import { CONTACT } from '@/lib/content/contact'
 import { pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
@@ -56,7 +57,7 @@ export default function EnglishPrivacyPage() {
           {
             heading: 'Your rights',
             body: [
-              'At any point you can ask for a copy of your data, have it corrected or deleted, or stop the service and take your data with you. Write to hello@mujawib.com and we will respond within 30 days at the latest.',
+              `At any point you can ask for a copy of your data, have it corrected or deleted, or stop the service and take your data with you. Write to ${CONTACT.email} and we will respond within 30 days at the latest.`,
             ],
           },
         ]}
