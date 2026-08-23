@@ -35,7 +35,11 @@ export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boole
       issuer: 'MUJAWIB',
     })
     if (result.error || !result.data || !('totpURI' in result.data)) {
-      toast.error('تعذر تفعيل التحقق. تأكد من كلمة المرور وحاول مرة أخرى.')
+      toast.error(
+        result.error?.status === 429
+          ? 'محاولات كثيرة في وقت قصير. انتظر بضع ثوانٍ ثم حاول مرة أخرى.'
+          : 'تعذر تفعيل التحقق. تأكد من كلمة المرور وحاول مرة أخرى.',
+      )
       setPending(null)
       return
     }
@@ -55,11 +59,17 @@ export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boole
     event.preventDefault()
     setPending('verify')
     const result = await authClient.twoFactor.verifyTotp({
-      code: verificationCode.trim(),
+      code: verificationCode.trim().replaceAll(' ', ''),
       trustDevice: true,
     })
     if (result.error) {
-      toast.error('الرمز غير صحيح. تأكد أن وقت هاتفك مضبوط ثم حاول مرة أخرى.')
+      // Better Auth allows three requests per ten seconds here, so a quick
+      // second attempt fails with 429 rather than a wrong code.
+      toast.error(
+        result.error.status === 429
+          ? 'محاولات كثيرة في وقت قصير. انتظر بضع ثوانٍ ثم أدخل الرمز الظاهر حاليًا.'
+          : 'الرمز غير صحيح. الرمز يتغيّر كل 30 ثانية — أدخل الظاهر الآن، وتأكد أن وقت الجهاز يُضبط تلقائيًا.',
+      )
       setPending(null)
       return
     }
@@ -159,12 +169,26 @@ export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boole
 
               <div className="security-backup">
                 <h3>2. خزّن الرموز الاحتياطية</h3>
-                <p>كل رمز يُستخدم مرة واحدة. لن نعرض هذه المجموعة مرة أخرى.</p>
+                <p>
+                  كل رمز يُستخدم مرة واحدة، ولن نعرض هذه المجموعة مرة أخرى. إذا فقدت هاتفك فهذه
+                  الرموز هي طريقك الوحيد للدخول — احفظها خارج الجهاز قبل المتابعة.
+                </p>
                 <div className="security-backup__codes" dir="ltr">
                   {setup.backupCodes.map((code) => (
                     <code key={code}>{code}</code>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(setup.backupCodes.join('\n'))
+                    toast.success('نُسخت الرموز الاحتياطية.')
+                  }}
+                >
+                  <Clipboard size={15} />
+                  نسخ الرموز الاحتياطية
+                </button>
               </div>
 
               <form className="security-inline-form" onSubmit={verifySetup}>

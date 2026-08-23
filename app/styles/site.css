@@ -322,11 +322,18 @@
 
 .hero h1 {
   margin-block-start: var(--s-5);
-  font-size: clamp(3.5rem, 5.6vw, 5.25rem);
+  font-size: clamp(2.75rem, 4.8vw, 4.5rem);
   font-weight: 600;
   line-height: var(--leading-display);
   letter-spacing: var(--tracking-display);
-  max-inline-size: 15ch;
+  max-inline-size: 17ch;
+  text-wrap: balance;
+}
+
+/* Arabic carries diacritics above and descenders below on the same line, so
+   the display leading tuned for Latin caps runs the lines into each other. */
+[dir="rtl"] .hero h1 {
+  line-height: 1.25;
 }
 
 .hero h1 em {
@@ -931,29 +938,12 @@
   color: var(--text-muted);
 }
 
-.sector__facts {
-  display: flex;
-  gap: var(--s-6);
-  margin: 0;
+.sector__fact {
   margin-block-start: auto;
   padding-block-start: var(--s-4);
   border-block-start: 1px solid var(--line-faint);
-}
-
-.sector__facts div {
-  display: grid;
-  gap: 2px;
-}
-
-.sector__facts dt {
-  font-size: 0.6875rem;
-  color: var(--text-faint);
-}
-
-.sector__facts dd {
-  margin: 0;
-  font-size: var(--step-1);
-  font-weight: 500;
+  font-size: var(--step--1);
+  color: var(--text-muted);
 }
 
 /* ─── integrations ─────────────────────────────────────────────────────── */
@@ -1517,12 +1507,16 @@
 
 /* ─── hero proof ───────────────────────────────────────────────────────── */
 
-/* Four figures read as a row of evidence. At 150px min they wrapped to one
-   per line inside the hero's half-width column, which read as a list. */
+/* Figures read as a row of evidence. At 150px min they wrapped to one per
+   line inside the hero's half-width column, which read as a list. */
 .hero__proof-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 0;
+}
+
+.hero__proof-grid--assurance {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 1180px) {
@@ -1576,6 +1570,16 @@
   line-height: 1.4;
   color: var(--text-muted);
   text-wrap: balance;
+}
+
+/* Must follow `.hero__proof-grid strong`: same specificity, so order decides.
+   The mono face carries no Arabic, and its letter-spacing disconnects the
+   letters of whatever falls back — fine for a figure, wrong for a phrase. */
+.hero__proof-grid--assurance strong {
+  font-family: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: normal;
 }
 
 .hero__proof-note {
@@ -2029,7 +2033,7 @@
   transform: translate(-50%, -50%);
 }
 
-.testimonial {
+.honesty {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--s-5);
@@ -2039,20 +2043,163 @@
   border-block: 1px solid var(--line);
 }
 
-.testimonial > svg {
+.honesty > svg {
   color: var(--signal);
 }
 
-.testimonial blockquote {
-  font-size: clamp(1.25rem, 1.8vw, 1.625rem);
-  font-weight: 500;
+.honesty strong {
+  display: block;
+  font-size: clamp(1.0625rem, 1.3vw, 1.25rem);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.honesty p {
+  margin-block-start: var(--s-2);
+  max-inline-size: 62ch;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  line-height: 1.65;
+}
+
+@media (max-width: 860px) {
+  .honesty {
+    grid-template-columns: 1fr;
+    gap: var(--s-4);
+  }
+
+  .honesty .btn {
+    justify-self: start;
+  }
+}
+
+/* ─── arabic-first proof ───────────────────────────────────────────────── */
+
+.whys {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-5);
+  margin-block-start: var(--s-6);
+}
+
+.why {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.why__key {
+  justify-self: start;
+  padding: 3px var(--s-2);
+  border: 1px solid var(--signal-line);
+  border-radius: var(--r-pill);
+  color: var(--signal);
+  font-size: 0.6875rem;
+}
+
+.why h3 {
+  font-size: var(--step-1);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.why > p {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  line-height: 1.75;
+}
+
+.why__proof {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+  padding-block-start: var(--s-4);
+  border-block-start: 1px solid var(--line-faint);
+}
+
+.why__proof dt {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.why__proof dt svg {
+  flex: none;
+  color: var(--good);
+}
+
+.why__proof dd {
+  margin: 0;
+  padding-inline-start: calc(14px + var(--s-2));
+  color: var(--text-faint);
+  font-size: var(--step--2);
   line-height: 1.55;
 }
 
-.testimonial figcaption {
+/* ─── failure handling ─────────────────────────────────────────────────── */
+
+/* Two fixed columns rather than auto-fit, so the flush-edge rule below can
+   rely on odd children being the first column. */
+.failures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-block-start: var(--s-6);
+  border-block-start: 1px solid var(--line);
+}
+
+.failure {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-5);
+  border-block-end: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line-faint);
+}
+
+.failure:nth-child(odd) {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.failure:nth-child(even) {
+  padding-inline-end: 0;
+}
+
+@media (max-width: 760px) {
+  .failures {
+    grid-template-columns: 1fr;
+  }
+
+  .failure {
+    padding-inline: 0;
+    border-inline-start: 0;
+  }
+}
+
+.failure__when {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--step--1);
+}
+
+.failure__when svg {
+  flex: none;
+  color: var(--warn);
+}
+
+.failure__then {
   color: var(--text-muted);
-  font-size: 0.8125rem;
-  white-space: nowrap;
+  font-size: var(--step--1);
+  line-height: 1.7;
 }
 
 @media (max-width: 760px) {

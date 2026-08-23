@@ -13,7 +13,10 @@ export function ContactForm({ locale }: { locale: Locale }) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    // Held across the await: React clears `currentTarget` once the handler
+    // returns, so reading it inside the transition threw on every success.
+    const element = event.currentTarget
+    const form = new FormData(element)
     startTransition(async () => {
       const response = await createSalesInquiry({
         name: String(form.get('name') ?? ''),
@@ -32,7 +35,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
         website: String(form.get('website') ?? ''),
       })
       setResult({ ok: response.ok, message: response.ok ? response.message : response.error })
-      if (response.ok) event.currentTarget.reset()
+      if (response.ok) element.reset()
     })
   }
 
@@ -59,7 +62,11 @@ export function ContactForm({ locale }: { locale: Locale }) {
             : 'We will return with a scoped operating plan and volume estimate, not a generic deck.'}
         </p>
       </div>
-      {result && !result.ok ? <p className="auth__error">{result.message}</p> : null}
+      {result && !result.ok ? (
+        <p className="auth__error" role="alert">
+          {result.message}
+        </p>
+      ) : null}
       <div className="contact-form__fields">
         <div className="field">
           <label htmlFor={`${locale}-contact-name`}>{ar ? 'الاسم' : 'Name'}</label>
@@ -67,6 +74,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
             id={`${locale}-contact-name`}
             name="name"
             className="input"
+            autoComplete="name"
             required
             minLength={2}
           />
@@ -77,6 +85,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
             id={`${locale}-contact-company`}
             name="company"
             className="input"
+            autoComplete="organization"
             required
             minLength={2}
           />
@@ -88,12 +97,23 @@ export function ContactForm({ locale }: { locale: Locale }) {
             name="email"
             className="input mono"
             type="email"
+            inputMode="email"
+            autoComplete="email"
             required
+            placeholder="name@company.com"
           />
         </div>
         <div className="field">
           <label htmlFor={`${locale}-contact-phone`}>{ar ? 'الهاتف' : 'Phone'}</label>
-          <input id={`${locale}-contact-phone`} name="phone" className="input mono" type="tel" />
+          <input
+            id={`${locale}-contact-phone`}
+            name="phone"
+            className="input mono"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="+966 5X XXX XXXX"
+          />
         </div>
         <div className="field">
           <label htmlFor={`${locale}-contact-volume`}>

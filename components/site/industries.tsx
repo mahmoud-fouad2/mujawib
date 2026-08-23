@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 import { LinkButton } from '@/components/ui/button'
 import type { SiteCopy } from '@/lib/content/site'
+import { flowLabel } from '@/lib/content/vocabulary'
 import { num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
 
@@ -51,13 +52,35 @@ export function Industries({
 
   return (
     <div className="sector">
-      <div className="sector__tabs" role="tablist" aria-label={copy.industries.label}>
+      {/* A tablist owes assistive tech more than role names: the tabs must
+          point at the panel, only the selected one may be tabbable, and the
+          arrow keys have to move between them. */}
+      <div
+        className="sector__tabs"
+        role="tablist"
+        aria-label={copy.industries.label}
+        onKeyDown={(event) => {
+          const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+          if (step === 0) return
+          event.preventDefault()
+          const rtl = isRtl(locale)
+          const current = known.indexOf(active)
+          const next = (current + (rtl ? -step : step) + known.length) % known.length
+          const key = known[next]
+          if (!key) return
+          setActive(key)
+          document.getElementById(`sector-tab-${key}`)?.focus()
+        }}
+      >
         {known.map((key) => (
           <button
             key={key}
+            id={`sector-tab-${key}`}
             type="button"
             role="tab"
             aria-selected={key === active}
+            aria-controls="sector-panel"
+            tabIndex={key === active ? 0 : -1}
             className={`sector__tab${key === active ? ' is-active' : ''}`}
             onClick={() => setActive(key)}
           >
@@ -66,7 +89,13 @@ export function Industries({
         ))}
       </div>
 
-      <div className="sector__panel" role="tabpanel">
+      <div
+        className="sector__panel"
+        role="tabpanel"
+        id="sector-panel"
+        aria-labelledby={`sector-tab-${active}`}
+        tabIndex={-1}
+      >
         <div className="sector__scene">
           {/* All scenes stay mounted so switching never flashes an empty frame. */}
           {known.map((key) => (
@@ -90,21 +119,22 @@ export function Industries({
 
           {pack ? (
             <>
+              {/* The two facts that used to sit here were a client count that
+                  reads 0 until the sector has customers, and an internal pack
+                  version number that means nothing to a business owner. The
+                  flows are the part a buyer can judge. */}
               <div className="sector__flows">
                 {pack.flows.map((f) => (
-                  <span key={f}>{f}</span>
+                  <span key={f}>{flowLabel(f, locale)}</span>
                 ))}
               </div>
-              <dl className="sector__facts">
-                <div>
-                  <dt>{locale === 'ar' ? 'شركات تشغّله' : 'Businesses running it'}</dt>
-                  <dd className="mono">{num(pack.clients)}</dd>
-                </div>
-                <div>
-                  <dt>{locale === 'ar' ? 'نسخة القالب' : 'Pack version'}</dt>
-                  <dd className="mono">{pack.version}</dd>
-                </div>
-              </dl>
+              {pack.clients > 0 ? (
+                <p className="sector__fact">
+                  {locale === 'ar'
+                    ? `${num(pack.clients)} من عملائنا يشغّلون هذا القطاع اليوم.`
+                    : `${num(pack.clients)} of our clients run this sector today.`}
+                </p>
+              ) : null}
             </>
           ) : null}
 

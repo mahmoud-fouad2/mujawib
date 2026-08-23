@@ -69,7 +69,7 @@ export default async function SignInPage({
           <CallRecord
             locale="ar"
             title="سجل المكالمة"
-            meta={`${hero.workspaceName} · تشغيل موثّق`}
+            meta="سيناريو تجريبي — كما يظهر داخل اللوحة"
             items={items}
             outcome={
               hero.booking?.service

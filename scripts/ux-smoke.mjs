@@ -17,8 +17,10 @@ function loadPlaywright() {
 const { chromium } = loadPlaywright()
 
 const baseUrl = process.env.MUJAWIB_BASE_URL ?? 'http://localhost:3009'
-const chromePath =
-  process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+// Only pinned when the environment says so. Playwright resolves its own
+// bundled Chromium otherwise, which is what CI and Linux checkouts have; the
+// previous hardcoded Windows path made this script unrunnable anywhere else.
+const chromePath = process.env.CHROME_PATH
 
 const routes = [
   '/',
@@ -44,6 +46,22 @@ const routes = [
   '/about',
   '/pricing',
   '/faq',
+  '/how-it-works',
+  '/security',
+  '/contact',
+  '/privacy',
+  '/terms',
+  '/two-factor',
+  '/en',
+  '/en/about',
+  '/en/pricing',
+  '/en/faq',
+  '/en/how-it-works',
+  '/en/security',
+  '/en/contact',
+  '/en/privacy',
+  '/en/terms',
+  '/this-route-does-not-exist',
   '/access-denied',
   '/invite',
   '/portal',
@@ -57,7 +75,10 @@ const routes = [
 ]
 
 const viewports = [
-  { name: 'mobile', width: 390, height: 1100 },
+  { name: 'mobile-360', width: 360, height: 1100 },
+  { name: 'mobile-390', width: 390, height: 1100 },
+  { name: 'mobile-430', width: 430, height: 1100 },
+  { name: 'tablet-768', width: 768, height: 1100 },
   { name: 'desktop', width: 1440, height: 1100 },
 ]
 
@@ -136,8 +157,31 @@ async function assertPortalIsClientSafe(page, route) {
   }
 }
 
+/** Public pages: the ones a buyer reads before they ever have an account. */
+const auditedRoutes = new Set([
+  '/',
+  '/how-it-works',
+  '/pricing',
+  '/faq',
+  '/security',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/terms',
+  '/sign-in',
+  '/forgot-password',
+  '/two-factor',
+  '/en',
+  '/en/how-it-works',
+  '/en/pricing',
+  '/en/faq',
+  '/en/security',
+  '/en/about',
+  '/en/contact',
+])
+
 async function assertAccessible(page, route, viewportName) {
-  if (route !== '/' && route !== '/sign-in') return
+  if (!auditedRoutes.has(route)) return
 
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
@@ -243,7 +287,7 @@ async function runInteractionChecks(browser, failures) {
 async function main() {
   const browser = await chromium.launch({
     headless: true,
-    executablePath: chromePath,
+    ...(chromePath ? { executablePath: chromePath } : {}),
   })
   const failures = []
 
@@ -257,8 +301,12 @@ async function main() {
       const page = await context.newPage()
       try {
         const response = await gotoReady(page, route)
-        if (!response?.ok()) {
-          throw new Error(`${response?.status() ?? 'no response'}`)
+        // The not-found page is only doing its job if it *does* answer 404,
+        // so it is checked for the status it should have rather than skipped.
+        const expected = route === '/this-route-does-not-exist' ? 404 : null
+        const status = response?.status()
+        if (expected ? status !== expected : !response?.ok()) {
+          throw new Error(`${status ?? 'no response'}${expected ? ` (expected ${expected})` : ''}`)
         }
         await assertNoHorizontalOverflow(page, route, viewport.name)
         await assertPortalIsClientSafe(page, route)

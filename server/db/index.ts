@@ -19,8 +19,15 @@ function errorChain(error: unknown, depth = 0): string {
   return String(error)
 }
 
+/**
+ * Whether the database could not be reached, as opposed to rejecting a query.
+ * The marketing pages degrade to their static copy on a true, so the list has
+ * to cover a refused or saturated connection too — those used to fall through
+ * and take the public homepage down with a 500 whenever Neon was restarting or
+ * at its connection limit.
+ */
 export function isDatabaseUnavailable(error: unknown): boolean {
-  return /fetch failed|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|network|connection terminated|57P01|57P03/i.test(
+  return /fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ECONNABORTED|EHOSTUNREACH|ENETUNREACH|EPIPE|ENOTFOUND|EAI_AGAIN|socket hang up|network|connection terminated|connect_timeout|CONNECTION_(?:CLOSED|ENDED|DESTROYED|REFUSED)|53300|57P01|57P03/i.test(
     errorChain(error),
   )
 }

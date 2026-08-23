@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { CONTACT } from '@/lib/content/contact'
 import { env } from '@/lib/env'
 import { type Locale, localePath } from '@/lib/i18n'
 
@@ -6,11 +7,23 @@ export const SITE_URL = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
 
 const ORG_NAME_AR = 'مُجاوِب'
 const ORG_NAME_EN = 'Mujawib'
-const ORG_EMAIL = 'hello@mujawib.com'
-const ORG_PHONE = '+966920012130'
+const ORG_EMAIL = CONTACT.email
+const ORG_PHONE = CONTACT.phoneE164
 
 function absolute(path: string) {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+/**
+ * The link preview card, built by `pnpm og:build`.
+ *
+ * `summary_large_image` is rendered at about 1.91:1. Pointing it at the
+ * wordmark meant handing every platform a 3.45:1 strip to crop, which on
+ * WhatsApp — where these links actually get sent — left a sliver of logo and
+ * nothing that said what the product does.
+ */
+function ogCard(locale: Locale) {
+  return `/images/brand/og-card-${locale}.png`
 }
 
 /**
@@ -50,13 +63,13 @@ export function pageMetadata({
       alternateLocale: locale === 'ar' ? 'en_US' : 'ar_SA',
       title,
       description,
-      images: [{ url: absolute('/images/brand/logo-horizontal-hq.png'), width: 1319, height: 382 }],
+      images: [{ url: absolute(ogCard(locale)), width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [absolute('/images/brand/logo-horizontal-hq.png')],
+      images: [absolute(ogCard(locale))],
     },
   }
 }
@@ -147,12 +160,13 @@ export function serviceSchema(locale: Locale) {
           'Handover with full call context',
           'A complete record per call',
         ],
+    // Quote-based. `price: '0'` used to sit here, which tells a search engine
+    // the product is free — a claim we would then have to walk back on the
+    // pricing page. A PriceSpecification with no figure says "on request",
+    // which is the truth.
     offers: {
       '@type': 'Offer',
       priceCurrency: 'SAR',
-      // Quote-based: we publish that price is on request rather than a number
-      // we would have to invent.
-      price: '0',
       priceSpecification: {
         '@type': 'PriceSpecification',
         priceCurrency: 'SAR',

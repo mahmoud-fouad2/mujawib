@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
@@ -11,7 +12,6 @@ import {
   Languages,
   PhoneForwarded,
   Play,
-  Quote,
   ShieldCheck,
   X,
 } from 'lucide-react'
@@ -19,8 +19,18 @@ import Image from 'next/image'
 import { LinkButton } from '@/components/ui/button'
 import { Counter } from '@/components/ui/motion'
 import type { SiteCopy } from '@/lib/content/site'
+import { intentLabel } from '@/lib/content/vocabulary'
 import { duration, num } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
+
+/** Points the way the page reads. */
+export function ArrowIcon({
+  locale,
+  ...rest
+}: { locale: Locale } & React.ComponentProps<typeof ArrowRight>) {
+  const Icon = isRtl(locale) ? ArrowLeft : ArrowRight
+  return <Icon {...rest} />
+}
 
 export function SectionHead({
   label,
@@ -156,7 +166,11 @@ export function DemoCalls({
                 <div className="demo__foot">
                   <Check size={14} aria-hidden="true" />
                   <strong>{c.outcome}</strong>
-                  <span className="demo__client">{c.workspaceName}</span>
+                  {/* These are seeded scenarios, not client calls. Naming the
+                      workspace without saying so read as a customer list. */}
+                  <span className="demo__client">
+                    {locale === 'ar' ? 'سيناريو تجريبي' : 'Demo scenario'}
+                  </span>
                 </div>
               </details>
             )
@@ -219,7 +233,7 @@ export function Capabilities({ copy }: { copy: SiteCopy }) {
 
 /* ─── operational outcome ─────────────────────────────────────────────── */
 
-export function OutcomeStory({ copy }: { copy: SiteCopy }) {
+export function OutcomeStory({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
   return (
     <section className="section section--tinted" id="outcomes">
       <div className="container">
@@ -259,11 +273,23 @@ export function OutcomeStory({ copy }: { copy: SiteCopy }) {
           </div>
         </div>
 
-        <figure className="testimonial reveal">
-          <Quote size={26} aria-hidden="true" />
-          <blockquote>“{copy.results.quote}”</blockquote>
-          <figcaption>{copy.results.quoteBy}</figcaption>
-        </figure>
+        {/* This slot held a quote with no attributable source. For a product
+            this early, saying why there are no logos yet buys more trust than
+            a testimonial a reader cannot check. */}
+        <div className="honesty reveal">
+          <ShieldCheck size={22} aria-hidden="true" />
+          <div>
+            <strong>{copy.results.honesty.title}</strong>
+            <p>{copy.results.honesty.body}</p>
+          </div>
+          <LinkButton
+            href={localePath(locale, '/contact')}
+            variant="primary"
+            trailing={<ArrowIcon locale={locale} size={16} className="arrow" aria-hidden="true" />}
+          >
+            {copy.results.honesty.cta}
+          </LinkButton>
+        </div>
       </div>
     </section>
   )
@@ -370,6 +396,10 @@ export function ConsolePreview({
 }) {
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
   const ar = locale === 'ar'
+  // With no live traffic the three counters read 0 · 0 · 0, which says the
+  // product is unused rather than that the console is calm. Show the panel's
+  // shape without the zeros until there is something to count.
+  const hasCounts = counts.live + counts.review + counts.degraded > 0
 
   return (
     <section className="section on-ink" id="console">
@@ -402,25 +432,35 @@ export function ConsolePreview({
               call end to end, so repeating it here would say nothing new. */}
           <div className="cpanel">
             <div className="cpanel__bar">
-              <span className="cpanel__stat" data-tone="live">
-                <b>{num(counts.live)}</b>
-                {ar ? 'مباشر الآن' : 'live now'}
-              </span>
-              <span className="cpanel__stat" data-tone="warn">
-                <b>{num(counts.review)}</b>
-                {ar ? 'تحتاج مراجعة' : 'need review'}
-              </span>
-              <span className="cpanel__stat" data-tone={counts.degraded ? 'bad' : undefined}>
-                <b>{num(counts.degraded)}</b>
-                {ar ? 'ربط متعثر' : 'degraded'}
-              </span>
+              {hasCounts ? (
+                <>
+                  <span className="cpanel__stat" data-tone="live">
+                    <b>{num(counts.live)}</b>
+                    {ar ? 'مباشر الآن' : 'live now'}
+                  </span>
+                  <span className="cpanel__stat" data-tone="warn">
+                    <b>{num(counts.review)}</b>
+                    {ar ? 'تحتاج مراجعة' : 'need review'}
+                  </span>
+                  <span className="cpanel__stat" data-tone={counts.degraded ? 'bad' : undefined}>
+                    <b>{num(counts.degraded)}</b>
+                    {ar ? 'ربط متعثر' : 'degraded'}
+                  </span>
+                </>
+              ) : (
+                <span className="cpanel__stat">
+                  {ar
+                    ? 'المكالمات الجارية، وما يحتاج مراجعة، وحالة كل ربط'
+                    : 'Calls in progress, what needs review, and the state of every connection'}
+                </span>
+              )}
             </div>
 
             <div className="cpanel__rows">
               {queue.map((q) => (
                 <div key={q.id} className="cpanel__row">
                   <div className="cpanel__main">
-                    <strong>{q.intent ?? (ar ? 'مكالمة' : 'Call')}</strong>
+                    <strong>{intentLabel(q.intent, locale) ?? (ar ? 'مكالمة' : 'Call')}</strong>
                     <span>{q.workspaceName}</span>
                   </div>
                   <div className="cpanel__flags">
@@ -481,18 +521,44 @@ export function CloseCta({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
 
 /* ─── hero proof strip ───────────────────────────────────────────────────── */
 
+/**
+ * Below this, the last 30 days say nothing a buyer should weigh: a handful of
+ * calls reads as "nobody uses this", and a rate computed over them is noise.
+ */
+const MEANINGFUL_CALL_VOLUME = 250
+
 export function ProofStrip({
   copy,
   proof,
 }: {
   copy: SiteCopy
-  proof: { callsHandled: number; bookings: number; resolvedRate: number; medianResponseMs: number }
+  proof: { callsHandled: number; bookings: number; resolvedRate: number }
 }) {
+  // Median latency is deliberately not published. It is an operations metric,
+  // and a figure in seconds — which is what a mixed sample produces — reads as
+  // a slow agent no matter how the label frames it.
+  const live = proof.callsHandled >= MEANINGFUL_CALL_VOLUME && proof.bookings > 0
+
+  if (!live) {
+    return (
+      <div className="hero__proof">
+        <div className="hero__proof-grid hero__proof-grid--assurance">
+          {copy.assurances.map((item) => (
+            <div key={item.title}>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
+            </div>
+          ))}
+        </div>
+        <p className="hero__proof-note">{copy.assuranceNote}</p>
+      </div>
+    )
+  }
+
   const items = [
-    { n: proof.callsHandled, suffix: '+', label: copy.proofLabels.calls },
+    { n: proof.callsHandled, suffix: '', label: copy.proofLabels.calls },
     { n: proof.bookings, suffix: '', label: copy.proofLabels.bookings },
     { n: proof.resolvedRate, suffix: '%', label: copy.proofLabels.resolved },
-    { n: proof.medianResponseMs, suffix: 'ms', label: copy.proofLabels.response },
   ]
 
   return (
@@ -501,16 +567,7 @@ export function ProofStrip({
         {items.map((i) => (
           <div key={i.label}>
             <strong>
-              {/* Counts up once on entry — these are real platform figures, so
-                  drawing the eye to them is the point of the strip. */}
-              {i.n > 0 ? (
-                <Counter value={i.n} suffix={i.suffix} />
-              ) : (
-                <span>
-                  <span aria-hidden="true">—</span>
-                  <span className="visually-hidden">0</span>
-                </span>
-              )}
+              <Counter value={i.n} suffix={i.suffix} />
             </strong>
             <span>{i.label}</span>
           </div>
@@ -518,5 +575,74 @@ export function ProofStrip({
       </div>
       <p className="hero__proof-note">{copy.proofNote}</p>
     </div>
+  )
+}
+
+/* ─── arabic-first proof ─────────────────────────────────────────────────── */
+
+/**
+ * This copy has sat in the content file unrendered. It carries the only claims
+ * on the site a competitor cannot copy verbatim — dialect handling, how a
+ * ten-digit number said twice is heard, rollback — so it belongs on the page.
+ */
+export function ArabicFirst({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section" id="arabic">
+      <div className="container">
+        <SectionHead label={copy.why.label} title={copy.why.title} lead={copy.why.lead} />
+        <div className="whys reveal-group">
+          {copy.why.rows.map((row) => (
+            <article key={row.key} className="why">
+              <span className="why__key">{row.key}</span>
+              <h3>{row.title}</h3>
+              <p>{row.body}</p>
+              <dl className="why__proof">
+                {row.proof.map((item) => (
+                  <div key={item.term}>
+                    <dt>
+                      <Check size={14} aria-hidden="true" />
+                      {item.term}
+                    </dt>
+                    <dd>{item.detail}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── failure handling ───────────────────────────────────────────────────── */
+
+/**
+ * The section a buyer actually needs and almost no voice product publishes:
+ * what happens on the call that does not go to plan.
+ */
+export function FailureHandling({ copy }: { copy: SiteCopy }) {
+  return (
+    <section className="section" id="failure">
+      <div className="container">
+        <SectionHead
+          label={copy.failure.label}
+          title={copy.failure.title}
+          lead={copy.failure.lead}
+        />
+        <ul className="failures reveal-group">
+          {copy.failure.rows.map((row) => (
+            <li key={row.situation} className="failure">
+              <span className="failure__when">
+                <AlertTriangle size={15} aria-hidden="true" />
+                {row.situation}
+              </span>
+              <p className="failure__then">{row.handling}</p>
+            </li>
+          ))}
+        </ul>
+        <p className="section__note">{copy.failure.note}</p>
+      </div>
+    </section>
   )
 }

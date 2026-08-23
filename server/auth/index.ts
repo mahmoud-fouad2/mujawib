@@ -99,6 +99,28 @@ export const auth = betterAuth({
       ipAddressHeaders: ['cf-connecting-ip'],
     },
   },
-  plugins: [organization(), twoFactor(), nextCookies()],
+  plugins: [
+    organization(),
+    /**
+     * Pinned rather than left to the plugin defaults, because two of these
+     * values are read at enrollment and again at every verification. A default
+     * that shifts between those two moments silently invalidates every code an
+     * already-enrolled authenticator produces, and the person signing in only
+     * ever sees "wrong code".
+     *
+     * `accountLockout` is deliberately short. It exists to blunt online
+     * guessing, not to strand an operator: at 15 minutes a locked account was
+     * a support call, and the lock reads as a permanently wrong code because
+     * the challenge screen cannot tell the two apart. Five minutes still costs
+     * an attacker far more than it costs the person who fat-fingered a digit,
+     * and the challenge screen now names the lock and counts it down.
+     */
+    twoFactor({
+      issuer: 'MUJAWIB',
+      totpOptions: { digits: 6, period: 30 },
+      accountLockout: { enabled: true, maxFailedAttempts: 10, durationSeconds: 300 },
+    }),
+    nextCookies(),
+  ],
   trustedOrigins: [env.BETTER_AUTH_URL, env.NEXT_PUBLIC_APP_URL, ...developmentOrigins],
 })

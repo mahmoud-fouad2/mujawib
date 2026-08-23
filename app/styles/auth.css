@@ -67,8 +67,19 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  /* The row is the target, not the 13px box the browser draws by default. */
+  min-block-size: 32px;
   color: var(--text-muted);
   font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.check-row input[type="checkbox"] {
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  accent-color: var(--text);
+  cursor: pointer;
 }
 
 .account-page {
@@ -385,6 +396,50 @@
   background: var(--bad-soft);
   color: var(--bad);
   font-size: var(--step--1);
+  line-height: 1.6;
+}
+
+/* The hint under an error carries the *reason*, so it must not read as an
+   afterthought of the same weight as the headline. */
+.auth__error small {
+  display: block;
+  margin-block-start: var(--s-1);
+  color: color-mix(in srgb, var(--bad) 78%, var(--text));
+  font-size: var(--step--2);
+  font-weight: 400;
+}
+
+/* Shown in place of the code field when retrying cannot succeed. */
+.auth__recovery {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+}
+
+/* Always present, so the page is never a dead end. */
+.auth__escape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-5);
+  padding-block-start: var(--s-4);
+  border-block-start: 1px solid var(--line);
+  font-size: var(--step--1);
+}
+
+.auth__escape a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-muted);
+}
+
+.auth__escape a:hover {
+  color: var(--text);
+}
+
+.field__note {
+  color: var(--text-muted);
+  font-size: var(--step--2);
   line-height: 1.6;
 }
 

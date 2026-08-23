@@ -154,15 +154,18 @@ export function PricingPage({ locale }: { locale: Locale }) {
 
       <section className="section">
         <div className="container">
-          <div className="band lifts reveal-group">
+          <p className="section__note bands__note">{p.bandsNote}</p>
+          <div className="bands reveal-group">
             {p.bands.map((b) => (
               <article key={b.name} className={`band${b.featured ? ' band--featured' : ''}`}>
+                {/* "الأكثر اختيارًا" was a usage statistic nobody has measured.
+                    A recommendation is an opinion we can stand behind. */}
                 {b.featured ? (
-                  <Pill tone="signal">{ar ? 'الأكثر اختيارًا' : 'Most chosen'}</Pill>
+                  <Pill tone="signal">{ar ? 'نوصي به للبداية' : 'Where we suggest starting'}</Pill>
                 ) : null}
                 <h2>{b.name}</h2>
-                <p className="band lift__for">{b.forWho}</p>
-                <p className="band lift__volume mono">{b.volume}</p>
+                <p className="band__for">{b.forWho}</p>
+                <p className="band__volume">{b.volume}</p>
                 <ul>
                   {b.includes.map((i) => (
                     <li key={i}>
@@ -177,13 +180,33 @@ export function PricingPage({ locale }: { locale: Locale }) {
                   block
                   trailing={<Arrow size={16} className="arrow" aria-hidden="true" />}
                 >
-                  {site.pricing.primary}
+                  {site.common.bookDemo}
                 </LinkButton>
               </article>
             ))}
           </div>
 
           <p className="section__note">{p.note}</p>
+        </div>
+      </section>
+
+      {/* A page called "الأسعار" that shows no number owes the reader an
+          explanation of what the number depends on and when it arrives. */}
+      <section className="section">
+        <div className="container">
+          <SectionHead
+            label={ar ? 'كيف نحسبه' : 'How we price'}
+            title={p.driversTitle}
+            lead={p.driversNote}
+          />
+          <ul className="drivers reveal-group">
+            {p.drivers.map((d) => (
+              <li key={d.title} className="driver">
+                <strong>{d.title}</strong>
+                <p>{d.body}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

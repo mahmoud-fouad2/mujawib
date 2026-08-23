@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  locale: 'ar',
+  path: '/terms',
   title: 'الشروط والأحكام',
   description: 'شروط استخدام خدمة مُجاوِب للتشغيل الصوتي.',
-}
+})
 
 export default function TermsPage() {
   return (

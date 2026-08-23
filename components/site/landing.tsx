@@ -2,17 +2,20 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { CallPlayer } from '@/components/site/call-player'
 import { Industries } from '@/components/site/industries'
 import {
+  ArabicFirst,
   Capabilities,
   CloseCta,
   ConsolePreview,
   DemoCalls,
+  FailureHandling,
   IntegrationWires,
   OutcomeStory,
   ProofStrip,
 } from '@/components/site/sections'
 import { LinkButton } from '@/components/ui/button'
 import { copyFor } from '@/lib/content/site'
-import { CALL_OUTCOME_LABEL, clock } from '@/lib/format'
+import { intentLabel, outcomeLabel } from '@/lib/content/vocabulary'
+import { clock } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
 import { buildRecordItems } from '@/lib/record'
 import {
@@ -123,12 +126,15 @@ export async function Landing({ locale }: { locale: Locale }) {
                 </LinkButton>
               </div>
 
-              <ul className="hero__assurance" aria-label={copy.hero.note}>
-                <li>{copy.hero.note}</li>
-                <li>{locale === 'ar' ? 'سيناريو من عملك' : 'Built around your workflow'}</li>
-                <li>
-                  {locale === 'ar' ? 'لا تشغيل قبل موافقتك' : 'Nothing goes live without approval'}
-                </li>
+              {/* These used to repeat the assurance strip immediately below,
+                  so they carry the objections that strip does not answer. */}
+              <ul
+                className="hero__assurance"
+                aria-label={locale === 'ar' ? 'ما تحتاج معرفته قبل البدء' : 'Before you start'}
+              >
+                {copy.hero.assurances.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
               </ul>
             </div>
 
@@ -143,7 +149,7 @@ export async function Landing({ locale }: { locale: Locale }) {
                 <CallPlayer
                   locale={locale}
                   title={copy.hero.recordTitle}
-                  meta={`${hero.workspaceName} · ${copy.hero.recordMeta}`}
+                  meta={copy.hero.recordMeta}
                   turns={hero.turns}
                   tools={heroToolEvents}
                   totalSeconds={hero.durationSeconds ?? 60}
@@ -163,8 +169,8 @@ export async function Landing({ locale }: { locale: Locale }) {
         calls={demos.map((d) => ({
           id: d.id,
           workspaceName: d.workspaceName,
-          intent: d.intent,
-          outcome: d.outcome ? (CALL_OUTCOME_LABEL[d.outcome] ?? d.outcome) : null,
+          intent: intentLabel(d.intent, locale),
+          outcome: outcomeLabel(d.outcome, locale),
           durationSeconds: d.durationSeconds,
           turns: d.turns,
         }))}
@@ -203,7 +209,11 @@ export async function Landing({ locale }: { locale: Locale }) {
         </section>
       ) : null}
 
-      <OutcomeStory copy={copy} />
+      <ArabicFirst copy={copy} />
+
+      <FailureHandling copy={copy} />
+
+      <OutcomeStory locale={locale} copy={copy} />
 
       <ConsolePreview
         locale={locale}

@@ -21,8 +21,13 @@
 
   /* ─── text ───────────────────────────────────────────────────────────── */
   --text: #111318;
-  --text-muted: #687180;
-  --text-faint: #939ba8;
+  /* Both secondary greys are set against `--sunken`, the darkest ground either
+     one lands on, so they carry 4.5:1 everywhere rather than only over white.
+     The previous pair passed on paper and failed on every tinted panel — the
+     lead under each section heading, the footer credit, the flow captions. The
+     three-step hierarchy survives: 16.1, 6.0 and 4.8 against paper. */
+  --text-muted: #575f6c;
+  --text-faint: #656b74;
   --text-on-signal: #ffffff;
   --text-inverse: #f4f6f8;
 
@@ -40,8 +45,10 @@
   --signal-line: rgb(17 19 24 / 20%);
 
   /* ─── status ─────────────────────────────────────────────────────────── */
-  --good: #178a5b;
-  --good-soft: rgb(23 138 91 / 11%);
+  /* Read against `--good-soft`, which is this same green over the page: the
+     status pills set one on the other, and the old pair came to 3.5:1. */
+  --good: #137049;
+  --good-soft: rgb(19 112 73 / 11%);
   --warn: #b57917;
   --warn-soft: rgb(181 121 23 / 12%);
   --bad: #c43b48;
@@ -129,7 +136,8 @@
 
   --text: #f4f6f8;
   --text-muted: #9ca5b2;
-  --text-faint: #6d7684;
+  /* Set against `--raised`; at #6d7684 it reached only 3.7:1 there. */
+  --text-faint: #7c8490;
   --text-inverse: #111318;
 
   --line: rgb(255 255 255 / 9%);
@@ -165,7 +173,7 @@
   --raised: #181c22;
   --text: #f4f6f8;
   --text-muted: #9ca5b2;
-  --text-faint: #6d7684;
+  --text-faint: #7c8490;
   --line: rgb(255 255 255 / 9%);
   --line-strong: rgb(255 255 255 / 16%);
   --line-faint: rgb(255 255 255 / 5%);

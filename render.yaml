@@ -53,8 +53,16 @@ services:
         sync: false
 
       # openssl rand -base64 32
+      #
+      # Set by hand, NOT generateValue. This key seals every stored two-factor
+      # secret and backup code, so a regenerated value does not merely log
+      # everyone out — it permanently bricks every enrolled authenticator, with
+      # no route back through the browser (`pnpm 2fa:reset` becomes the only
+      # way in). generateValue mints a fresh one whenever the service is
+      # recreated from this blueprint, which is a foot-gun pointed at the
+      # owner's own account. Keep the existing value when moving the service.
       - key: BETTER_AUTH_SECRET
-        generateValue: true
+        sync: false
 
       # Both must equal the final public URL of this service.
       - key: BETTER_AUTH_URL

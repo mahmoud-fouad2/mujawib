@@ -1,16 +1,19 @@
 import Image from 'next/image'
 import Link from 'next/link'
 // Lucide dropped brand marks in v1; react-icons carries the official glyphs.
-import { FaInstagram, FaLinkedinIn, FaXTwitter, FaYoutube } from 'react-icons/fa6'
+import { FaInstagram, FaLinkedinIn } from 'react-icons/fa6'
 import { Logo } from '@/components/brand/logo'
 import type { SiteCopy } from '@/lib/content/site'
 import { type Locale, localePath } from '@/lib/i18n'
 
+/**
+ * Only profiles that resolve. `x.com/mujawib` and `youtube.com/@mujawib` both
+ * returned 404 — a footer icon that leads nowhere costs more trust than a
+ * missing one. Add each back here once the handle is actually claimed.
+ */
 const SOCIAL = [
-  { label: 'LinkedIn', href: 'https://linkedin.com/company/mujawib', Icon: FaLinkedinIn },
-  { label: 'X', href: 'https://x.com/mujawib', Icon: FaXTwitter },
-  { label: 'Instagram', href: 'https://instagram.com/mujawib', Icon: FaInstagram },
-  { label: 'YouTube', href: 'https://youtube.com/@mujawib', Icon: FaYoutube },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mujawib', Icon: FaLinkedinIn },
+  { label: 'Instagram', href: 'https://www.instagram.com/mujawib', Icon: FaInstagram },
 ]
 
 export function SiteFooter({ locale, copy }: { locale: Locale; copy: SiteCopy }) {

@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
+import { CONTACT } from '@/lib/content/contact'
+import { pageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  locale: 'ar',
+  path: '/privacy',
   title: 'سياسة الخصوصية',
   description: 'كيف يتعامل مُجاوِب مع بيانات مكالماتك وبيانات عملائك.',
-}
+})
 
 export default function PrivacyPage() {
   return (
@@ -53,7 +57,7 @@ export default function PrivacyPage() {
           {
             heading: 'حقوقك',
             body: [
-              'يمكنك في أي وقت طلب نسخة من بياناتك، أو تصحيحها، أو حذفها، أو إيقاف الخدمة وسحب بياناتك. تواصل معنا على hello@mujawib.com وسنستجيب خلال 30 يومًا كحد أقصى.',
+              `يمكنك في أي وقت طلب نسخة من بياناتك، أو تصحيحها، أو حذفها، أو إيقاف الخدمة وسحب بياناتك. تواصل معنا على ${CONTACT.email} وسنستجيب خلال 30 يومًا كحد أقصى.`,
             ],
           },
         ]}
