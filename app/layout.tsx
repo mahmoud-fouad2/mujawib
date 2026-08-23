@@ -45,6 +45,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} dir={dirOf(locale)} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
+        {/* The two weights the first screen needs. Discovered inside a CSS file
+            otherwise, which is late enough that the hero reflows after paint —
+            the layout shift the home page was carrying on mobile. */}
+        <link
+          rel="preload"
+          href="/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-400.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-600.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         {/* Applies the stored colour mode before paint so the ground never flashes. */}
         <script
           // biome-ignore lint/security/noDangerouslySetInnerHtml: must run before hydration
