@@ -15,6 +15,18 @@ function absolute(path: string) {
 }
 
 /**
+ * The link preview card, built by `pnpm og:build`.
+ *
+ * `summary_large_image` is rendered at about 1.91:1. Pointing it at the
+ * wordmark meant handing every platform a 3.45:1 strip to crop, which on
+ * WhatsApp — where these links actually get sent — left a sliver of logo and
+ * nothing that said what the product does.
+ */
+function ogCard(locale: Locale) {
+  return `/images/brand/og-card-${locale}.png`
+}
+
+/**
  * Metadata for a marketing page, including the hreflang pair.
  *
  * Both locales are always declared and point at each other, so a search engine
@@ -51,13 +63,13 @@ export function pageMetadata({
       alternateLocale: locale === 'ar' ? 'en_US' : 'ar_SA',
       title,
       description,
-      images: [{ url: absolute('/images/brand/logo-horizontal-hq.png'), width: 1319, height: 382 }],
+      images: [{ url: absolute(ogCard(locale)), width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [absolute('/images/brand/logo-horizontal-hq.png')],
+      images: [absolute(ogCard(locale))],
     },
   }
 }
