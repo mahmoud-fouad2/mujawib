@@ -282,6 +282,43 @@
   align-items: start;
 }
 
+.bands__note {
+  margin-block: 0 var(--s-5);
+}
+
+/* A grid item stretches by default, which made the badge a full-width bar. */
+.band > .pill {
+  justify-self: start;
+}
+
+/* ─── what sets the price ──────────────────────────────────────────────── */
+
+.drivers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-5);
+  margin-block-start: var(--s-6);
+}
+
+.driver {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+  padding-block-start: var(--s-4);
+  border-block-start: 2px solid var(--line-strong);
+}
+
+.driver strong {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.driver p {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  line-height: 1.7;
+}
+
 .band {
   display: grid;
   gap: var(--s-3);

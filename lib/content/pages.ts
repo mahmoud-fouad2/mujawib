@@ -27,7 +27,11 @@ type Pages = {
   pricing: {
     title: string
     lead: string
+    bandsNote: string
     bands: PricingBand[]
+    drivers: { title: string; body: string }[]
+    driversTitle: string
+    driversNote: string
     note: string
     faq: FaqItem[]
   }
@@ -100,7 +104,8 @@ const ar: Pages = {
   },
   pricing: {
     title: 'السعر يتبع حجم مكالماتك.',
-    lead: 'لا باقات جامدة ولا رسوم لكل مستخدم. نتفق على النطاق بعد أن ترى الموظف الصوتي يعمل على سيناريو من عملك.',
+    lead: 'لا باقات جامدة ولا رسوم لكل مستخدم. الأرقام أدناه نطاقات استخدام، لا أسعار: نحدد السعر بعد أن نعرف حجمك وأنظمتك، ونرسله لك خلال يوم عمل واحد.',
+    bandsNote: 'ثلاثة نطاقات استخدام. اختر الأقرب لحجمك، ونرجع لك بعرض سعر مبني عليه.',
     bands: [
       {
         name: 'بداية',
@@ -119,7 +124,7 @@ const ar: Pages = {
         volume: '500 – 3,000 مكالمة شهريًا',
         includes: [
           'أكثر من موظف صوتي ولهجة',
-          'ربط CRM ونظامك الخاص',
+          'ربط نظام إدارة العملاء ونظامك الخاص',
           'أرقام متعددة وتوجيه حسب الفرع',
           'مراجعة جودة أسبوعية',
           'بوابة عميل لفريقك',
@@ -138,6 +143,27 @@ const ar: Pages = {
         ],
       },
     ],
+    driversTitle: 'ما الذي يحدد رقمك بالضبط',
+    drivers: [
+      {
+        title: 'كم مكالمة تصلك شهريًا',
+        body: 'هذا العامل الأكبر. نبني التقدير على متوسط آخر ثلاثة أشهر عندك، لا على أعلى شهر.',
+      },
+      {
+        title: 'كم سيناريو وكم فرع',
+        body: 'حجز مواعيد لفرع واحد أبسط من حجز وتغيير ومتابعة طلبات عبر خمسة فروع بأرقام منفصلة.',
+      },
+      {
+        title: 'أي أنظمة نربطها',
+        body: 'التقويم وواتساب ضمن كل الخطط. الربط بنظام داخلي أو غير قياسي يحتاج عملًا إضافيًا يُحسب مرة واحدة.',
+      },
+      {
+        title: 'كم لهجة وكم صوت',
+        body: 'صوت واحد بلهجة واحدة يكفي أغلب الحالات. تعدد الأصوات واللهجات يرفع كلفة التجهيز والاختبار.',
+      },
+    ],
+    driversNote:
+      'نرسل العرض خلال يوم عمل واحد بعد المكالمة الأولى، ويشمل تقدير الحجم والتكلفة الشهرية مكتوبة — لا رقم شفهي.',
     note: 'الإعداد والتجهيز والاختبار يتولاه فريقنا بالكامل ضمن الاشتراك — لا رسوم إعداد منفصلة في أول سيناريو.',
     faq: [
       {
@@ -365,7 +391,9 @@ const en: Pages = {
   },
   pricing: {
     title: 'Pricing follows your call volume.',
-    lead: 'No rigid tiers and no per-seat fees. We agree scope after you have seen the agent work on a scenario from your business.',
+    lead: 'No rigid tiers and no per-seat fees. The figures below are usage bands, not prices: we set the price once we know your volume and your systems, and send it within one working day.',
+    bandsNote:
+      'Three usage bands. Pick the one closest to your volume and we come back with a quote built on it.',
     bands: [
       {
         name: 'Start',
@@ -403,6 +431,27 @@ const en: Pages = {
         ],
       },
     ],
+    driversTitle: 'What actually sets your number',
+    drivers: [
+      {
+        title: 'How many calls a month',
+        body: 'The largest factor. We estimate from your last three months average, not your busiest month.',
+      },
+      {
+        title: 'How many scenarios and branches',
+        body: 'Booking for one branch is simpler than booking, rescheduling and order chasing across five branches on separate numbers.',
+      },
+      {
+        title: 'Which systems we connect',
+        body: 'Calendar and WhatsApp are in every plan. An in-house or non-standard system takes extra work, charged once.',
+      },
+      {
+        title: 'How many voices and dialects',
+        body: 'One voice in one dialect covers most cases. Several raises the build and testing effort.',
+      },
+    ],
+    driversNote:
+      'The quote arrives within one working day of the first call, with the volume estimate and the monthly cost in writing — never a number over the phone.',
     note: 'Setup, build and testing are handled entirely by our team inside the subscription — no separate setup fee for the first scenario.',
     faq: [
       {

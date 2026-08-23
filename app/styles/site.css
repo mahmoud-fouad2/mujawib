@@ -322,11 +322,18 @@
 
 .hero h1 {
   margin-block-start: var(--s-5);
-  font-size: clamp(3.5rem, 5.6vw, 5.25rem);
+  font-size: clamp(2.75rem, 4.8vw, 4.5rem);
   font-weight: 600;
   line-height: var(--leading-display);
   letter-spacing: var(--tracking-display);
-  max-inline-size: 15ch;
+  max-inline-size: 17ch;
+  text-wrap: balance;
+}
+
+/* Arabic carries diacritics above and descenders below on the same line, so
+   the display leading tuned for Latin caps runs the lines into each other. */
+[dir="rtl"] .hero h1 {
+  line-height: 1.25;
 }
 
 .hero h1 em {
@@ -1508,17 +1515,8 @@
   gap: 0;
 }
 
-/* The pre-volume variant carries four short promises rather than numbers, so
-   its lead line is prose weight, not the tabular figure treatment. */
 .hero__proof-grid--assurance {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.hero__proof-grid--assurance strong {
-  font-family: inherit;
-  font-size: var(--step--1);
-  font-weight: 600;
-  letter-spacing: normal;
 }
 
 @media (max-width: 1180px) {
@@ -1572,6 +1570,16 @@
   line-height: 1.4;
   color: var(--text-muted);
   text-wrap: balance;
+}
+
+/* Must follow `.hero__proof-grid strong`: same specificity, so order decides.
+   The mono face carries no Arabic, and its letter-spacing disconnects the
+   letters of whatever falls back — fine for a figure, wrong for a phrase. */
+.hero__proof-grid--assurance strong {
+  font-family: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: normal;
 }
 
 .hero__proof-note {

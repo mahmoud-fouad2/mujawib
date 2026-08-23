@@ -126,12 +126,15 @@ export async function Landing({ locale }: { locale: Locale }) {
                 </LinkButton>
               </div>
 
-              <ul className="hero__assurance" aria-label={copy.hero.note}>
-                <li>{copy.hero.note}</li>
-                <li>{locale === 'ar' ? 'سيناريو من عملك' : 'Built around your workflow'}</li>
-                <li>
-                  {locale === 'ar' ? 'لا تشغيل قبل موافقتك' : 'Nothing goes live without approval'}
-                </li>
+              {/* These used to repeat the assurance strip immediately below,
+                  so they carry the objections that strip does not answer. */}
+              <ul
+                className="hero__assurance"
+                aria-label={locale === 'ar' ? 'ما تحتاج معرفته قبل البدء' : 'Before you start'}
+              >
+                {copy.hero.assurances.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
               </ul>
             </div>
 

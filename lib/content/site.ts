@@ -20,7 +20,7 @@ type Copy = {
     lead: string
     primary: string
     secondary: string
-    note: string
+    assurances: string[]
     recordTitle: string
     recordMeta: string
   }
@@ -106,12 +106,16 @@ const ar: Copy = {
   ],
   hero: {
     eyebrow: 'استقبال هاتفي بالعربية · خدمة مُدارة',
-    title: 'موظف استقبال يرد على عملائك بالعربية،',
-    titleMuted: 'ويحجز الموعد قبل أن تنتهي المكالمة.',
+    title: 'موظف استقبال يرد بالعربية،',
+    titleMuted: 'ويحجز الموعد في نفس المكالمة.',
     lead: 'للعيادات والمعارض والشركات التي تصلها مكالمات أكثر مما يستوعبه الاستقبال. يرد مُجاوِب في أي ساعة، يفهم الطلب حتى بلهجة المتصل، يثبّت الموعد في تقويمك ويرسل التأكيد على واتساب — ويحوّل المكالمة لفريقك في الحالات التي تحددها أنت.',
     primary: 'احجز مكالمة مع الفريق',
     secondary: 'شاهد مكالمة كاملة',
-    note: 'نجهّزه على نشاطك ونختبره قبل أن يرد على أول عميل.',
+    assurances: [
+      'يعمل على رقمك الحالي',
+      'بدون فريق تقني من طرفك',
+      'من أسبوع إلى ثلاثة حتى التشغيل',
+    ],
     recordTitle: 'سيناريو تجريبي',
     recordMeta: 'مكالمة حجز بالعربية — سيناريو تجريبي',
   },
@@ -237,7 +241,7 @@ const ar: Copy = {
           'لا يقول «تم الحجز». يسجّل طلب معاودة اتصال أو يحوّل المكالمة، ويظهر التعطّل في لوحتك في نفس اللحظة.',
       },
       {
-        situation: 'الـCRM أو نظامك غير متاح',
+        situation: 'نظام إدارة العملاء لديك غير متاح',
         handling:
           'يكمل المكالمة ويحفظ بيانات العميل عندنا، ثم يُعيد إرسالها لنظامك تلقائيًا عند عودته.',
       },
@@ -387,12 +391,16 @@ const en: Copy = {
   ],
   hero: {
     eyebrow: 'Arabic phone reception · managed service',
-    title: 'A receptionist who answers your callers in Arabic,',
-    titleMuted: 'and books the slot before the call ends.',
+    title: 'A receptionist that answers in Arabic,',
+    titleMuted: 'and books the slot on the same call.',
     lead: 'For clinics, showrooms and businesses taking more calls than a front desk can absorb. Mujawib answers at any hour, follows the request in the caller’s own dialect, locks the slot in your calendar and sends the WhatsApp confirmation — and hands the call to your team in the cases you decide.',
     primary: 'Book a call with the team',
     secondary: 'Watch a full call',
-    note: 'We build it around your business and test it before it answers a single customer.',
+    assurances: [
+      'Works with your existing number',
+      'No technical team on your side',
+      'One to three weeks to go live',
+    ],
     recordTitle: 'Demo scenario',
     // The transcript below stays in Arabic: it is the product, not an
     // untranslated string. Say so, so an English reader knows what they see.

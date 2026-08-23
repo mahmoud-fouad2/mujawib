@@ -52,13 +52,35 @@ export function Industries({
 
   return (
     <div className="sector">
-      <div className="sector__tabs" role="tablist" aria-label={copy.industries.label}>
+      {/* A tablist owes assistive tech more than role names: the tabs must
+          point at the panel, only the selected one may be tabbable, and the
+          arrow keys have to move between them. */}
+      <div
+        className="sector__tabs"
+        role="tablist"
+        aria-label={copy.industries.label}
+        onKeyDown={(event) => {
+          const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+          if (step === 0) return
+          event.preventDefault()
+          const rtl = isRtl(locale)
+          const current = known.indexOf(active)
+          const next = (current + (rtl ? -step : step) + known.length) % known.length
+          const key = known[next]
+          if (!key) return
+          setActive(key)
+          document.getElementById(`sector-tab-${key}`)?.focus()
+        }}
+      >
         {known.map((key) => (
           <button
             key={key}
+            id={`sector-tab-${key}`}
             type="button"
             role="tab"
             aria-selected={key === active}
+            aria-controls="sector-panel"
+            tabIndex={key === active ? 0 : -1}
             className={`sector__tab${key === active ? ' is-active' : ''}`}
             onClick={() => setActive(key)}
           >
@@ -67,7 +89,13 @@ export function Industries({
         ))}
       </div>
 
-      <div className="sector__panel" role="tabpanel">
+      <div
+        className="sector__panel"
+        role="tabpanel"
+        id="sector-panel"
+        aria-labelledby={`sector-tab-${active}`}
+        tabIndex={-1}
+      >
         <div className="sector__scene">
           {/* All scenes stay mounted so switching never flashes an empty frame. */}
           {known.map((key) => (

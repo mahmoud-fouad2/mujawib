@@ -67,8 +67,19 @@
   display: flex;
   align-items: center;
   gap: var(--s-2);
+  /* The row is the target, not the 13px box the browser draws by default. */
+  min-block-size: 32px;
   color: var(--text-muted);
   font-size: var(--step--1);
+  cursor: pointer;
+}
+
+.check-row input[type="checkbox"] {
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  accent-color: var(--text);
+  cursor: pointer;
 }
 
 .account-page {
