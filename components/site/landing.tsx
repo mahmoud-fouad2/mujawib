@@ -209,7 +209,7 @@ export async function Landing({ locale }: { locale: Locale }) {
         </section>
       ) : null}
 
-      <ArabicFirst copy={copy} />
+      <ArabicFirst locale={locale} copy={copy} />
 
       <FailureHandling copy={copy} />
 
