@@ -25,7 +25,8 @@ import { isRtl, type Locale, localePath } from '@/lib/i18n'
 import { withArabicRuns } from '@/lib/lang-runs'
 
 /** Points the way the page reads. */
-export function ArrowIcon({
+/** Used only inside this file — not exported, since nothing outside imports it. */
+function ArrowIcon({
   locale,
   ...rest
 }: { locale: Locale } & React.ComponentProps<typeof ArrowRight>) {
