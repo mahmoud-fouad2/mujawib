@@ -7,7 +7,7 @@ import { type FormEvent, useCallback, useEffect, useState, useTransition } from 
 import { PasswordField } from '@/components/auth/password-field'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { authClient } from '@/lib/auth-client'
+import { authClient, needsTwoFactor, twoFactorHref } from '@/lib/auth-client'
 import {
   acceptWorkspaceInvitation,
   createInvitedWorkspaceAccount,
@@ -140,6 +140,14 @@ export function InviteAcceptance() {
 
       if (result.error) {
         setError(authMessage(result.error.code))
+        return
+      }
+
+      // A two-factor challenge leaves no session behind, so the getSession
+      // below would report a failure that is really a pending step. Send the
+      // person to the challenge and come back to this invitation after it.
+      if (needsTwoFactor(result.data)) {
+        router.push(twoFactorHref(`/invite?token=${encodeURIComponent(token)}`))
         return
       }
 

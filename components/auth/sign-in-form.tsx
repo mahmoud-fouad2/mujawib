@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { PasswordField } from '@/components/auth/password-field'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/lib/auth-client'
+import { authClient, needsTwoFactor, twoFactorHref } from '@/lib/auth-client'
 
 function GoogleMark() {
   return (
@@ -64,7 +64,7 @@ export function SignInForm({
     setPending('email')
 
     const continuation = `/auth/continue?next=${encodeURIComponent(returnTo)}`
-    const { error: authError } = await authClient.signIn.email({
+    const { data, error: authError } = await authClient.signIn.email({
       email: email.trim(),
       password,
       callbackURL: continuation,
@@ -73,6 +73,14 @@ export function SignInForm({
     if (authError) {
       setError(messageFor(authError.code, 'تعذر تسجيل الدخول. حاول مرة أخرى.'))
       setPending(null)
+      return
+    }
+
+    // The password was accepted but no session exists yet: Better Auth is
+    // holding a two-factor challenge that expires in ten minutes. Carry the
+    // destination across so verifying lands where the person was going.
+    if (needsTwoFactor(data)) {
+      router.push(twoFactorHref(continuation))
       return
     }
 
