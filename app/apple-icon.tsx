@@ -1,6 +1,6 @@
-import { ImageResponse } from 'next/og'
 import fs from 'node:fs'
 import path from 'node:path'
+import { ImageResponse } from 'next/og'
 
 export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
@@ -24,6 +24,7 @@ export default function AppleIcon() {
         padding: '20px',
       }}
     >
+      {/* biome-ignore lint/performance/noImgElement: Satori ImageResponse requires standard img element */}
       <img
         src={base64}
         alt="مُجاوِب"

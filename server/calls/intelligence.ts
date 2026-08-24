@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash, randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, inArray, lt, or } from 'drizzle-orm'
 import {
   CALL_SUMMARY_JSON_SCHEMA,

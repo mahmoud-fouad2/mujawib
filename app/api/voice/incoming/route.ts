@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { db } from '@/server/db'

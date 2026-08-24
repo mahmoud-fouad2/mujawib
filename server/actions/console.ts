@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'crypto'
+import { randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'

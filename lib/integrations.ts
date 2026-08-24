@@ -1,4 +1,4 @@
-import { isIP } from 'net'
+import { isIP } from 'node:net'
 import { z } from 'zod'
 
 const INTEGRATION_ACTIONS = ['health', 'availability', 'booking', 'message'] as const

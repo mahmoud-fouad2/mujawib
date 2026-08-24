@@ -1,7 +1,7 @@
 import 'server-only'
 
-import { lookup } from 'dns/promises'
-import { Agent, request } from 'https'
+import { lookup } from 'node:dns/promises'
+import { Agent, request } from 'node:https'
 import { credentialReference, inspectOutboundUrl, isPrivateAddress } from '@/lib/integrations'
 
 const MAX_RESPONSE_BYTES = 256 * 1024

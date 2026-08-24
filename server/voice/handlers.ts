@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type IntegrationAction, normalizeIntegrationConfig } from '@/lib/integrations'

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
 import { enqueueCallIntelligence } from '@/server/calls/intelligence'

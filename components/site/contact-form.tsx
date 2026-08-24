@@ -165,7 +165,9 @@ export function ContactForm({ locale }: { locale: Locale }) {
         </div>
 
         <div className="field contact-form__need" style={{ marginBlockEnd: 'var(--s-2)' }}>
-          <label>{ar ? 'حجم المكالمات الشهرية التقريبي' : 'Estimated monthly calls'}</label>
+          <span style={{ fontSize: 'var(--step--1)', fontWeight: 500 }}>
+            {ar ? 'حجم المكالمات الشهرية التقريبي' : 'Estimated monthly calls'}
+          </span>
           <div
             className="row"
             style={{ gap: 'var(--s-2)', flexWrap: 'wrap', marginBlockStart: 'var(--s-1)' }}

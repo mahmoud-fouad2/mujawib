@@ -32,8 +32,7 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
       `"${(c.tags ?? []).join('، ').replace(/"/g, '""')}"`,
       relative(c.lastCallAt),
     ])
-    const csvContent =
-      '\uFEFF' + [headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')
+    const csvContent = `\uFEFF${[headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')}`
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

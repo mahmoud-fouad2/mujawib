@@ -1,6 +1,6 @@
 'use server'
 
-import { createHash, randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, gte } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { z } from 'zod'

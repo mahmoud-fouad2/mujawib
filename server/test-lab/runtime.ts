@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
 import { env } from '@/lib/env'
