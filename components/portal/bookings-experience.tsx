@@ -164,6 +164,10 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
               {filteredRows.map((b) => {
                 const meta = (b.metadata ?? {}) as { branch?: string }
                 const cleanPhone = b.customerPhone ? b.customerPhone.replace(/\D/g, '') : ''
+                const confirmMsg = encodeURIComponent(
+                  `مرحباً ${b.customerName ? `أستاذ/ة ${b.customerName}` : 'بك'}، نود تأكيد موعدك لخدمة (${b.service ?? 'المحددة'}) يوم ${fullDate(b.scheduledAt)} الساعة ${clock(b.scheduledAt)}.${meta.branch ? ` الفرع: ${meta.branch}` : ''}`,
+                )
+                const waUrl = `https://wa.me/${cleanPhone}?text=${confirmMsg}`
                 return (
                   <tr key={b.id}>
                     <td style={{ fontWeight: 600 }}>{b.customerName ?? '—'}</td>
@@ -182,11 +186,11 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
                         {cleanPhone ? (
                           <>
                             <a
-                              href={`https://wa.me/${cleanPhone}`}
+                              href={waUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn--quiet btn--sm"
-                              title="مراسلة العميل عبر واتساب لتأكيد الحجز أو إرسال الموقع"
+                              title="إرسال رسالة تأكيد الحجز وموقع الفرع عبر واتساب"
                               aria-label="واتساب"
                             >
                               <MessageSquare size={14} aria-hidden="true" />
