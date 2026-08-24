@@ -700,10 +700,12 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  border-block: 1px solid var(--line-strong);
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
   overflow: hidden;
   margin-block-end: var(--s-5);
+  box-shadow: var(--shadow-sm);
 }
 
 .metric {
