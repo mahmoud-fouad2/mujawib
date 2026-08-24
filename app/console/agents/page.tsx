@@ -94,6 +94,7 @@ export default async function AgentsPage() {
                         draftNumber={a.draft?.versionNumber ?? null}
                         blockers={blockers}
                         canRollback={a.versionCount > 1 && Boolean(a.liveVersionId)}
+                        isPublished={a.live?.status === 'published'}
                       />
                     </td>
                   </tr>

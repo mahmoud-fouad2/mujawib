@@ -40,7 +40,7 @@ export default async function AccountSecurityPage({
             </div>
           ) : null}
         </div>
-        <SecuritySettings initiallyEnabled={enabled} />
+        <SecuritySettings initiallyEnabled={enabled} returnTo={returnTo} required={required} />
       </div>
     </main>
   )

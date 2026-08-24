@@ -157,10 +157,15 @@ export async function getPortalAccess(slug?: string): Promise<PortalAccess | nul
  * fastest way to answer "what is the customer actually seeing?" — impossible
  * for the person running the platform.
  *
- * The view is read-only. It borrows the lowest client role rather than an
- * administrative one, so an operator can look but cannot file requests or
- * change business data as if they were the customer, and the returned access
- * is flagged so the portal can label itself.
+ * Grants `client_admin` — full control, matching what this operator can
+ * already do to the same client from the console's own edit sheet
+ * (server/actions/console.ts's `updateClient`, archive, delete). Restricting
+ * this to read-only was a mistake: it made the portal look like a
+ * display-only surface with no real control, when the actual gap was that
+ * the person operating the platform could not use the controls that were
+ * already there. The `viewingAsOperator` flag still marks every action as
+ * done on the client's behalf rather than silently as the client — the
+ * banner in the portal shell says so — but it no longer blocks the action.
  */
 async function operatorPortalView(
   userId: string,
@@ -181,7 +186,7 @@ async function operatorPortalView(
     userId,
     email: '',
     name: '',
-    role: 'client_read_only',
+    role: 'client_admin',
     workspace: row,
     viewingAsOperator: true,
   }
@@ -199,6 +204,40 @@ export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAcc
     redirect('/access-denied?area=portal')
   }
   return { ...access, email: session.user.email, name: session.user.name }
+}
+
+/**
+ * The same `client_admin` grant `operatorPortalView` gives the page load,
+ * checked here against one specific workspace rather than picked by slug —
+ * this is what every portal server action calls, and it queries
+ * `workspaceAccess` directly rather than going through `getPortalAccess`, so
+ * it needed the same fallback rather than inheriting it for free. Without
+ * this, the page would have shown edit buttons an operator's click could
+ * never actually complete — worse than not showing them, since a control
+ * that visibly fails reads as broken rather than as absent.
+ */
+async function operatorClientAdminAccess(
+  userId: string,
+  workspaceId: string,
+): Promise<PortalAccess | null> {
+  const operator = await operatorAccessForUser(userId)
+  if (!operator || !canOperator(operator.role, 'client.manage')) return null
+
+  const [row] = await db
+    .select()
+    .from(workspace)
+    .where(and(eq(workspace.id, workspaceId), eq(workspace.type, 'client')))
+    .limit(1)
+  if (!row) return null
+
+  return {
+    userId,
+    email: '',
+    name: '',
+    role: 'client_admin',
+    workspace: row,
+    viewingAsOperator: true,
+  }
 }
 
 export async function authorizeClientWorkspace(
@@ -220,14 +259,19 @@ export async function authorizeClientWorkspace(
     )
     .limit(1)
 
-  if (!row || !canClient(row.role, permission)) return null
-  return {
-    userId: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-    role: row.role,
-    workspace: row.workspace,
+  if (row && canClient(row.role, permission)) {
+    return {
+      userId: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      role: row.role,
+      workspace: row.workspace,
+    }
   }
+
+  const operatorAccess = await operatorClientAdminAccess(session.user.id, workspaceId)
+  if (!operatorAccess || !canClient(operatorAccess.role, permission)) return null
+  return { ...operatorAccess, email: session.user.email, name: session.user.name }
 }
 
 export async function getPortalWorkspacesForCurrentUser() {

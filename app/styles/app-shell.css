@@ -44,7 +44,13 @@
   inline-size: var(--sidebar-w);
   overflow-y: auto;
   overflow-x: hidden;
-  z-index: 30;
+  /*
+   * Above .topbar (also 30): when the rail expands on hover it grows past its
+   * grid track and visually sits over the top bar. Equal z-index left DOM
+   * order to decide the tie, and .topbar comes later — so the search box was
+   * painting over the expanding sidebar instead of the other way around.
+   */
+  z-index: 40;
   transition:
     inline-size var(--t-slow) var(--ease),
     box-shadow var(--t-slow) var(--ease);

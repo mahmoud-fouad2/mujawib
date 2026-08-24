@@ -97,6 +97,8 @@ export default async function AgentDetailPage({ params }: Props) {
               draftNumber={a.draft?.versionNumber ?? null}
               blockers={blockers}
               canRollback={a.versions.length > 1 && Boolean(a.liveVersionId)}
+              isPublished={a.liveVersion?.status === 'published'}
+              deleteRedirectTo="/console/agents"
             />
           </div>
         }

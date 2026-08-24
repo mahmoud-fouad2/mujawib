@@ -1,10 +1,16 @@
 'use client'
 
-import { CopyPlus, Rocket, Undo2 } from 'lucide-react'
+import { CopyPlus, Rocket, Trash2, Undo2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Confirm } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
-import { createAgentDraft, publishVersion, rollbackAgent } from '@/server/actions/console'
+import {
+  createAgentDraft,
+  deleteAgent,
+  publishVersion,
+  rollbackAgent,
+} from '@/server/actions/console'
 
 export function AgentRowActions({
   agentId,
@@ -13,6 +19,8 @@ export function AgentRowActions({
   draftNumber,
   blockers,
   canRollback,
+  isPublished,
+  deleteRedirectTo,
 }: {
   agentId: string
   agentName: string
@@ -20,9 +28,18 @@ export function AgentRowActions({
   draftNumber: number | null
   blockers: string[]
   canRollback: boolean
+  /** Delete is refused once a version has gone live — offer it, but explain why. */
+  isPublished: boolean
+  /**
+   * The detail page is the deleted agent's own page — after removing it,
+   * stay there rather than on a page describing a resource that is now gone.
+   * The list page omits this: the row simply revalidates away.
+   */
+  deleteRedirectTo?: string
 }) {
-  const [confirm, setConfirm] = useState<'publish' | 'rollback' | null>(null)
+  const [confirm, setConfirm] = useState<'publish' | 'rollback' | 'delete' | null>(null)
   const { run, pending } = useAction()
+  const router = useRouter()
 
   const blocked = blockers.length > 0
   const publishTitle = !draftVersionId ? 'لا توجد مسودة للنشر' : blocked ? blockers[0] : undefined
@@ -56,6 +73,15 @@ export function AgentRowActions({
         >
           الرجوع للنسخة السابقة
         </RowAction>
+        <RowAction
+          icon={<Trash2 size={15} />}
+          tone="danger"
+          onClick={() => setConfirm('delete')}
+          disabled={isPublished}
+          title={isPublished ? 'لديه نسخة منشورة — ألغِ النشر أو ارجع لنسخة سابقة أولًا' : undefined}
+        >
+          حذف
+        </RowAction>
       </RowActions>
 
       <Confirm
@@ -86,6 +112,25 @@ export function AgentRowActions({
         title={`الرجوع بـ ${agentName} للنسخة السابقة؟`}
         body="ستعود المكالمات الجديدة إلى آخر نسخة منشورة قبل الحالية."
         confirmLabel="ارجع"
+        pending={pending}
+      />
+
+      <Confirm
+        open={confirm === 'delete'}
+        onClose={() => setConfirm(null)}
+        onConfirm={() =>
+          run(
+            () => deleteAgent(agentId),
+            () => {
+              setConfirm(null)
+              if (deleteRedirectTo) router.push(deleteRedirectTo)
+            },
+          )
+        }
+        title={`حذف ${agentName}؟`}
+        body="يُرفض الحذف تلقائيًا إن كان لديه نسخة منشورة، أو رقم هاتف موجّه إليه، أو مكالمات مسجّلة — احذفه فقط إن لم يخرج للاستخدام الفعلي بعد. لا يمكن التراجع عن الحذف."
+        confirmLabel="احذف"
+        tone="danger"
         pending={pending}
       />
     </>

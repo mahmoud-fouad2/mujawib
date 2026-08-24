@@ -87,12 +87,10 @@ export function ConsoleShell({
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_PIN_KEY)
-    if (stored === 'pinned' || stored === 'rail') {
-      setPinned(stored === 'pinned')
-      return
-    }
-    // No preference yet: pin on displays with room to spare, rail otherwise.
-    setPinned(window.matchMedia('(min-width: 1440px)').matches)
+    // Rail until the operator explicitly pins it open — including the very
+    // first visit, on any screen size. Peeking on hover/focus is how it opens
+    // when nobody has pinned it, so nothing is hidden, only out of the way.
+    setPinned(stored === 'pinned')
   }, [])
 
   const togglePin = useCallback(() => {

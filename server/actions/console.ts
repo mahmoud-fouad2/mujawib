@@ -1761,3 +1761,76 @@ export async function reassignPhoneNumber(
     message: `${row.e164} يرد عليه الآن «${target.agentName}» لدى ${target.workspaceName}. اتصل بالرقم لإعادة توثيق المسار.`,
   }
 }
+
+/* ─── Agent delete ────────────────────────────────────────────────────────── */
+
+/**
+ * Removes a voice employee that never went into real service.
+ *
+ * There is no archive state for an agent the way there is for a workspace —
+ * an agent with no published version and no call ever routed through it has
+ * nothing real hanging off it, so a straightforward delete is safe. One that
+ * has been published, or that a phone number currently points at, is refused
+ * outright rather than silently orphaning a route or a call's own agent
+ * reference; the operator unpublishes or reassigns the number first, which
+ * are both already real, safe actions elsewhere in the console.
+ */
+export async function deleteAgent(agentId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
+
+  const [row] = await db.select().from(agent).where(eq(agent.id, agentId)).limit(1)
+  if (!row) return { ok: false, error: 'الموظف الصوتي غير موجود.' }
+
+  if (row.liveVersionId) {
+    const [live] = await db
+      .select({ status: agentVersion.status })
+      .from(agentVersion)
+      .where(eq(agentVersion.id, row.liveVersionId))
+      .limit(1)
+    if (live?.status === 'published') {
+      return {
+        ok: false,
+        error: 'هذا الموظف لديه نسخة منشورة. ألغِ النشر أو ارجع لنسخة سابقة قبل الحذف.',
+      }
+    }
+  }
+
+  const routedPhones = await countRows(
+    db.select(TALLY).from(phoneNumber).where(eq(phoneNumber.agentId, agentId)),
+  )
+  if (routedPhones > 0) {
+    return {
+      ok: false,
+      error: `${routedPhones} رقم هاتف موجّه لهذا الموظف. أعد توجيه الأرقام إلى موظف آخر أولًا.`,
+    }
+  }
+
+  const calls = await countRows(
+    db
+      .select(TALLY)
+      .from(call)
+      .innerJoin(agentVersion, eq(call.agentVersionId, agentVersion.id))
+      .where(eq(agentVersion.agentId, agentId)),
+  )
+  if (calls > 0) {
+    return {
+      ok: false,
+      error: `${calls} مكالمة مسجّلة على نسخ من هذا الموظف. لا يمكن حذفه دون فقدان سجلها.`,
+    }
+  }
+
+  await audit({
+    workspaceId: row.workspaceId,
+    action: 'agent.delete',
+    resourceType: 'agent',
+    resourceId: agentId,
+    note: `حذف الموظف الصوتي «${row.name}» — لم يُنشر ولا سجلّ مكالمات`,
+  })
+
+  // Versions cascade from agent.id.
+  await db.delete(agent).where(eq(agent.id, agentId))
+
+  revalidatePath('/console/agents')
+  return { ok: true, message: `حُذف «${row.name}».` }
+}

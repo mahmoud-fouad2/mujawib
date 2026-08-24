@@ -1,7 +1,16 @@
 'use client'
 
-import { Check, Clipboard, KeyRound, Loader2, ShieldCheck, ShieldOff } from 'lucide-react'
+import {
+  ArrowLeft,
+  Check,
+  Clipboard,
+  KeyRound,
+  Loader2,
+  ShieldCheck,
+  ShieldOff,
+} from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { toDataURL } from 'qrcode'
 import { type FormEvent, useEffect, useState } from 'react'
 import { PasswordField } from '@/components/auth/password-field'
@@ -11,13 +20,27 @@ import { authClient } from '@/lib/auth-client'
 
 type Setup = { uri: string; backupCodes: string[]; qr: string }
 
-export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boolean }) {
+export function SecuritySettings({
+  initiallyEnabled,
+  /** Where "continue" goes once setup finishes — usually /console or /portal. */
+  returnTo,
+  /** True when this page was reached because 2FA is mandatory before entry. */
+  required,
+}: {
+  initiallyEnabled: boolean
+  returnTo: string
+  required: boolean
+}) {
   const toast = useToast()
   const [enabled, setEnabled] = useState(initiallyEnabled)
   const [password, setPassword] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [setup, setSetup] = useState<Setup | null>(null)
   const [pending, setPending] = useState<'enable' | 'verify' | 'disable' | null>(null)
+  // Separate from `enabled`: someone who already had 2FA on before opening
+  // this page should not see a "continue" banner just for visiting settings —
+  // only the person who is completing setup, in this same visit, needs it.
+  const [justVerified, setJustVerified] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -74,6 +97,13 @@ export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boole
       return
     }
     setEnabled(true)
+    setJustVerified(true)
+    // The QR code and backup codes were for one-time setup; leaving them
+    // rendered after a successful verify is what made this screen look
+    // stuck — the status pill above changed, but the whole setup panel,
+    // codes included, stayed on screen with nothing but a toast to say
+    // anything had happened.
+    setSetup(null)
     setVerificationCode('')
     setPending(null)
     toast.success('أصبح التحقق بخطوتين فعالًا.')
@@ -221,6 +251,23 @@ export function SecuritySettings({ initiallyEnabled }: { initiallyEnabled: boole
                   تأكيد التفعيل
                 </Button>
               </form>
+            </div>
+          ) : null}
+
+          {justVerified ? (
+            <div className="security-continue">
+              <Check size={16} aria-hidden="true" />
+              <span>
+                {required
+                  ? 'تم التفعيل. لوحة التحكم تفتح الآن.'
+                  : 'تم التفعيل. حُفظ التغيير على حسابك.'}
+              </span>
+              {required ? (
+                <Link href={returnTo} className="btn btn--primary btn--sm">
+                  المتابعة
+                  <ArrowLeft size={15} className="arrow" aria-hidden="true" />
+                </Link>
+              ) : null}
             </div>
           ) : null}
 
