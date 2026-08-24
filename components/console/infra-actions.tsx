@@ -358,7 +358,7 @@ export function PhoneLifecycleActions({ id, status }: { id: string; status: stri
  * client and changing which client it belongs to. The second one wipes the
  * number's verification, so it asks for confirmation and says what it costs.
  */
-export function PhoneReassignSheet({
+function PhoneReassignSheet({
   open,
   onClose,
   phoneId,

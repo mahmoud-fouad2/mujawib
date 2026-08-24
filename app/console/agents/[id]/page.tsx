@@ -3,7 +3,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AgentRowActions } from '@/components/console/agent-actions'
+import { AgentEditorSheet } from '@/components/console/agent-editor'
 import { Ratio } from '@/components/console/charts'
+import { KnowledgeManager } from '@/components/console/knowledge-manager'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { fullDate, num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
@@ -57,14 +59,46 @@ export default async function AgentDetailPage({ params }: Props) {
           </>
         }
         actions={
-          <AgentRowActions
-            agentId={a.id}
-            agentName={a.name}
-            draftVersionId={a.draft?.id ?? null}
-            draftNumber={a.draft?.versionNumber ?? null}
-            blockers={blockers}
-            canRollback={a.versions.length > 1 && Boolean(a.liveVersionId)}
-          />
+          <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+            {a.draft ? (
+              <AgentEditorSheet
+                agentId={a.id}
+                agentName={a.name}
+                draftVersion={{
+                  id: a.draft.id,
+                  versionNumber: a.draft.versionNumber,
+                  voiceProfileId: a.draft.voiceProfileId,
+                  identity:
+                    (a.draft.identity as {
+                      role?: string
+                      goals?: string[]
+                      restricted?: string[]
+                    } | null) ?? null,
+                  businessRules:
+                    (a.draft.businessRules as { hours?: string; transferTo?: string } | null) ??
+                    null,
+                  routing:
+                    (a.draft.routing as { afterHours?: string; escalation?: string } | null) ??
+                    null,
+                  flows: (a.draft.flows as string[] | null) ?? null,
+                }}
+                voiceProfiles={a.allVoiceProfiles.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  dialect: p.dialect,
+                  style: p.style,
+                }))}
+              />
+            ) : null}
+            <AgentRowActions
+              agentId={a.id}
+              agentName={a.name}
+              draftVersionId={a.draft?.id ?? null}
+              draftNumber={a.draft?.versionNumber ?? null}
+              blockers={blockers}
+              canRollback={a.versions.length > 1 && Boolean(a.liveVersionId)}
+            />
+          </div>
         }
       />
 
@@ -223,6 +257,19 @@ export default async function AgentDetailPage({ params }: Props) {
           )}
         </Section>
       </div>
+
+      <Section title="معرفة العمل والخدمات والسياسات" meta={`${num(a.knowledge.length)} عنصر مسجّل`}>
+        <KnowledgeManager
+          workspaceId={a.workspaceId}
+          items={a.knowledge.map((k) => ({
+            id: k.id,
+            category: k.category,
+            title: k.title,
+            content: k.content as Record<string, unknown>,
+            createdAt: k.createdAt,
+          }))}
+        />
+      </Section>
 
       <Section title="تاريخ النسخ" meta={`${num(a.versions.length)} نسخة`} flush>
         <div className="table-scroll">

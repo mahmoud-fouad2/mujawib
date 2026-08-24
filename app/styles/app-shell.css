@@ -2108,3 +2108,44 @@
 .secret-health__row[data-status="recent-change"] strong {
   color: var(--bad);
 }
+
+.card-sub {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  padding: var(--s-4);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.card-sub:hover {
+  border-color: var(--line-strong);
+}
+
+.live-aurora {
+  position: relative;
+}
+
+.live-aurora::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid var(--good);
+  opacity: 0.6;
+  animation: live-pulse 2s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes live-pulse {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.998);
+  }
+  100% {
+    opacity: 0.8;
+    transform: scale(1.002);
+  }
+}

@@ -94,17 +94,6 @@ export const CALL_STATUS_LABEL: Record<string, string> = {
   abandoned: 'مقطوعة',
 }
 
-/** True when the telephony path carried the call, whatever the record shows. */
-export function callWasAnswered(status: string): boolean {
-  return (
-    status === 'live' ||
-    status === 'waiting_tool' ||
-    status === 'transferred' ||
-    status === 'completed' ||
-    status === 'completed_no_transcript'
-  )
-}
-
 export const CALL_OUTCOME_LABEL: Record<string, string> = {
   resolved: 'تم الحل',
   booking: 'حجز',

@@ -1,5 +1,19 @@
-import { CalendarCheck, MessageSquareText, PhoneCall, UserRound } from 'lucide-react'
+'use client'
+
+import {
+  CalendarCheck,
+  Check,
+  Copy,
+  MessageCircle,
+  MessageSquareText,
+  Phone,
+  PhoneCall,
+  Search,
+  UserRound,
+} from 'lucide-react'
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
@@ -27,6 +41,14 @@ function callTone(call: { outcome: string | null; status: string }) {
   return call.outcome ? outcomeTone(call.outcome) : statusTone(call.status)
 }
 
+const FILTER_TABS = [
+  { id: 'all', label: 'الكل' },
+  { id: 'booking', label: 'حجوزات' },
+  { id: 'callback', label: 'معاودة اتصال' },
+  { id: 'transfer', label: 'محوّلة' },
+  { id: 'resolved', label: 'أُنجزت' },
+] as const
+
 export function PortalCallsExperience({
   rows,
   selected,
@@ -34,6 +56,29 @@ export function PortalCallsExperience({
   rows: CallRow[]
   selected: CallDetail | null
 }) {
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<string>('all')
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      const matchFilter =
+        filter === 'all' ||
+        (filter === 'booking' && r.outcome === 'booking') ||
+        (filter === 'callback' && r.outcome === 'callback') ||
+        (filter === 'transfer' && (r.outcome === 'transfer' || r.status === 'transferred')) ||
+        (filter === 'resolved' && (r.outcome === 'resolved' || r.outcome === 'lead'))
+
+      const q = search.trim().toLowerCase()
+      const matchSearch =
+        !q ||
+        Boolean(r.callerNumber?.toLowerCase().includes(q)) ||
+        Boolean(r.intent?.toLowerCase().includes(q)) ||
+        Boolean(r.outcome?.toLowerCase().includes(q))
+
+      return matchFilter && matchSearch
+    })
+  }, [rows, filter, search])
+
   if (rows.length === 0) {
     return (
       <div className="empty portal-calls-empty">
@@ -47,30 +92,79 @@ export function PortalCallsExperience({
   return (
     <div className="portal-call-workbench">
       <nav className="portal-call-list" aria-label="قائمة المكالمات">
-        <div className="portal-call-list__head">
-          <span>أحدث المكالمات</span>
-          <span className="mono">{rows.length}</span>
+        {/* Search & Filter Bar */}
+        <div style={{ padding: 'var(--s-3)', borderBlockEnd: '1px solid var(--border)' }}>
+          <div className="row" style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)' }}>
+            <div className="field" style={{ flex: 1, margin: 0 }}>
+              <div style={{ position: 'relative' }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: 'absolute',
+                    insetInlineStart: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--muted)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <input
+                  className="input"
+                  style={{ paddingInlineStart: '32px', height: '34px', fontSize: 'var(--step--1)' }}
+                  placeholder="بحث برقم المتصل أو السبب…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="row" style={{ gap: '4px', flexWrap: 'wrap' }}>
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id)}
+                className={`filter-chip${filter === tab.id ? ' is-active' : ''}`}
+                style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-        {rows.map((call) => (
-          <Link
-            key={call.id}
-            href={`/portal/calls?call=${encodeURIComponent(call.id)}`}
-            className={`portal-call-row${selected?.id === call.id ? ' is-active' : ''}`}
-            aria-current={selected?.id === call.id ? 'page' : undefined}
-          >
-            <span className="portal-call-row__top">
-              <strong className="mono">{maskPhone(call.callerNumber)}</strong>
-              <span>{duration(call.durationSeconds)}</span>
-            </span>
-            <span className="portal-call-row__reason">
-              {call.intent ?? 'سبب المكالمة غير محدد'}
-            </span>
-            <span className="portal-call-row__meta">
-              <Pill tone={callTone(call)}>{callLabel(call)}</Pill>
-              <span>{relative(call.startedAt)}</span>
-            </span>
-          </Link>
-        ))}
+
+        <div className="portal-call-list__head">
+          <span>نتائج البحث</span>
+          <span className="mono">{filteredRows.length}</span>
+        </div>
+
+        {filteredRows.length === 0 ? (
+          <div className="empty" style={{ padding: 'var(--s-4)' }}>
+            <p style={{ fontSize: 'var(--step--1)' }}>لا توجد مكالمات تطابق البحث.</p>
+          </div>
+        ) : (
+          filteredRows.map((call) => (
+            <Link
+              key={call.id}
+              href={`/portal/calls?call=${encodeURIComponent(call.id)}`}
+              className={`portal-call-row${selected?.id === call.id ? ' is-active' : ''}`}
+              aria-current={selected?.id === call.id ? 'page' : undefined}
+            >
+              <span className="portal-call-row__top">
+                <strong className="mono">{maskPhone(call.callerNumber)}</strong>
+                <span>{duration(call.durationSeconds)}</span>
+              </span>
+              <span className="portal-call-row__reason">
+                {call.intent ?? 'سبب المكالمة غير محدد'}
+              </span>
+              <span className="portal-call-row__meta">
+                <Pill tone={callTone(call)}>{callLabel(call)}</Pill>
+                <span>{relative(call.startedAt)}</span>
+              </span>
+            </Link>
+          ))
+        )}
       </nav>
 
       <section className="portal-call-detail" aria-label="تفاصيل المكالمة">
@@ -81,6 +175,22 @@ export function PortalCallsExperience({
 }
 
 function PortalCallDetail({ call }: { call: CallDetail }) {
+  const [copied, setCopied] = useState(false)
+  const rawPhone = (call.callerNumber ?? '').replace(/[^\d+]/g, '')
+  const whatsappUrl = `https://wa.me/${rawPhone.replace('+', '')}`
+
+  const copySummary = () => {
+    const text = `خلاصة مكالمة مُجاوِب:
+المتصل: ${call.callerNumber ?? '—'}
+النتيجة: ${callLabel(call)}
+ما حدث: ${call.summary.resolution}
+الخطوة التالية: ${call.summary.nextAction ?? 'لا توجد'}`
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
     <>
       <header className="portal-call-detail__head">
@@ -92,11 +202,61 @@ function PortalCallDetail({ call }: { call: CallDetail }) {
             {call.branch ? ` · ${call.branch}` : ''}
           </p>
         </div>
-        <Pill tone={callTone(call)}>{callLabel(call)}</Pill>
+        <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+          <Pill tone={callTone(call)}>{callLabel(call)}</Pill>
+          <Button size="sm" variant="quiet" onClick={copySummary} title="نسخ ملخص المكالمة">
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? 'تم النسخ' : 'نسخ الملخص'}
+          </Button>
+        </div>
       </header>
 
+      {/* Quick Action Bar for Customer Outreach */}
+      <div
+        className="card-sub"
+        style={{
+          background: 'var(--surface-elevated)',
+          padding: 'var(--s-3)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 'var(--s-2)',
+          marginBlockEnd: 'var(--s-4)',
+        }}
+      >
+        <span style={{ fontSize: 'var(--step--1)', fontWeight: 500 }}>إجراء سريع مع المتصل:</span>
+        <div className="row" style={{ gap: 'var(--s-2)' }}>
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--sm"
+            style={{
+              background: '#25D366',
+              color: '#fff',
+              border: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <MessageCircle size={14} />
+            مراسلة عبر واتساب
+          </a>
+          <a
+            href={`tel:${rawPhone}`}
+            className="btn btn--sm btn--primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Phone size={14} />
+            معاودة الاتصال
+          </a>
+        </div>
+      </div>
+
       <div className="portal-call-answer">
-        <span className="portal-call-detail__eyebrow">خلاصة المكالمة</span>
+        <span className="portal-call-detail__eyebrow">خلاصة المكالمة التشغيلية</span>
         <h3>{call.summary.headline}</h3>
         <dl>
           <div>

@@ -22,11 +22,13 @@ import {
   changeRequest,
   flow,
   integrationConnection,
+  knowledgeItem,
   phoneNumber,
   pronunciation,
   qaResult,
   salesInquiry,
   scenarioTest,
+  voiceProfile,
   workspace,
   workspaceAccess,
 } from '@/server/db/schema'
@@ -34,6 +36,7 @@ import { invokeIntegration } from '@/server/integrations/runtime'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
 import { getVersionTestGate } from '@/server/test-lab/gate'
 import { markPhoneActive, markPhoneDisabled } from '@/server/voice/phone'
+import { compilePrompt } from '@/server/voice/prompt'
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? { message: string } : { message: string; data: T }))
@@ -384,6 +387,283 @@ export async function createAgentDraft(
     }
   } catch {
     return { ok: false, error: 'تعذر إنشاء المسودة. لم تتغير النسخة المنشورة.' }
+  }
+}
+
+const updateDraftSchema = z.object({
+  agentId: z.string().min(1),
+  versionId: z.string().min(1),
+  agentName: z.string().trim().min(2, 'اسم الموظف الصوتي مطلوب').max(60),
+  voiceProfileId: z.string().min(1, 'الملف الصوتي مطلوب'),
+  identity: z.object({
+    role: z.string().trim().min(5, 'الدور الوظيفي مطلوب'),
+    goals: z.array(z.string().trim()).default([]),
+    restricted: z.array(z.string().trim()).default([]),
+  }),
+  businessRules: z.object({
+    hours: z.string().trim().optional(),
+    transferTo: z.string().trim().optional(),
+  }),
+  routing: z.object({
+    afterHours: z.string().trim().optional(),
+    escalation: z.string().trim().optional(),
+  }),
+  flows: z.array(z.string().trim()).default([]),
+})
+
+export async function updateAgentDraft(
+  input: z.input<typeof updateDraftSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
+
+  const parsed = updateDraftSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات المسودة غير صالحة.' }
+  }
+
+  const { agentId, versionId, agentName, voiceProfileId, identity, businessRules, routing, flows } =
+    parsed.data
+  const actorId = await actor()
+  const now = new Date()
+
+  try {
+    const res = await db.transaction(async (tx) => {
+      const [parent] = await tx.select().from(agent).where(eq(agent.id, agentId)).limit(1)
+      if (!parent) return { error: 'الموظف الصوتي غير موجود.' }
+
+      const [targetVersion] = await tx
+        .select()
+        .from(agentVersion)
+        .where(and(eq(agentVersion.id, versionId), eq(agentVersion.agentId, agentId)))
+        .limit(1)
+      if (!targetVersion) return { error: 'النسخة غير موجودة.' }
+      if (targetVersion.status !== 'draft') return { error: 'لا يمكن تعديل إلا نسخة بحالة مسودة.' }
+
+      const [ws] = await tx
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, parent.workspaceId))
+        .limit(1)
+      if (!ws) return { error: 'مساحة العمل غير موجودة.' }
+
+      const [prof] = await tx
+        .select()
+        .from(voiceProfile)
+        .where(eq(voiceProfile.id, voiceProfileId))
+        .limit(1)
+      const knowledge = await tx
+        .select()
+        .from(knowledgeItem)
+        .where(eq(knowledgeItem.workspaceId, parent.workspaceId))
+      const pronunciations = await tx
+        .select()
+        .from(pronunciation)
+        .where(eq(pronunciation.workspaceId, parent.workspaceId))
+
+      const compiledPrompt = compilePrompt({
+        workspace: ws,
+        version: {
+          ...targetVersion,
+          voiceProfileId,
+          identity,
+          businessRules,
+          routing,
+          flows,
+        },
+        agentName,
+        profile: prof ?? null,
+        knowledge,
+        pronunciations,
+      })
+
+      if (parent.name !== agentName) {
+        await tx.update(agent).set({ name: agentName, updatedAt: now }).where(eq(agent.id, agentId))
+      }
+
+      await tx
+        .update(agentVersion)
+        .set({
+          voiceProfileId,
+          identity,
+          businessRules,
+          routing,
+          flows,
+          compiledPrompt,
+          updatedAt: now,
+        })
+        .where(eq(agentVersion.id, versionId))
+
+      await tx.insert(auditLog).values({
+        id: id('audit'),
+        workspaceId: parent.workspaceId,
+        actorId,
+        action: 'agent.draft_updated',
+        resourceType: 'agent_version',
+        resourceId: versionId,
+        metadata: {
+          note: `تحديث إعدادات المسودة v${targetVersion.versionNumber} للموظف ${agentName}`,
+        },
+        createdAt: now,
+      })
+
+      return { ok: true }
+    })
+
+    if ('error' in res) return { ok: false, error: res.error }
+
+    revalidatePath('/console/agents')
+    revalidatePath(`/console/agents/${agentId}`)
+    return { ok: true, message: 'تم حفظ تعديلات المسودة وتحديث التوجيه الصوتي بنجاح.' }
+  } catch (error) {
+    console.error('[agent] update draft failed', error)
+    return { ok: false, error: 'تعذر حفظ تعديلات المسودة.' }
+  }
+}
+
+const knowledgeSchema = z.object({
+  workspaceId: z.string().min(1),
+  category: z.enum(['service', 'branch', 'staff', 'policy', 'faq']),
+  title: z.string().trim().min(2, 'العنوان قصير جدًا').max(160),
+  content: z.record(z.string(), z.unknown()),
+})
+
+export async function createKnowledgeItem(
+  input: z.input<typeof knowledgeSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const parsed = knowledgeSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات المعرفة غير صالحة.' }
+  }
+
+  const itemId = id('know')
+  const now = new Date()
+  const actorId = await actor()
+
+  try {
+    await db.insert(knowledgeItem).values({
+      id: itemId,
+      workspaceId: parsed.data.workspaceId,
+      category: parsed.data.category,
+      title: parsed.data.title,
+      content: parsed.data.content,
+      source: 'structured',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await db.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId: parsed.data.workspaceId,
+      actorId,
+      action: 'knowledge.created',
+      resourceType: 'knowledge_item',
+      resourceId: itemId,
+      metadata: { note: `إضافة عنصر معرفة: ${parsed.data.title} (${parsed.data.category})` },
+      createdAt: now,
+    })
+
+    revalidatePath('/console/agents')
+    revalidatePath('/console/clients')
+    return { ok: true, message: `تمت إضافة ${parsed.data.title} بنجاح.`, data: { id: itemId } }
+  } catch {
+    return { ok: false, error: 'تعذر حفظ عنصر المعرفة.' }
+  }
+}
+
+const updateKnowledgeSchema = z.object({
+  itemId: z.string().min(1),
+  category: z.enum(['service', 'branch', 'staff', 'policy', 'faq']),
+  title: z.string().trim().min(2, 'العنوان قصير جدًا').max(160),
+  content: z.record(z.string(), z.unknown()),
+})
+
+export async function updateKnowledgeItem(
+  input: z.input<typeof updateKnowledgeSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const parsed = updateKnowledgeSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات المعرفة غير صالحة.' }
+  }
+
+  const now = new Date()
+  const actorId = await actor()
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(knowledgeItem)
+      .where(eq(knowledgeItem.id, parsed.data.itemId))
+      .limit(1)
+    if (!existing) return { ok: false, error: 'عنصر المعرفة غير موجود.' }
+
+    await db
+      .update(knowledgeItem)
+      .set({
+        category: parsed.data.category,
+        title: parsed.data.title,
+        content: parsed.data.content,
+        updatedAt: now,
+      })
+      .where(eq(knowledgeItem.id, parsed.data.itemId))
+
+    await db.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId: existing.workspaceId,
+      actorId,
+      action: 'knowledge.updated',
+      resourceType: 'knowledge_item',
+      resourceId: parsed.data.itemId,
+      metadata: { note: `تحديث عنصر معرفة: ${parsed.data.title}` },
+      createdAt: now,
+    })
+
+    revalidatePath('/console/agents')
+    revalidatePath('/console/clients')
+    return { ok: true, message: `تم تحديث ${parsed.data.title} بنجاح.` }
+  } catch {
+    return { ok: false, error: 'تعذر تحديث عنصر المعرفة.' }
+  }
+}
+
+export async function deleteKnowledgeItem(itemId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+
+  const actorId = await actor()
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(knowledgeItem)
+      .where(eq(knowledgeItem.id, itemId))
+      .limit(1)
+    if (!existing) return { ok: false, error: 'عنصر المعرفة غير موجود.' }
+
+    await db.delete(knowledgeItem).where(eq(knowledgeItem.id, itemId))
+
+    await db.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId: existing.workspaceId,
+      actorId,
+      action: 'knowledge.deleted',
+      resourceType: 'knowledge_item',
+      resourceId: itemId,
+      metadata: { note: `حذف عنصر معرفة: ${existing.title}` },
+      createdAt: new Date(),
+    })
+
+    revalidatePath('/console/agents')
+    revalidatePath('/console/clients')
+    return { ok: true, message: `تم حذف ${existing.title} بنجاح.` }
+  } catch {
+    return { ok: false, error: 'تعذر حذف عنصر المعرفة.' }
   }
 }
 

@@ -731,55 +731,69 @@ export async function getAgentDetail(agentId: string) {
   const liveVersionId = liveVersion?.id
   const testedVersionId = versionUnderTest?.id
 
-  const [profile, flows, runs, callStats, draftTestGate] = await Promise.all([
-    liveVersion?.voiceProfileId
-      ? db
-          .select()
-          .from(voiceProfile)
-          .where(eq(voiceProfile.id, liveVersion.voiceProfileId))
-          .limit(1)
-      : Promise.resolve([]),
-    liveVersionId
-      ? db.select().from(flow).where(eq(flow.agentVersionId, liveVersionId)).orderBy(flow.sortOrder)
-      : Promise.resolve([]),
-    testedVersionId
-      ? db
-          .select({
-            name: scenarioTest.name,
-            category: scenarioTest.category,
-            isCritical: scenarioTest.isCritical,
-            passed: scenarioRun.passed,
-            score: scenarioRun.score,
-            ranAt: scenarioRun.ranAt,
-          })
-          .from(scenarioRun)
-          .innerJoin(scenarioTest, eq(scenarioRun.scenarioId, scenarioTest.id))
-          .where(eq(scenarioRun.agentVersionId, testedVersionId))
-          .orderBy(desc(scenarioRun.ranAt))
-      : Promise.resolve([]),
-    liveVersion
-      ? db
-          .select({
-            calls: sql<number>`count(*)`.mapWith(Number),
-            resolved:
-              sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+  const [profile, flows, runs, callStats, draftTestGate, knowledge, allVoiceProfiles, draftFlows] =
+    await Promise.all([
+      liveVersion?.voiceProfileId
+        ? db
+            .select()
+            .from(voiceProfile)
+            .where(eq(voiceProfile.id, liveVersion.voiceProfileId))
+            .limit(1)
+        : Promise.resolve([]),
+      liveVersionId
+        ? db
+            .select()
+            .from(flow)
+            .where(eq(flow.agentVersionId, liveVersionId))
+            .orderBy(flow.sortOrder)
+        : Promise.resolve([]),
+      testedVersionId
+        ? db
+            .select({
+              name: scenarioTest.name,
+              category: scenarioTest.category,
+              isCritical: scenarioTest.isCritical,
+              passed: scenarioRun.passed,
+              score: scenarioRun.score,
+              ranAt: scenarioRun.ranAt,
+            })
+            .from(scenarioRun)
+            .innerJoin(scenarioTest, eq(scenarioRun.scenarioId, scenarioTest.id))
+            .where(eq(scenarioRun.agentVersionId, testedVersionId))
+            .orderBy(desc(scenarioRun.ranAt))
+        : Promise.resolve([]),
+      liveVersion
+        ? db
+            .select({
+              calls: sql<number>`count(*)`.mapWith(Number),
+              resolved:
+                sql<number>`count(*) filter (where ${call.outcome} in ('resolved','booking','lead'))`.mapWith(
+                  Number,
+                ),
+              closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(
                 Number,
               ),
-            closed: sql<number>`count(*) filter (where ${call.outcome} is not null)`.mapWith(
-              Number,
-            ),
-          })
-          .from(call)
-          .where(
-            and(
-              eq(call.agentVersionId, liveVersion.id),
-              gte(call.startedAt, daysBack(30)),
-              eq(call.origin, 'live'),
-            ),
-          )
-      : Promise.resolve([]),
-    draft ? getVersionTestGate(draft.id) : Promise.resolve(null),
-  ])
+            })
+            .from(call)
+            .where(
+              and(
+                eq(call.agentVersionId, liveVersion.id),
+                gte(call.startedAt, daysBack(30)),
+                eq(call.origin, 'live'),
+              ),
+            )
+        : Promise.resolve([]),
+      draft ? getVersionTestGate(draft.id) : Promise.resolve(null),
+      db
+        .select()
+        .from(knowledgeItem)
+        .where(eq(knowledgeItem.workspaceId, row.agent.workspaceId))
+        .orderBy(knowledgeItem.category, knowledgeItem.title),
+      db.select().from(voiceProfile).orderBy(voiceProfile.name),
+      draft
+        ? db.select().from(flow).where(eq(flow.agentVersionId, draft.id)).orderBy(flow.sortOrder)
+        : Promise.resolve([]),
+    ])
 
   const stats = callStats[0] ?? { calls: 0, resolved: 0, closed: 0 }
 
@@ -792,7 +806,10 @@ export async function getAgentDetail(agentId: string) {
     draft,
     draftTestGate,
     voiceProfile: profile[0] ?? null,
+    allVoiceProfiles,
     flows,
+    draftFlows,
+    knowledge,
     runs,
     stats: {
       ...stats,

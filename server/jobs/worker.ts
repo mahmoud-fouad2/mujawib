@@ -62,14 +62,23 @@ async function reconcileStaleCalls() {
   for (const item of [...neverAccepted, ...abandonedByUs]) await enqueueCallIntelligence(item.id)
 }
 
+const ADVISORY_LOCK_ID = 8472910
+
 async function runMaintenanceTick() {
-  await reconcileStaleCalls()
-  await recoverStaleSidebands()
-  await drainCallIntelligenceJobs()
-  if (Date.now() - lastRetentionSweep > 60 * 60 * 1000) {
-    await runRetentionSweep()
-    lastRetentionSweep = Date.now()
-  }
+  await db.transaction(async (tx) => {
+    const [lock] = (await tx.execute(
+      sql`SELECT pg_try_advisory_xact_lock(${ADVISORY_LOCK_ID}) as acquired`,
+    )) as unknown as [{ acquired: boolean } | undefined]
+    if (!lock?.acquired) return
+
+    await reconcileStaleCalls()
+    await recoverStaleSidebands()
+    await drainCallIntelligenceJobs()
+    if (Date.now() - lastRetentionSweep > 60 * 60 * 1000) {
+      await runRetentionSweep()
+      lastRetentionSweep = Date.now()
+    }
+  })
 }
 
 const workerGlobal = globalThis as typeof globalThis & {

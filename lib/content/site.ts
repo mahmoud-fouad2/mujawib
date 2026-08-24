@@ -343,7 +343,7 @@ const ar: Copy = {
         links: [
           { label: 'مكالمات كاملة', href: '/#calls' },
           { label: 'الإمكانات', href: '/#can' },
-          { label: 'عند تعذّر التنفيذ', href: '/#failure' },
+          { label: 'حين لا تسير المكالمة كما يجب', href: '/#failure' },
           { label: 'التكاملات', href: '/#integrations' },
           { label: 'القطاعات', href: '/#industries' },
         ],
@@ -653,7 +653,7 @@ const en: Copy = {
         links: [
           { label: 'Full call replays', href: '/#calls' },
           { label: 'Capabilities', href: '/#can' },
-          { label: 'When it cannot complete', href: '/#failure' },
+          { label: 'When a call goes wrong', href: '/#failure' },
           { label: 'Integrations', href: '/#integrations' },
           { label: 'Industries', href: '/#industries' },
         ],
