@@ -82,12 +82,24 @@ export default async function PortalOverviewPage() {
           </p>
           <div
             className="row"
-            style={{ gap: 'var(--s-2)', flexWrap: 'wrap', fontSize: 'var(--step--1)' }}
+            style={{
+              gap: 'var(--s-2)',
+              flexWrap: 'wrap',
+              fontSize: 'var(--step--1)',
+              marginBlockEnd: 'var(--s-3)',
+            }}
           >
-            <span className="pill pill--good">✓ تم تجهيز المساحة</span>
-            <span className="pill pill--good">✓ إعداد الموظف الصوتي</span>
-            <span className="pill">اختبار المسار الصوتي (جاري)</span>
-            <span className="pill">تأكيد الحجوزات والتكاملات</span>
+            <span className="pill pill--good">✓ تم تجهيز مساحة العمل</span>
+            <span className="pill pill--good">✓ تخصيص الهوية واللهجة</span>
+            <span className="pill pill--signal">جاهزية استقبال المكالمات</span>
+          </div>
+          <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+            <Link href="/portal/business-info" className="btn btn--sm btn--primary">
+              مراجعة وتحديث بيانات نشاطك
+            </Link>
+            <Link href="/portal/requests" className="btn btn--sm btn--quiet">
+              طلب تعديل أو إضافة خدمة
+            </Link>
           </div>
         </div>
       ) : null}
