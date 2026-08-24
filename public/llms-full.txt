@@ -1,0 +1,74 @@
+# مُجاوِب (MUJAWIB) — Comprehensive Technical & System Specification
+
+## 1. Executive Summary
+مُجاوِب (Mujawib) is an enterprise Arabic Voice AI Receptionist and Telephony Platform designed for businesses and healthcare organizations across Saudi Arabia and the Gulf Cooperation Council (GCC). The platform automates inbound and outbound business phone calls 24 hours a day, 7 days a week, executing complete operational workflows—including real-time calendar appointment booking, customer intake, WhatsApp post-call follow-ups, and CRM synchronization—with human-level Arabic dialect fluency.
+
+## 2. Core Architecture & Telephony Pipeline
+
+### Telephony Ingestion
+- **SIP Trunking & Carriers:** Full compatibility with Twilio SIP, local GCC telecom carriers (STC, Mobily, Zain, du, e&), and standard SIP PBX systems.
+- **Audio Streaming:** Bidirectional low-latency WebSockets streaming G.711 μ-law / PCM 8kHz and 16kHz audio.
+- **Speech-to-Text (STT):** Advanced Arabic acoustic models optimized for phonetic nuances, accents, and spoken Arabic dialects with dynamic lexical priming.
+- **Language Understanding (LLM Reasoning):** Sub-second contextual intent recognition, slot filling, and deterministic tool execution.
+- **Text-to-Speech (TTS):** Expressive Arabic neural voices engineered for natural cadence, breath patterns, and emotional appropriateness with phonetic dictionary calibration.
+- **Latency Budget:** Total voice-to-ear roundtrip latency is under 800 milliseconds, providing a completely natural, conversational cadence.
+- **Interruption Handling (Full-Duplex):** Instant acoustic barge-in detection allows callers to interrupt, redirect, or clarify questions without awkward delays.
+
+## 3. The 9-Layer Safety & Compliance Pipeline
+
+Every call handled by Mujawib passes through a 9-layer guardrail pipeline:
+1. **Dialect & Pronunciation Layer:** Maps Arabic business terms, medical procedures, doctor names, and regional place names to accurate phonetic pronunciations.
+2. **Boundary & Scope Guard:** Restricts the voice agent strictly to the business's approved knowledge base and operating policies.
+3. **Medical Advice Prohibition:** Explicit refusal to diagnose, prescribe, or provide emergency medical counsel—routing emergencies immediately to emergency numbers or human staff.
+4. **Deterministic Tool Execution:** Calendar bookings and WhatsApp dispatches are executed via authenticated, type-safe API contracts, not unconstrained LLM generations.
+5. **PII Masking & Privacy:** Automatic redacting of phone numbers, national IDs, and personal identifiable information in persistent audit logs.
+6. **Hallucination Prevention:** Fallback mechanisms when information is uncertain; the agent states limits politely and offers human follow-up.
+7. **Human Escalation (Live Handover):** Seamless SIP transfer to human receptionists with real-time whisper context and transcript handoff.
+8. **Multi-Tenant Isolation:** Strict database and storage separation across client workspaces ensuring zero data leakage.
+9. **Quality Assurance & Audit Trail:** Complete post-call intelligence generation with sentiment analysis, structured summaries, and operator review queues.
+
+## 4. Integrations & System Connectors
+
+- **Calendars:** Google Calendar (Google Workspace API), Microsoft 365 / Outlook Calendar (Microsoft Graph API), Cal.com.
+- **Messaging:** WhatsApp Business Cloud API for automated post-call booking confirmations, reminder messages, and location maps.
+- **CRMs & ERPs:** HubSpot CRM, Zoho CRM, Odoo ERP, and custom webhook endpoints with HMAC-SHA256 signature verification.
+- **Exports:** UTF-8 BOM Excel/CSV caller directories, booking sheets, and analytics exports.
+
+## 5. Sector Solutions & Blueprints
+
+### A. Medical Clinics & Polyclinics (العيادات والمراكز الطبية)
+- **Patient Appointment Booking:** Matches patient needs to specialized doctors, checks physician working hours, and confirms slots.
+- **Service & Consultation Pricing:** Explains clinic fees, checkup packages, insurance coverage status, and clinic location.
+- **Preparation Instructions:** Advises on fasting requirements, lab prep, or pre-visit protocols.
+- **No-Show Reduction:** Automated WhatsApp confirmation and pre-visit reminders reducing missed appointments by up to 65%.
+
+### B. Real Estate & Property Development (العقارات والتطوير العقاري)
+- **Lead Intake:** Captures budget, preferred district, property type (villa, apartment, commercial), and investment timeline.
+- **Viewing Schedules:** Books on-site tours directly into sales agents' calendars.
+
+### C. Automotive Service Centers (صيانة السيارات وقطع الغيار)
+- **Maintenance Booking:** Schedules periodic maintenance, oil changes, inspections, and detailing appointments.
+- **Branch Routing:** Directs callers to the nearest service workshop with operating hours.
+
+### D. Salons & Beauty Centers (مراكز التجميل والعناية)
+- **Specialist Scheduling:** Matches clients with preferred stylists/artists for specific treatments.
+
+## 6. Security, Compliance, and Data Sovereignty
+
+- **Encryption:** TLS 1.3 in-transit encryption and AES-256 at-rest storage encryption.
+- **Saudi Data Regulations:** Compliant with Saudi National Cybersecurity Authority (NCA) guidelines and Personal Data Protection Law (PDPL).
+- **Zero Training on Customer Data:** Customer call recordings and transcripts are never used to train third-party public models.
+- **Configurable Retention:** Automated data purge schedules (7 days, 30 days, 90 days, or instant deletion upon call completion).
+
+## 7. Commercial Plans & ROI
+
+- **Emerging Businesses (الأنشطة الصاعدة):** Up to 600 minutes/month, calendar integration, WhatsApp confirmations, full client portal.
+- **Growing Companies (الشركات والعيادات المتوسطة):** Up to 2,500 minutes/month, multi-branch support, CRM integration, custom pronunciation lexicon, dedicated account manager.
+- **Enterprise & Healthcare Chains (المؤسسات وسلاسل الفروع):** Custom volume, dedicated isolated infrastructure, custom brand voice cloning, 99.9% uptime SLA, HIS/EMR custom integrations.
+
+## 8. Official Contact & Verification
+
+- **Website:** https://mujawib.com
+- **HQ:** Riyadh, Kingdom of Saudi Arabia
+- **Direct Email:** contact@mujawib.com
+- **Official Languages:** Arabic (العربية) and English (الإنجليزية)
