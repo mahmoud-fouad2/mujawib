@@ -218,7 +218,7 @@ export function AgentEditorSheet({
           <div
             style={{
               padding: 'var(--s-3)',
-              background: 'var(--surface-subtle)',
+              background: 'var(--raised)',
               border: '1px dashed var(--signal-line)',
               borderRadius: 'var(--r-md)',
             }}
@@ -351,7 +351,7 @@ export function AgentEditorSheet({
                     className="row"
                     style={{
                       justifyContent: 'space-between',
-                      background: 'var(--surface-elevated)',
+                      background: 'var(--surface)',
                       padding: '6px 10px',
                       borderRadius: 'var(--r-sm)',
                     }}
@@ -401,7 +401,7 @@ export function AgentEditorSheet({
                     className="row"
                     style={{
                       justifyContent: 'space-between',
-                      background: 'var(--surface-elevated)',
+                      background: 'var(--surface)',
                       padding: '6px 10px',
                       borderRadius: 'var(--r-sm)',
                     }}

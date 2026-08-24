@@ -41,98 +41,50 @@ export default async function PortalIntegrationsPage() {
             gap: 'var(--s-4)',
           }}
         >
-          <div
-            className="card-sub"
-            style={{
-              padding: 'var(--s-4)',
-              background: 'var(--surface-subtle)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-            }}
-          >
-            <div
-              className="row"
-              style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)', alignItems: 'center' }}
-            >
-              <Calendar size={18} style={{ color: 'var(--signal)' }} />
-              <strong style={{ fontSize: 'var(--step-0)' }}>Google Calendar & Cal.com</strong>
+          <div className="integration-card">
+            <div className="integration-card__head">
+              <div className="integration-card__icon">
+                <Calendar size={18} />
+              </div>
+              <strong className="integration-card__title">Google Calendar & Cal.com</strong>
             </div>
-            <p
-              style={{
-                fontSize: 'var(--step--1)',
-                color: 'var(--muted)',
-                lineHeight: 1.6,
-                marginBlockEnd: 'var(--s-3)',
-              }}
-            >
+            <p className="integration-card__desc">
               قراءة الخانات المتاحة فورياً وتثبيت المواعيد مباشرة في تقويم أطباء وفريق المنشأة دون أي
               تعارض.
             </p>
-            <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+            <div className="integration-card__footer">
               <span className="pill pill--good">مدعوم وجاهز</span>
             </div>
           </div>
 
-          <div
-            className="card-sub"
-            style={{
-              padding: 'var(--s-4)',
-              background: 'var(--surface-subtle)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-            }}
-          >
-            <div
-              className="row"
-              style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)', alignItems: 'center' }}
-            >
-              <MessageSquare size={18} style={{ color: 'var(--signal)' }} />
-              <strong style={{ fontSize: 'var(--step-0)' }}>WhatsApp Cloud & Twilio</strong>
+          <div className="integration-card">
+            <div className="integration-card__head">
+              <div className="integration-card__icon">
+                <MessageSquare size={18} />
+              </div>
+              <strong className="integration-card__title">WhatsApp Cloud & Twilio</strong>
             </div>
-            <p
-              style={{
-                fontSize: 'var(--step--1)',
-                color: 'var(--muted)',
-                lineHeight: 1.6,
-                marginBlockEnd: 'var(--s-3)',
-              }}
-            >
+            <p className="integration-card__desc">
               إرسال رسائل تأكيد الحجوزات والموقع وتعليمات الزيارة تلقائياً على جوال المتصل بمجرد
               إغلاق الخط.
             </p>
-            <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+            <div className="integration-card__footer">
               <span className="pill pill--good">مدعوم وجاهز</span>
             </div>
           </div>
 
-          <div
-            className="card-sub"
-            style={{
-              padding: 'var(--s-4)',
-              background: 'var(--surface-subtle)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-            }}
-          >
-            <div
-              className="row"
-              style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)', alignItems: 'center' }}
-            >
-              <Network size={18} style={{ color: 'var(--signal)' }} />
-              <strong style={{ fontSize: 'var(--step-0)' }}>Webhooks & أنظمة الـ CRM</strong>
+          <div className="integration-card">
+            <div className="integration-card__head">
+              <div className="integration-card__icon">
+                <Network size={18} />
+              </div>
+              <strong className="integration-card__title">Webhooks & أنظمة الـ CRM</strong>
             </div>
-            <p
-              style={{
-                fontSize: 'var(--step--1)',
-                color: 'var(--muted)',
-                lineHeight: 1.6,
-                marginBlockEnd: 'var(--s-3)',
-              }}
-            >
+            <p className="integration-card__desc">
               إرسال ملخص كل مكالمة وبيانات المتصلين تلقائياً إلى نظام إدارة العيادات أو نظام المنشأة
               الداخلي.
             </p>
-            <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+            <div className="integration-card__footer">
               <span className="pill pill--good">مدعوم وجاهز</span>
             </div>
           </div>

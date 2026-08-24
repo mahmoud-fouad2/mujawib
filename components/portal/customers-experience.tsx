@@ -54,56 +54,37 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
   return (
     <div>
       {/* Search & Export Toolbar */}
-      <div
-        style={{
-          padding: 'var(--s-3)',
-          borderBlockEnd: '1px solid var(--border)',
-          background: 'var(--surface-subtle)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 'var(--s-3)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div className="field" style={{ flex: 1, minWidth: '220px', margin: 0 }}>
-          <div style={{ position: 'relative' }}>
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                insetInlineStart: '10px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--muted)',
-                pointerEvents: 'none',
-              }}
-            />
+      <div className="portal-toolbar">
+        <div className="portal-toolbar__row">
+          <div className="portal-toolbar__search">
+            <Search size={15} aria-hidden="true" />
             <input
               className="input"
-              style={{ paddingInlineStart: '32px', height: '36px', fontSize: 'var(--step--1)' }}
               placeholder="بحث بالاسم أو رقم الجوال أو الوسم…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="btn btn--quiet btn--sm"
-          style={{ height: '36px', gap: '6px' }}
-          title="تصدير قائمة المتصلين إلى ملف Excel / CSV"
-        >
-          <Download size={14} aria-hidden="true" />
-          <span>تصدير المتصلين (CSV)</span>
-        </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="btn btn--quiet btn--sm"
+            style={{ height: '38px', gap: '6px' }}
+            title="تصدير قائمة المتصلين إلى ملف Excel / CSV"
+          >
+            <Download size={14} aria-hidden="true" />
+            <span>تصدير المتصلين (CSV)</span>
+          </button>
+        </div>
       </div>
 
       {filteredRows.length === 0 ? (
-        <div className="empty" style={{ padding: 'var(--s-5)' }}>
-          <p>لا يوجد متصلون يطابقون عبارة البحث.</p>
+        <div className="empty-box">
+          <p className="empty-box__title">لا توجد نتائج مطابقة</p>
+          <p className="empty-box__desc">
+            لم يتم العثور على أي متصلين يطابقون عبارة البحث المكتوبة.
+          </p>
         </div>
       ) : (
         <div className="table-scroll">

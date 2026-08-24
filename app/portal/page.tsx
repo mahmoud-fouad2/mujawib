@@ -47,53 +47,21 @@ export default async function PortalOverviewPage() {
       <PageHead title="نظرة عامة" sub="آخر 30 يومًا — ماذا حدث في مكالماتك وماذا أنجزه الصوت" />
 
       {summary.answered === 0 ? (
-        <div
-          className="card-sub"
-          style={{
-            background: 'linear-gradient(135deg, var(--surface-elevated), var(--surface))',
-            border: '1px solid var(--border)',
-            padding: 'var(--s-4)',
-            marginBlockEnd: 'var(--s-4)',
-            borderRadius: 'var(--r-md)',
-          }}
-        >
-          <h3
-            style={{
-              fontSize: 'var(--step-0)',
-              marginBlockEnd: 'var(--s-2)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--s-2)',
-            }}
-          >
-            مرحبًا بك في مُجاوِب — مساحة عمل «{workspace.name}»
-          </h3>
-          <p
-            style={{
-              color: 'var(--muted)',
-              fontSize: 'var(--step--1)',
-              marginBlockEnd: 'var(--s-3)',
-              lineHeight: 1.6,
-            }}
-          >
+        <div className="welcome-hero">
+          <div className="welcome-hero__head">
+            <h3>مرحبًا بك في مُجاوِب — مساحة عمل «{workspace.name}»</h3>
+          </div>
+          <p className="welcome-hero__body">
             يقوم فريق التشغيل لدينا حاليًا بتهيئة واختبار الموظف الصوتي لشركتكم وفق أعلى معايير
             الجودة العربية. ستظهر هنا كافة إحصائيات المكالمات والحجوزات ومؤشرات الأداء فور إطلاق
             الخدمة على رقمكم.
           </p>
-          <div
-            className="row"
-            style={{
-              gap: 'var(--s-2)',
-              flexWrap: 'wrap',
-              fontSize: 'var(--step--1)',
-              marginBlockEnd: 'var(--s-3)',
-            }}
-          >
+          <div className="welcome-hero__pills">
             <span className="pill pill--good">✓ تم تجهيز مساحة العمل</span>
             <span className="pill pill--good">✓ تخصيص الهوية واللهجة</span>
             <span className="pill pill--signal">جاهزية استقبال المكالمات</span>
           </div>
-          <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+          <div className="welcome-hero__actions">
             <Link href="/portal/business-info" className="btn btn--sm btn--primary">
               مراجعة وتحديث بيانات نشاطك
             </Link>

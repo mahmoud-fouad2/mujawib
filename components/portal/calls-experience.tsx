@@ -121,40 +121,26 @@ export function PortalCallsExperience({
     <div className="portal-call-workbench">
       <nav className="portal-call-list" aria-label="قائمة المكالمات">
         {/* Search & Filter Bar */}
-        <div style={{ padding: 'var(--s-3)', borderBlockEnd: '1px solid var(--border)' }}>
-          <div className="row" style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)' }}>
-            <div className="field" style={{ flex: 1, margin: 0 }}>
-              <div style={{ position: 'relative' }}>
-                <Search
-                  size={14}
-                  style={{
-                    position: 'absolute',
-                    insetInlineStart: '10px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--muted)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <input
-                  className="input"
-                  style={{ paddingInlineStart: '32px', height: '34px', fontSize: 'var(--step--1)' }}
-                  placeholder="بحث برقم المتصل أو السبب…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
+        <div className="portal-toolbar">
+          <div className="portal-toolbar__row">
+            <div className="portal-toolbar__search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                className="input"
+                placeholder="بحث برقم المتصل أو السبب…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
           </div>
 
-          <div className="row" style={{ gap: '4px', flexWrap: 'wrap' }}>
+          <div className="portal-toolbar__filters">
             {FILTER_TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 className={`filter-chip${filter === tab.id ? ' is-active' : ''}`}
-                style={{ fontSize: '0.75rem', padding: '3px 8px' }}
               >
                 {tab.label}
               </button>
@@ -168,7 +154,7 @@ export function PortalCallsExperience({
         >
           <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
             <span>المكالمات</span>
-            <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+            <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               ({filteredRows.length})
             </span>
           </div>

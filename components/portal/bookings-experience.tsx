@@ -79,45 +79,23 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
   return (
     <div>
       {/* Search & Filter Header Bar */}
-      <div
-        style={{
-          padding: 'var(--s-3)',
-          borderBlockEnd: '1px solid var(--border)',
-          background: 'var(--surface-subtle)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--s-3)',
-        }}
-      >
-        <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div className="field" style={{ flex: 1, minWidth: '220px', margin: 0 }}>
-            <div style={{ position: 'relative' }}>
-              <Search
-                size={14}
-                style={{
-                  position: 'absolute',
-                  insetInlineStart: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--muted)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <input
-                className="input"
-                style={{ paddingInlineStart: '32px', height: '36px', fontSize: 'var(--step--1)' }}
-                placeholder="بحث باسم العميل، الخدمة، الفرع، أو الجوال…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
+      <div className="portal-toolbar">
+        <div className="portal-toolbar__row">
+          <div className="portal-toolbar__search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              className="input"
+              placeholder="بحث باسم العميل، الخدمة، الفرع، أو الجوال…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
 
           <button
             type="button"
             onClick={handleExportCsv}
             className="btn btn--quiet btn--sm"
-            style={{ height: '36px', gap: '6px' }}
+            style={{ height: '38px', gap: '6px' }}
             title="تصدير الحجوزات إلى ملف Excel / CSV"
           >
             <Download size={14} aria-hidden="true" />
@@ -125,14 +103,13 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
           </button>
         </div>
 
-        <div className="row" style={{ gap: '6px', flexWrap: 'wrap' }}>
+        <div className="portal-toolbar__filters">
           {FILTER_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setFilter(tab.id)}
               className={`filter-chip${filter === tab.id ? ' is-active' : ''}`}
-              style={{ fontSize: '0.8rem', padding: '4px 10px' }}
             >
               {tab.label}
             </button>
@@ -141,8 +118,11 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
       </div>
 
       {filteredRows.length === 0 ? (
-        <div className="empty" style={{ padding: 'var(--s-5)' }}>
-          <p>لا توجد حجوزات تطابق البحث المحدد.</p>
+        <div className="empty-box">
+          <p className="empty-box__title">لا توجد نتائج مطابقة</p>
+          <p className="empty-box__desc">
+            لم يتم العثور على أي حجوزات تطابق عبارة البحث أو الفلتر المختار.
+          </p>
         </div>
       ) : (
         <div className="table-scroll">

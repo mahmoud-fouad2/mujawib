@@ -35,6 +35,11 @@
   --line: rgb(17 19 24 / 8%);
   --line-strong: rgb(17 19 24 / 14%);
   --line-faint: rgb(17 19 24 / 5%);
+  --border: var(--line);
+  --border-subtle: var(--line-faint);
+  --muted: var(--text-muted);
+  --surface-subtle: var(--raised);
+  --surface-elevated: var(--surface);
 
   /* ─── signal ────────────────────────────────────────────────────────────
      Product actions are deliberately monochrome. Brand colour remains in the
@@ -143,6 +148,11 @@
   --line: rgb(255 255 255 / 9%);
   --line-strong: rgb(255 255 255 / 16%);
   --line-faint: rgb(255 255 255 / 5%);
+  --border: var(--line);
+  --border-subtle: var(--line-faint);
+  --muted: var(--text-muted);
+  --surface-subtle: var(--raised);
+  --surface-elevated: var(--surface);
 
   --signal: #f4f6f8;
   --signal-hover: #ffffff;

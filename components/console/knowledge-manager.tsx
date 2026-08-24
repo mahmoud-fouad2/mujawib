@@ -184,7 +184,7 @@ export function KnowledgeManager({
                     <p
                       style={{
                         fontSize: 'var(--step--1)',
-                        color: 'var(--muted)',
+                        color: 'var(--text-muted)',
                         marginBlockStart: '4px',
                       }}
                     >
