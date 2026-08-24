@@ -434,21 +434,25 @@ p {
 /* ─── table ────────────────────────────────────────────────────────────── */
 
 .table {
+  inline-size: 100%;
+  border-collapse: collapse;
   font-size: var(--step--1);
 }
 
 .table th {
-  padding: var(--s-3) var(--s-4);
+  padding: 12px 18px;
   text-align: start;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.03em;
   color: var(--text-faint);
+  background: var(--raised);
   border-block-end: 1px solid var(--line);
   white-space: nowrap;
 }
 
 .table td {
-  padding: var(--s-3) var(--s-4);
+  padding: 14px 18px;
   border-block-end: 1px solid var(--line-faint);
   vertical-align: middle;
 }

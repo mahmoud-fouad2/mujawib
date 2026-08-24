@@ -705,17 +705,19 @@
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--s-3);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s-4);
   background: transparent;
   border: 0;
-  margin-block-end: var(--s-5);
+  margin-block-end: var(--s-6);
 }
 
 .metric {
+  position: relative;
+  overflow: hidden;
   display: grid;
-  gap: var(--s-2);
-  padding: var(--s-4) var(--s-5);
+  gap: var(--s-3);
+  padding: 20px 24px;
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: var(--surface);
@@ -726,40 +728,62 @@
     box-shadow var(--t-base) var(--ease);
 }
 
+.metric::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 2px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+  opacity: 0.6;
+}
+
 .metric:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: var(--signal-line);
   box-shadow: var(--shadow-panel);
 }
 
 .metric__label {
   font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--text-faint);
 }
 
 .metric__value {
   font-family: var(--font-mono);
   font-size: var(--step-3);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.2;
 }
 
 .metric__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  inline-size: fit-content;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--raised);
 }
 
 .metric__delta[data-dir="up"] {
   color: var(--good);
+  background: var(--good-soft);
 }
 
 .metric__delta[data-dir="down"] {
   color: var(--bad);
+  background: var(--bad-soft);
 }
 
 .metric__delta[data-dir="flat"] {
-  color: var(--text-faint);
+  color: var(--text-muted);
+  background: var(--raised);
 }
 
 /* ─── workbench: list → detail → inspector ─────────────────────────────── */
@@ -1542,17 +1566,17 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  margin-block-end: var(--s-5);
+  margin-block-end: var(--s-6);
 }
 
 .table-panel__head {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-block-size: 50px;
-  padding: var(--s-3) var(--s-4);
+  min-block-size: 56px;
+  padding: var(--s-3) var(--s-5);
   border-block-end: 1px solid var(--line);
-  background: var(--raised);
+  background: var(--surface);
   flex-wrap: wrap;
 }
 
@@ -1564,9 +1588,9 @@
 
 .split {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: var(--s-6);
-  margin-block-end: var(--s-5);
+  margin-block-end: var(--s-6);
 }
 
 @media (max-width: 1100px) {
@@ -1586,7 +1610,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--s-3);
   align-items: center;
-  padding: var(--s-3) var(--s-5);
+  padding: var(--s-4) var(--s-5);
   border-block-end: 1px solid var(--line-faint);
   transition: background var(--t-fast) var(--ease);
 }
