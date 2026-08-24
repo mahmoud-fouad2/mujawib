@@ -1,3 +1,4 @@
+import { MessageSquare, Phone } from 'lucide-react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
@@ -50,11 +51,13 @@ export default async function PortalBookingsPage() {
                   <th>الوقت</th>
                   <th>الفرع</th>
                   <th>الحالة</th>
+                  <th>تواصل سريع</th>
                 </tr>
               </thead>
               <tbody>
                 {bookings.map((b) => {
                   const meta = (b.metadata ?? {}) as { branch?: string }
+                  const cleanPhone = b.customerPhone ? b.customerPhone.replace(/\D/g, '') : ''
                   return (
                     <tr key={b.id}>
                       <td style={{ fontWeight: 500 }}>{b.customerName ?? '—'}</td>
@@ -67,6 +70,34 @@ export default async function PortalBookingsPage() {
                         <Pill tone={b.status === 'confirmed' ? 'good' : 'bad'}>
                           {b.status === 'confirmed' ? 'مؤكد' : 'ملغى'}
                         </Pill>
+                      </td>
+                      <td>
+                        <span className="row" style={{ gap: 'var(--s-1)' }}>
+                          {cleanPhone ? (
+                            <>
+                              <a
+                                href={`https://wa.me/${cleanPhone}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn--quiet btn--sm"
+                                title="مراسلة عبر واتساب"
+                                aria-label="واتساب"
+                              >
+                                <MessageSquare size={14} aria-hidden="true" />
+                              </a>
+                              <a
+                                href={`tel:${b.customerPhone}`}
+                                className="btn btn--quiet btn--sm"
+                                title="اتصال مباشر"
+                                aria-label="اتصال"
+                              >
+                                <Phone size={14} aria-hidden="true" />
+                              </a>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </span>
                       </td>
                     </tr>
                   )

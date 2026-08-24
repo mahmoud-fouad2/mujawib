@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   Check,
   Copy,
+  Download,
   MessageCircle,
   MessageSquareText,
   Phone,
@@ -89,6 +90,34 @@ export function PortalCallsExperience({
     )
   }
 
+  const handleExportCsv = () => {
+    const headers = [
+      'التاريخ',
+      'الوقت',
+      'رقم المتصل',
+      'الموضوع / النية',
+      'النتيجة',
+      'المدة (ثواني)',
+    ]
+    const csvLines = filteredRows.map((r) => [
+      fullDate(r.startedAt),
+      clock(r.startedAt),
+      r.callerNumber ?? '',
+      `"${(r.intent ?? '').replace(/"/g, '""')}"`,
+      `"${(callLabel(r) ?? '').replace(/"/g, '""')}"`,
+      r.durationSeconds ?? 0,
+    ])
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `mujawib-calls-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="portal-call-workbench">
       <nav className="portal-call-list" aria-label="قائمة المكالمات">
@@ -134,9 +163,26 @@ export function PortalCallsExperience({
           </div>
         </div>
 
-        <div className="portal-call-list__head">
-          <span>نتائج البحث</span>
-          <span className="mono">{filteredRows.length}</span>
+        <div
+          className="portal-call-list__head"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+            <span>المكالمات</span>
+            <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+              ({filteredRows.length})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="btn btn--quiet btn--sm"
+            style={{ fontSize: '0.75rem', padding: '2px 8px', gap: '4px' }}
+            title="تصدير المكالمات إلى ملف Excel / CSV"
+          >
+            <Download size={13} aria-hidden="true" />
+            <span>تصدير</span>
+          </button>
         </div>
 
         {filteredRows.length === 0 ? (
