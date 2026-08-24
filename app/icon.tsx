@@ -1,9 +1,16 @@
 import { ImageResponse } from 'next/og'
+import fs from 'node:fs'
+import path from 'node:path'
 
 export const size = { width: 32, height: 32 }
 export const contentType = 'image/png'
 
 export default function Icon() {
+  const logoBuffer = fs.readFileSync(
+    path.join(process.cwd(), 'public/images/brand/logo-mark-ink.png'),
+  )
+  const base64 = `data:image/png;base64,${logoBuffer.toString('base64')}`
+
   return new ImageResponse(
     <div
       style={{
@@ -14,13 +21,18 @@ export default function Icon() {
         justifyContent: 'center',
         background: '#0B0D10',
         borderRadius: '8px',
-        color: '#10B981',
-        fontSize: '20px',
-        fontWeight: 700,
-        border: '1px solid #1F2937',
+        padding: '2px',
       }}
     >
-      م
+      <img
+        src={base64}
+        alt="مُجاوِب"
+        style={{
+          width: '26px',
+          height: '26px',
+          objectFit: 'contain',
+        }}
+      />
     </div>,
     { ...size },
   )

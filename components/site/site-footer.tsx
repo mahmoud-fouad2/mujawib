@@ -1,3 +1,4 @@
+import { MessageSquare } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 // Lucide dropped brand marks in v1; react-icons carries the official glyphs.
@@ -5,6 +6,7 @@ import { FaInstagram, FaLinkedinIn } from 'react-icons/fa6'
 import { Logo } from '@/components/brand/logo'
 import type { SiteCopy } from '@/lib/content/site'
 import { type Locale, localePath } from '@/lib/i18n'
+import type { PlatformContact } from '@/server/data/platform'
 
 /**
  * Only profiles that resolve. `x.com/mujawib` and `youtube.com/@mujawib` both
@@ -16,7 +18,15 @@ const SOCIAL = [
   { label: 'Instagram', href: 'https://www.instagram.com/mujawib', Icon: FaInstagram },
 ]
 
-export function SiteFooter({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
+export function SiteFooter({
+  locale,
+  copy,
+  contact,
+}: {
+  locale: Locale
+  copy: SiteCopy
+  contact: PlatformContact
+}) {
   const year = new Date().getFullYear()
 
   return (
@@ -31,10 +41,19 @@ export function SiteFooter({ locale, copy }: { locale: Locale; copy: SiteCopy })
             <p>{copy.footer.description}</p>
 
             <div className="site-footer__contact">
-              <a href={`mailto:${copy.footer.email}`}>{copy.footer.email}</a>
-              <a href={`tel:${copy.footer.phone.replaceAll(' ', '')}`} className="mono">
-                {copy.footer.phone}
-              </a>
+              {contact.email ? (
+                <a href={`mailto:${contact.email}`}>{contact.email}</a>
+              ) : (
+                <Link href={localePath(locale, '/contact')}>
+                  <MessageSquare size={14} aria-hidden="true" />
+                  {locale === 'ar' ? 'تواصل معنا' : 'Contact us'}
+                </Link>
+              )}
+              {contact.phone ? (
+                <a href={`tel:${contact.phone.e164}`} className="mono">
+                  {contact.phone.display}
+                </a>
+              ) : null}
             </div>
 
             <div className="site-footer__social">

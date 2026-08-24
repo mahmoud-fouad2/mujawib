@@ -24,6 +24,7 @@ import {
   integrationConnection,
   knowledgeItem,
   phoneNumber,
+  platformContact,
   pronunciation,
   qaResult,
   salesInquiry,
@@ -1833,4 +1834,107 @@ export async function deleteAgent(agentId: string): Promise<ActionResult> {
 
   revalidatePath('/console/agents')
   return { ok: true, message: `حُذف «${row.name}».` }
+}
+
+/* ─── Platform contact settings ──────────────────────────────────────────── */
+
+const platformContactSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .max(160)
+    .refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(value), 'بريد غير صحيح')
+    .optional(),
+  emailConfirmed: z.boolean(),
+  phoneE164: z
+    .string()
+    .trim()
+    .max(20)
+    .refine(
+      (value) => !value || /^\+[0-9]{8,15}$/.test(value),
+      'الرقم يجب أن يبدأ بـ + بصيغة دولية',
+    )
+    .optional(),
+  phoneDisplay: z.string().trim().max(30).optional(),
+  phoneConfirmed: z.boolean(),
+  whatsappEnabled: z.boolean(),
+})
+
+/**
+ * The one place that decides what the public site is allowed to claim about
+ * how to reach the company. Owner-only: a wrong value here is wrong on every
+ * page, not scoped to one client workspace the way most console edits are.
+ *
+ * Confirming a channel is a factual claim ("this inbox is read," "this number
+ * takes WhatsApp"), not a form validation the operator can satisfy by typing
+ * something that matches a regex — so the checkboxes are trusted as spoken,
+ * with no attempt to verify the claim from here.
+ */
+export async function updatePlatformContact(
+  input: z.input<typeof platformContactSchema>,
+): Promise<ActionResult> {
+  const access = await authorizeOperator('system.view')
+  if (!access) return { ok: false, error: 'لا تملك صلاحية تنفيذ هذا الإجراء.' }
+  if (access.role !== 'owner') {
+    return { ok: false, error: 'تعديل قنوات التواصل العامة متاح لمالك المنصة فقط.' }
+  }
+
+  const parsed = platformContactSchema.safeParse(input)
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات غير صحيحة.' }
+
+  if (parsed.data.emailConfirmed && !parsed.data.email) {
+    return { ok: false, error: 'لا يمكن تأكيد بريد فارغ.' }
+  }
+  if (parsed.data.phoneConfirmed && !(parsed.data.phoneE164 && parsed.data.phoneDisplay)) {
+    return { ok: false, error: 'لا يمكن تأكيد رقم فارغ.' }
+  }
+  if (parsed.data.whatsappEnabled && !parsed.data.phoneConfirmed) {
+    return { ok: false, error: 'أكّد الرقم أولًا قبل تفعيل واتساب عليه.' }
+  }
+
+  const now = new Date()
+  const updatedById = await actor()
+
+  await db
+    .insert(platformContact)
+    .values({
+      id: 'default',
+      email: parsed.data.email || null,
+      emailConfirmed: parsed.data.emailConfirmed,
+      phoneE164: parsed.data.phoneE164 || null,
+      phoneDisplay: parsed.data.phoneDisplay || null,
+      phoneConfirmed: parsed.data.phoneConfirmed,
+      whatsappEnabled: parsed.data.whatsappEnabled,
+      updatedAt: now,
+      updatedById,
+    })
+    .onConflictDoUpdate({
+      target: platformContact.id,
+      set: {
+        email: parsed.data.email || null,
+        emailConfirmed: parsed.data.emailConfirmed,
+        phoneE164: parsed.data.phoneE164 || null,
+        phoneDisplay: parsed.data.phoneDisplay || null,
+        phoneConfirmed: parsed.data.phoneConfirmed,
+        whatsappEnabled: parsed.data.whatsappEnabled,
+        updatedAt: now,
+        updatedById,
+      },
+    })
+
+  await audit({
+    workspaceId: null,
+    action: 'system.contact_update',
+    resourceType: 'platform_contact',
+    resourceId: 'default',
+    note: `تحديث قنوات التواصل — البريد ${parsed.data.emailConfirmed ? 'مؤكَّد' : 'غير مؤكَّد'}, الهاتف ${parsed.data.phoneConfirmed ? 'مؤكَّد' : 'غير مؤكَّد'}`,
+  })
+
+  revalidatePath('/console/system')
+  revalidatePath('/')
+  revalidatePath('/en')
+  revalidatePath('/contact')
+  revalidatePath('/privacy')
+  return { ok: true, message: 'حُفظت قنوات التواصل.' }
 }

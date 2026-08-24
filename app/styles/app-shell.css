@@ -706,33 +706,30 @@
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-subtle);
-  overflow: hidden;
+  gap: var(--s-3);
+  background: transparent;
+  border: 0;
   margin-block-end: var(--s-5);
-  box-shadow: var(--shadow-sm);
 }
 
 .metric {
   display: grid;
-  gap: 4px;
-  padding: var(--s-5);
-  border-inline-end: 1px solid var(--line);
+  gap: var(--s-2);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--t-base) var(--ease),
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
 }
 
-.metric:last-child {
-  border-inline-end: 0;
-}
-
-@media (max-width: 760px) {
-  .metric {
-    border-inline-end: 0;
-    border-block-end: 1px solid var(--line);
-  }
-  .metric:last-child {
-    border-block-end: 0;
-  }
+.metric:hover {
+  transform: translateY(-2px);
+  border-color: var(--signal-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .metric__label {
@@ -1540,18 +1537,22 @@
 /* ─── data table page ──────────────────────────────────────────────────── */
 
 .table-panel {
-  border-block: 1px solid var(--line-strong);
-  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
+  margin-block-end: var(--s-5);
 }
 
 .table-panel__head {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-block-size: 52px;
-  padding: var(--s-3) 0;
+  min-block-size: 50px;
+  padding: var(--s-3) var(--s-4);
   border-block-end: 1px solid var(--line);
+  background: var(--raised);
   flex-wrap: wrap;
 }
 
@@ -2156,4 +2157,45 @@
     opacity: 0.8;
     transform: scale(1.002);
   }
+}
+
+/* ─── platform contact settings (system page) ───────────────────────────── */
+
+.platform-contact {
+  display: grid;
+  gap: var(--s-3);
+  margin-block-end: var(--s-4);
+}
+
+.platform-contact__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.platform-contact__row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.platform-contact__row strong {
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+
+.platform-contact__row .mono {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+}
+
+.platform-contact__note {
+  font-size: 0.75rem;
+  color: var(--good);
+}
+
+.platform-contact__hint {
+  font-size: var(--step--1);
+  color: var(--text-faint);
+  line-height: 1.6;
 }

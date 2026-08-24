@@ -227,35 +227,83 @@
   color: var(--text-faint);
 }
 
-/* ─── integration chip carrying its own action ─────────────────────────── */
+/* ─── integration infinite marquee ─────────────────────────────────────── */
 
-/**
- * One element states the provider and what it does, so the section does not
- * need a second grid repeating the same logos underneath the band.
- */
-.wirechip {
+.integration-marquee {
+  position: relative;
+  overflow: hidden;
+  padding-block: var(--s-3);
+  margin-block: var(--s-4);
+  background: transparent;
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.integration-track {
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  min-inline-size: 0;
-  padding: var(--s-4) var(--s-5);
-  border-inline-start: 1px solid var(--line);
-  transition: background var(--t-base) var(--ease);
+  width: max-content;
+  animation: marquee-infinite 40s linear infinite;
+  will-change: transform;
 }
 
-.wirechip:first-child {
-  border-inline-start: 0;
+[dir="rtl"] .integration-track {
+  animation: marquee-infinite-rtl 40s linear infinite;
+}
+
+.integration-marquee:hover .integration-track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-infinite {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-infinite-rtl {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+.wirechip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  flex: none;
+  transition:
+    transform var(--t-base) var(--ease),
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
 }
 
 .wirechip:hover {
-  background: var(--raised);
+  transform: translateY(-2px);
+  border-color: var(--signal-line);
+  box-shadow: var(--shadow-panel);
 }
 
 .wirechip__logo {
   display: grid;
   place-items: center;
-  inline-size: 42px;
-  block-size: 42px;
+  inline-size: 38px;
+  block-size: 38px;
+  border-radius: 8px;
+  background: var(--raised);
   flex: none;
 }
 
@@ -267,51 +315,17 @@
 
 .wirechip__text {
   display: grid;
-  gap: 3px;
+  gap: 2px;
+  text-align: start;
 }
 
 .wirechip__text strong {
-  font-size: var(--step-0);
+  font-size: var(--step--1);
   font-weight: 600;
+  color: var(--text);
 }
 
 .wirechip__text span {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.integration-rail {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  max-inline-size: var(--container);
-  margin-inline: auto;
-  padding: 0;
-  border-block: 1px solid var(--line);
-  background: var(--surface);
-  list-style: none;
-}
-
-@media (max-width: 1120px) {
-  .integration-rail {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .wirechip:nth-child(4n + 1) {
-    border-inline-start: 0;
-  }
-}
-
-@media (max-width: 680px) {
-  .integration-rail {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .wirechip {
-    align-items: flex-start;
-    padding-inline: var(--s-3);
-  }
-
-  .wirechip:nth-child(odd) {
-    border-inline-start: 0;
-  }
 }

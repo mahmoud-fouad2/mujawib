@@ -355,6 +355,9 @@ export function IntegrationWires({
   const list = providers.filter((p) => PROVIDER_ACTION_LABEL[p.provider])
   if (list.length === 0) return null
 
+  // Duplicate items for a seamless continuous loop
+  const marqueeItems = [...list, ...list, ...list, ...list]
+
   return (
     <section className="section" id="integrations">
       <div className="container">
@@ -365,27 +368,29 @@ export function IntegrationWires({
         />
       </div>
 
-      <ul
-        className="integration-rail"
+      <div
+        className="integration-marquee"
         aria-label={locale === 'ar' ? 'التكاملات المتاحة' : 'Available integrations'}
       >
-        {list.map((p) => (
-          <li key={p.provider} className="wirechip">
-            <span className="wirechip__logo">
-              <Image
-                src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
-                alt=""
-                width={22}
-                height={22}
-              />
-            </span>
-            <span className="wirechip__text">
-              <strong>{p.label}</strong>
-              <span>{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+        <div className="integration-track">
+          {marqueeItems.map((p, index) => (
+            <div key={`${p.provider}-${index}`} className="wirechip">
+              <span className="wirechip__logo">
+                <Image
+                  src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
+                  alt={p.label}
+                  width={22}
+                  height={22}
+                />
+              </span>
+              <span className="wirechip__text">
+                <strong>{p.label}</strong>
+                <span>{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="container">
         <div className="flow-end">

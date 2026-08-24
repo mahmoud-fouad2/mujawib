@@ -1,4 +1,3 @@
-import { CONTACT } from '@/lib/content/contact'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -78,8 +77,6 @@ type Copy = {
   footer: {
     tagline: string
     description: string
-    email: string
-    phone: string
     columns: FooterColumn[]
     rights: string
     privacy: string
@@ -359,8 +356,6 @@ const ar: Copy = {
     tagline: 'استقبال هاتفي أذكى · عملاء أكثر رضاً · فريق أعلى إنتاجية.',
     description:
       'مُجاوِب هو موظفك الصوتي الذكي لاستقبال مكالمات منشأتك بالعربية على مدار الساعة وتثبيت الحجوزات بدقة.',
-    email: CONTACT.email,
-    phone: CONTACT.phoneDisplay,
     columns: [
       {
         title: 'الخدمات والحلول',
@@ -661,8 +656,6 @@ const en: Copy = {
     tagline: 'Better calls. Closer customers. A faster team.',
     description:
       'Mujawib answers your business calls in Arabic around the clock, and turns every one into a recorded outcome.',
-    email: CONTACT.email,
-    phone: CONTACT.phoneDisplay,
     columns: [
       {
         title: 'Product',

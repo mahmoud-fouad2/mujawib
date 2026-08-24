@@ -64,6 +64,13 @@
       "when": 1787418958646,
       "tag": "0008_workspace_archived_state",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787569720127,
+      "tag": "0009_platform_contact_settings",
+      "breakpoints": true
     }
   ]
 }

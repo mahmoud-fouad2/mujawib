@@ -1,9 +1,16 @@
 import { ImageResponse } from 'next/og'
+import fs from 'node:fs'
+import path from 'node:path'
 
 export const size = { width: 180, height: 180 }
 export const contentType = 'image/png'
 
 export default function AppleIcon() {
+  const logoBuffer = fs.readFileSync(
+    path.join(process.cwd(), 'public/images/brand/logo-mark-ink.png'),
+  )
+  const base64 = `data:image/png;base64,${logoBuffer.toString('base64')}`
+
   return new ImageResponse(
     <div
       style={{
@@ -12,15 +19,20 @@ export default function AppleIcon() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0B0D10 0%, #111827 100%)',
+        background: 'linear-gradient(135deg, #0B0D10 0%, #161A22 100%)',
         borderRadius: '36px',
-        color: '#10B981',
-        fontSize: '96px',
-        fontWeight: 700,
-        border: '2px solid #374151',
+        padding: '20px',
       }}
     >
-      م
+      <img
+        src={base64}
+        alt="مُجاوِب"
+        style={{
+          width: '140px',
+          height: '140px',
+          objectFit: 'contain',
+        }}
+      />
     </div>,
     { ...size },
   )

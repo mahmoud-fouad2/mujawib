@@ -125,6 +125,71 @@ export function AgentEditorSheet({
     setFlows((prev) => prev.filter((f) => f !== target))
   }
 
+  const applyBlueprint = (type: 'clinic' | 'realestate' | 'auto' | 'salon') => {
+    if (type === 'clinic') {
+      setName('سارة — العيادة الطبية')
+      setRole(
+        'موظفة استقبال عيادات طبية متخصصة، مسؤولة عن حجز وتعديل المواعيد، الإجابة عن أوقات الأطباء، وفرز الحالات الطارئة.',
+      )
+      setGoals([
+        'حجز مواعيد المرضى بدقة مع تسجيل الاسم ورقم الجوال والعيادة المطلوبة',
+        'إبلاغ المريض بتعليمات الكشف وساعات عمل الطبيب المعالج',
+        'تحويل الحالات الحرجة والطارئة فوراً لرقم الطوارئ أو الطبيب المناوب',
+      ])
+      setRestricted([
+        'لا تقدم تشخيصاً طبياً أو تصرف أدوية للمتصل تحت أي ظرف',
+        'لا تعد المريض بمواعيد خارج أوقات العمل دون موافقة الإدارة',
+      ])
+      setFlows([
+        'حجز كشف جديد',
+        'إعادة كشف / متابعة',
+        'استفسار عن تأمين',
+        'إلغاء أو تعديل موعد',
+        'تحويل طوارئ',
+      ])
+    } else if (type === 'realestate') {
+      setName('فيصل — العقارات')
+      setRole(
+        'مستشار مبيعات واستقبال عقاري، مسؤول عن تأهيل المتصلين ومعرفة نوع العقار المطلوب وترتيب مواعيد المعاينات.',
+      )
+      setGoals([
+        'تحديد رغبة العميل (شراء / استئجار / استثمار) والميزانية المحددة',
+        'تحديد المدينة والحي ونوع العقار (شقة، فيلا، مكتب)',
+        'تنسيق موعد معاينة ميدانية مع المستشار العقاري',
+      ])
+      setRestricted([
+        'لا توقع عقوداً أو تعطي وعوداً بتخفيض الأسعار دون مراجعة المالك',
+        'لا تفصح عن بيانات الملاك الشخصية',
+      ])
+      setFlows(['طلب معاينة عقار', 'استفسار عن الأسعار', 'عرض عقار للبيع/الإيجار', 'تحويل لمستشار'])
+    } else if (type === 'auto') {
+      setName('سعد — صيانة السيارات')
+      setRole(
+        'مسؤول استقبال مركز صيانة سيارات، يحدد نوع العطل أو الصيانة الدورية ويحجز موعد دخول السيارة.',
+      )
+      setGoals([
+        'معرفة نوع السيارة والموديل ونوع الصيانة (دورية، ميكانيكا، فحص)',
+        'حجز موعد دخول للورشة وإبلاغ العميل بمدة الفحص التقديرية',
+      ])
+      setRestricted(['لا تعطِ تسعيرة نهائية للأعطال الميكانيكية المعقدة قبل الفحص الميداني'])
+      setFlows([
+        'حجز صيانة دورية',
+        'استفسار عن حالة سيارة',
+        'طلب سحب سطحة',
+        'استفسار عن قطع الغيار',
+      ])
+    } else if (type === 'salon') {
+      setName('نورة — مركز التجميل')
+      setRole('موظفة استقبال مركز تجميل وعناية، مسؤولة عن حجوزات الخدمات والمواعيد والعروض.')
+      setGoals([
+        'حجز المواعيد للخدمات المطلوبة وتحديد الأخصائية المفضلة',
+        'إبلاغ العميلة بالعروض الحالية ومواعيد الفروع',
+      ])
+      setRestricted(['لا تحجز في أوقات محجوزة مسبقاً'])
+      setFlows(['حجز موعد خدمة', 'استفسار عن الباقات والعروض', 'تعديل أو إلغاء موعد'])
+    }
+  }
+
   return (
     <>
       <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>
@@ -149,6 +214,57 @@ export function AgentEditorSheet({
         }
       >
         <div className="stack" style={{ gap: 'var(--s-5)' }}>
+          {/* Quick Blueprint Presets */}
+          <div
+            style={{
+              padding: 'var(--s-3)',
+              background: 'var(--surface-subtle)',
+              border: '1px dashed var(--signal-line)',
+              borderRadius: 'var(--r-md)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 'var(--step--1)',
+                fontWeight: 600,
+                marginBlockEnd: 'var(--s-2)',
+                color: 'var(--signal)',
+              }}
+            >
+              ⚡ تطبيق قالب جاهز بضغطة زر (Auto Blueprint)
+            </div>
+            <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => applyBlueprint('clinic')}
+              >
+                🏥 عيادة طبية
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => applyBlueprint('realestate')}
+              >
+                🏢 عقارات
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => applyBlueprint('auto')}
+              >
+                🚗 صيانة سيارات
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => applyBlueprint('salon')}
+              >
+                ✨ صالون وتجميل
+              </button>
+            </div>
+          </div>
+
           {/* 1. Identity & Name */}
           <div className="card-sub">
             <h4

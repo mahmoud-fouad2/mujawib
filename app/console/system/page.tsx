@@ -1,8 +1,11 @@
 import { CircleAlert, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
+import { PlatformContactSettings } from '@/components/console/platform-contact-form'
 import { MetricStrip, PageHead, Section } from '@/components/console/ui'
 import { clock, fullDate, num, relative } from '@/lib/format'
+import { requireOperatorPage } from '@/server/auth/access'
 import { getSystemOverview } from '@/server/data/console'
+import { getPlatformContactDraft } from '@/server/data/platform'
 
 export const metadata: Metadata = { title: 'النظام' }
 export const dynamic = 'force-dynamic'
@@ -14,10 +17,15 @@ const ACTION_LABEL: Record<string, string> = {
   'qa.review': 'مراجعة جودة',
   'system.secret_baseline': 'تسجيل مرجعي لمفتاح تشفير',
   'system.secret_drift': 'تغيّر مفتاح تشفير',
+  'system.contact_update': 'تحديث قنوات التواصل',
 }
 
 export default async function SystemPage() {
-  const { counts, latency, audit, secretHealth } = await getSystemOverview()
+  const [{ counts, latency, audit, secretHealth }, contact, access] = await Promise.all([
+    getSystemOverview(),
+    getPlatformContactDraft(),
+    requireOperatorPage('/console/system'),
+  ])
   const recentChange = secretHealth.some((s) => s.status === 'recent-change')
 
   return (
@@ -61,6 +69,10 @@ export default async function SystemPage() {
             </div>
           ))}
         </div>
+      </Section>
+
+      <Section title="قنوات التواصل العامة" meta="ما يظهره الموقع وبيانات محركات البحث للزوار">
+        <PlatformContactSettings canEdit={access.role === 'owner'} initial={contact} />
       </Section>
 
       <MetricStrip
