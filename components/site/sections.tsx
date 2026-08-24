@@ -344,11 +344,9 @@ const PROVIDER_ACTION_LABEL: Record<string, Record<Locale, string>> = {
 }
 
 export function IntegrationWires({
-  locale,
   copy,
   providers,
 }: {
-  locale: Locale
   copy: SiteCopy
   providers: { provider: string; label: string }[]
 }) {
@@ -376,18 +374,14 @@ export function IntegrationWires({
       <div className="integration-marquee">
         <div className="integration-track">
           {marqueeItems.map((p) => (
-            <div key={p.id} className="wirechip">
+            <div key={p.id} className="wirechip wirechip--logo-only" title={p.label}>
               <span className="wirechip__logo">
                 <Image
                   src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
                   alt={p.label}
-                  width={22}
-                  height={22}
+                  width={28}
+                  height={28}
                 />
-              </span>
-              <span className="wirechip__text">
-                <strong>{p.label}</strong>
-                <span>{PROVIDER_ACTION_LABEL[p.provider]?.[locale]}</span>
               </span>
             </div>
           ))}

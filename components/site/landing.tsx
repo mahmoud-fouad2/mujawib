@@ -178,11 +178,7 @@ export async function Landing({ locale }: { locale: Locale }) {
 
       <Capabilities copy={copy} />
 
-      <IntegrationWires
-        locale={locale}
-        copy={copy}
-        providers={[...integrationProviders.values()]}
-      />
+      <IntegrationWires copy={copy} providers={[...integrationProviders.values()]} />
 
       {packs.length > 0 ? (
         <section className="section section--tinted reveal" id="industries">

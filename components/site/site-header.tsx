@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, ArrowRight, Menu, Moon, Sun, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe, Menu, Moon, Sun, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -66,8 +66,15 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
 
           <div className="site-header__actions">
             {/* A full page load is correct here: the document direction changes. */}
-            <a href={langHref} className="lang-switch" hrefLang={otherLocale}>
-              {copy.common.langSwitch}
+            <a
+              href={langHref}
+              className="lang-switch"
+              hrefLang={otherLocale}
+              aria-label={copy.common.langSwitch}
+              title={copy.common.langSwitch}
+            >
+              <Globe size={14} aria-hidden="true" />
+              <span>{otherLocale.toUpperCase()}</span>
             </a>
 
             <button

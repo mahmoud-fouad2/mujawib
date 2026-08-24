@@ -291,8 +291,19 @@
     box-shadow var(--t-base) var(--ease);
 }
 
-.wirechip:hover {
-  transform: translateY(-2px);
+.wirechip--logo-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 28px;
+  border-radius: var(--r-panel);
+  min-inline-size: 88px;
+  block-size: 64px;
+}
+
+.wirechip:hover,
+.wirechip--logo-only:hover {
+  transform: translateY(-3px) scale(1.04);
   border-color: var(--signal-line);
   box-shadow: var(--shadow-panel);
 }
@@ -307,9 +318,15 @@
   flex: none;
 }
 
+.wirechip--logo-only .wirechip__logo {
+  inline-size: 32px;
+  block-size: 32px;
+  background: transparent;
+}
+
 .wirechip__logo img {
-  inline-size: 22px;
-  block-size: 22px;
+  inline-size: 26px;
+  block-size: 26px;
   object-fit: contain;
 }
 

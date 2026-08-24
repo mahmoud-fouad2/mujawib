@@ -38,13 +38,13 @@ const globalForDatabase = globalThis as typeof globalThis & { mujawibSql?: SqlCl
 const sqlClient =
   globalForDatabase.mujawibSql ??
   postgres(env.DATABASE_URL, {
-    max: env.NODE_ENV === 'production' ? 10 : 4,
+    max: 5,
     connect_timeout: 10,
-    idle_timeout: 20,
-    max_lifetime: 60 * 30,
+    idle_timeout: 10,
+    max_lifetime: 60 * 15,
     prepare: false,
   })
 
-if (env.NODE_ENV !== 'production') globalForDatabase.mujawibSql = sqlClient
+globalForDatabase.mujawibSql = sqlClient
 
 export const db = drizzle(sqlClient, { schema })
