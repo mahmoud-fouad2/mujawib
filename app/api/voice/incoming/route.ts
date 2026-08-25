@@ -95,7 +95,17 @@ async function rejectCall(callId: string, reason: string) {
   }).catch((error) => voiceError('ERROR', `reject failed: ${sanitizeLogText(String(error))}`))
 }
 
+import { rateLimit } from '@/lib/rate-limit'
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  const rl = rateLimit(`webhook:${ip}`, 30, 60000) // 30 requests per minute per IP
+
+  if (!rl.success) {
+    voiceError('RATE_LIMITED', `Rate limit exceeded for IP: ${ip}`)
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
   const raw = await req.text()
   voiceLog('WEBHOOK_RECEIVED', { bytes: raw.length })
 

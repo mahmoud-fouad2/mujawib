@@ -12,6 +12,7 @@ import 'server-only'
 
 export type VoiceStage =
   | 'WEBHOOK_RECEIVED'
+  | 'RATE_LIMITED'
   | 'SIGNATURE_VERIFIED'
   | 'SIGNATURE_REJECTED'
   | 'EVENT_IGNORED'
@@ -37,6 +38,7 @@ export type VoiceStage =
   | 'TOOL_CALL_COMPLETED'
   | 'POST_CALL_COMPLETED'
   | 'POST_CALL_FAILED'
+  | 'LATENCY_MEASURED'
   | 'ERROR'
 
 /** Header values that must never reach logs or persisted diagnostic metadata. */

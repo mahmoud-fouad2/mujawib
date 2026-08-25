@@ -488,6 +488,8 @@ async function runSideband(ctx: SidebandContext) {
 
   voiceLog('SIDEBAND_CONNECTING', { callId: maskIdentifier(ctx.externalCallId) })
   const url = `${REALTIME_WS}?call_id=${encodeURIComponent(ctx.externalCallId)}`
+  const connectStartTime = Date.now()
+  let ttfbMeasured = false
   const ws = new WebSocket(url, { headers: { Authorization: `Bearer ${apiKey}` } })
   const state: SessionState = {
     lastCallerSpeechStoppedAt: null,
@@ -513,6 +515,14 @@ async function runSideband(ctx: SidebandContext) {
     })
 
     ws.on('message', (data) => {
+      if (!ttfbMeasured) {
+        ttfbMeasured = true
+        const latencyMs = Date.now() - connectStartTime
+        voiceLog('LATENCY_MEASURED', {
+          callId: maskIdentifier(ctx.externalCallId),
+          ttfbMs: latencyMs,
+        })
+      }
       queue = queue
         .then(() => handleMessage(ws, ctx, data, state))
         .catch((error) => {
