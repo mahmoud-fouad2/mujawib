@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Phone } from 'lucide-react'
 import Image from 'next/image'
 import { ContactForm } from '@/components/site/contact-form'
+import { FaqInteractive } from '@/components/site/faq-interactive'
 import { SectionHead } from '@/components/site/sections'
 import { LinkButton } from '@/components/ui/button'
 import { Pill } from '@/components/ui/primitives'
@@ -236,25 +237,32 @@ export function FaqPage({ locale }: { locale: Locale }) {
   const p = pagesFor(locale).faq
   const ar = locale === 'ar'
 
+  const labels = {
+    searchPlaceholder: ar ? 'ابحث عن سؤالك...' : 'Search for your question...',
+    searchSuggestions: ar
+      ? ['الأسعار', 'واتساب', 'تحويل المكالمات', 'اللهجات']
+      : ['Pricing', 'WhatsApp', 'Forwarding', 'Dialects'],
+    contactCtaTitle: ar ? 'ما لقيت إجابتك؟' : 'Did not find your answer?',
+    contactCtaBody: ar
+      ? 'اسأل فريق مُجاوِب مباشرة وسنرد عليك في أقرب وقت.'
+      : 'Ask the Mujawib team directly and we will get back to you shortly.',
+    contactCtaButton: ar ? 'تواصل معنا' : 'Contact us',
+    locale,
+  }
+
   return (
     <>
-      <PageHero eyebrow={ar ? 'الأسئلة الشائعة' : 'FAQ'} title={p.title} lead={p.lead} />
-
-      {p.groups.map((g, i) => (
-        <section key={g.title} className={`section${i % 2 === 1 ? ' section--tinted' : ''}`}>
-          <div className="container">
-            <SectionHead label={`${String(i + 1).padStart(2, '0')}`} title={g.title} />
-            <div className="faq">
-              {g.items.map((f) => (
-                <details key={f.q}>
-                  <summary>{f.q}</summary>
-                  <p>{f.a}</p>
-                </details>
-              ))}
-            </div>
+      <PageHero eyebrow={ar ? 'الأسئلة الشائعة' : 'FAQ'} title={p.title} lead={p.lead}>
+        <div className="faq-hero-visual" aria-hidden="true">
+          <div className="demo__wave faq-wave">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => (
+              <i key={i} style={{ animationDelay: `${i * 90}ms` }} />
+            ))}
           </div>
-        </section>
-      ))}
+        </div>
+      </PageHero>
+
+      <FaqInteractive groups={p.groups} labels={labels} />
     </>
   )
 }
@@ -471,24 +479,22 @@ export function PartnersPage({ locale }: { locale: Locale }) {
   const ar = locale === 'ar'
 
   return (
-    <>
-      <PageHero
-        eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
-        title={p.title}
-        lead={p.lead}
-        media={{
-          src: '/images/site/partners.png',
-          alt: 'Mujawib Partnerships',
-          caption: ar ? 'معاً للقمة' : 'Together to the top',
-          sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
-        }}
-      >
-        <div style={{ marginTop: 'var(--s-6)' }}>
-          <LinkButton href={localePath(locale, '/contact')} variant="primary" size="lg">
-            {ar ? 'تواصل معنا للشراكة' : 'Contact us to partner'}
-          </LinkButton>
-        </div>
-      </PageHero>
-    </>
+    <PageHero
+      eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
+      title={p.title}
+      lead={p.lead}
+      media={{
+        src: '/images/site/partners.png',
+        alt: 'Mujawib Partnerships',
+        caption: ar ? 'معاً للقمة' : 'Together to the top',
+        sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
+      }}
+    >
+      <div style={{ marginTop: 'var(--s-6)' }}>
+        <LinkButton href={localePath(locale, '/contact')} variant="primary" size="lg">
+          {ar ? 'تواصل معنا للشراكة' : 'Contact us to partner'}
+        </LinkButton>
+      </div>
+    </PageHero>
   )
 }
