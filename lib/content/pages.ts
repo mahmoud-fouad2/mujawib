@@ -61,6 +61,10 @@ type Pages = {
     detail: { n: string; title: string; body: string; youDo: string; weDo: string }[]
     timeline: string
   }
+  partners: {
+    title: string
+    lead: string
+  }
 }
 
 const ar: Pages = {
@@ -345,6 +349,10 @@ const ar: Pages = {
     ],
     timeline:
       'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: أسبوعان إلى ثلاثة أسابيع.',
+  },
+  partners: {
+    title: 'شركاء النجاح: معاً نصنع مستقبل الأعمال.',
+    lead: 'نؤمن بقوة التعاون. إذا كنت وكالة تسويق، أو شركة استشارات، أو مزود حلول تقنية، دعنا نتعاون لتقديم تجربة اتصال استثنائية لعملائك ومضاعفة أرباحهم عبر حلول "مُجاوِب" للذكاء الاصطناعي الصوتي.',
   },
 }
 
@@ -633,6 +641,10 @@ const en: Pages = {
       },
     ],
     timeline: 'Typical time from first call to going live: one to three weeks.',
+  },
+  partners: {
+    title: 'Partners in Success: Shaping the Future of Business.',
+    lead: 'We believe in the power of collaboration. Whether you are a marketing agency, a consulting firm, or a tech provider, let’s partner to deliver exceptional voice AI experiences to your clients and boost their revenue with Mujawib.',
   },
 }
 

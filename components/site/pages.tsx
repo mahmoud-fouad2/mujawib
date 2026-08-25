@@ -463,3 +463,32 @@ export function HowItWorksPage({ locale }: { locale: Locale }) {
     </>
   )
 }
+
+/* ─── partners ───────────────────────────────────────────────────────────── */
+
+export function PartnersPage({ locale }: { locale: Locale }) {
+  const p = pagesFor(locale).partners
+  const ar = locale === 'ar'
+
+  return (
+    <>
+      <PageHero
+        eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
+        title={p.title}
+        lead={p.lead}
+        media={{
+          src: '/images/site/partners.png',
+          alt: 'Mujawib Partnerships',
+          caption: ar ? 'معاً للقمة' : 'Together to the top',
+          sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
+        }}
+      >
+        <div style={{ marginTop: 'var(--s-6)' }}>
+          <LinkButton href={localePath(locale, '/contact')} variant="primary" size="lg">
+            {ar ? 'تواصل معنا للشراكة' : 'Contact us to partner'}
+          </LinkButton>
+        </div>
+      </PageHero>
+    </>
+  )
+}

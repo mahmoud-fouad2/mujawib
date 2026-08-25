@@ -96,8 +96,9 @@ const ar: Copy = {
   nav: [
     { label: 'كيف يعمل', href: '/how-it-works' },
     { label: 'القطاعات', href: '/#industries' },
-    { label: 'الأمان والموثوقية', href: '/security' },
-    { label: 'الأسعار والباقات', href: '/pricing' },
+    { label: 'الأمان', href: '/security' },
+    { label: 'الأسعار', href: '/pricing' },
+    { label: 'الشركاء', href: '/partners' },
     { label: 'الأسئلة الشائعة', href: '/faq' },
   ],
   hero: {
@@ -375,6 +376,7 @@ const ar: Copy = {
           { label: 'الأسعار والباقات', href: '/pricing' },
           { label: 'الأمان والخصوصية', href: '/security' },
           { label: 'الأسئلة الشائعة', href: '/faq' },
+          { label: 'برنامج الشركاء', href: '/partners' },
           { label: 'تواصل معنا', href: '/contact' },
         ],
       },
@@ -399,6 +401,7 @@ const en: Copy = {
     { label: 'Industries', href: '/#industries' },
     { label: 'Security', href: '/security' },
     { label: 'Pricing', href: '/pricing' },
+    { label: 'Partners', href: '/partners' },
     { label: 'FAQ', href: '/faq' },
   ],
   hero: {
@@ -674,6 +677,7 @@ const en: Copy = {
           { label: 'How we start', href: '/how-it-works' },
           { label: 'Security and privacy', href: '/security' },
           { label: 'Pricing', href: '/pricing' },
+          { label: 'Partners program', href: '/partners' },
           { label: 'FAQ', href: '/faq' },
           { label: 'Contact', href: '/contact' },
         ],
