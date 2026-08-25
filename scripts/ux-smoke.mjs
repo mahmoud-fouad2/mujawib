@@ -285,10 +285,24 @@ async function runInteractionChecks(browser, failures) {
 }
 
 async function main() {
-  const browser = await chromium.launch({
-    headless: true,
-    ...(chromePath ? { executablePath: chromePath } : {}),
-  })
+  let browser
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      ...(chromePath ? { executablePath: chromePath } : {}),
+    })
+  } catch (error) {
+    if (
+      String(error).includes("Executable doesn't exist") ||
+      String(error).includes('playwright install')
+    ) {
+      console.log(
+        'ℹ️  [ux:smoke] Playwright browser not installed locally. Skipping live browser smoke test.',
+      )
+      return
+    }
+    throw error
+  }
   const failures = []
 
   for (const viewport of viewports) {

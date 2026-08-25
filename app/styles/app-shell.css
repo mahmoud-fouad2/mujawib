@@ -342,6 +342,40 @@
   font-size: 0.625rem;
 }
 
+@media (max-width: 640px) {
+  .topbar {
+    padding-inline: var(--s-3);
+    gap: var(--s-2);
+  }
+
+  .topbar__search {
+    inline-size: auto;
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .topbar__search span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+  }
+
+  .topbar__search kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar > strong {
+    max-inline-size: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+  }
+}
+
 .topbar__right {
   display: flex;
   align-items: center;
