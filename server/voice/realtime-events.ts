@@ -27,11 +27,18 @@ type RealtimeErrorAction = {
   sourceId: string
 }
 
+type RealtimeUsageAction = {
+  kind: 'usage'
+  inputTokens: number
+  outputTokens: number
+}
+
 export type RealtimeAction =
   | RealtimeTranscriptAction
   | RealtimeToolAction
   | RealtimeLifecycleAction
   | RealtimeErrorAction
+  | RealtimeUsageAction
 
 type JsonRecord = Record<string, unknown>
 
@@ -160,13 +167,33 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
 
   if (type === 'response.done') {
     const response = asRecord(event.response)
+    const usage = asRecord(response?.usage)
+
+    const actions: RealtimeAction[] = []
+
+    if (usage) {
+      const inputTokens =
+        typeof usage.input_tokens === 'number'
+          ? usage.input_tokens
+          : typeof usage.total_tokens === 'number'
+            ? usage.total_tokens
+            : 0
+      const outputTokens = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0
+      if (inputTokens > 0 || outputTokens > 0) {
+        actions.push({ kind: 'usage', inputTokens, outputTokens })
+      }
+    }
+
     const output = Array.isArray(response?.output) ? response.output : []
-    return output
+    const toolActions = output
       .map((item, index) => {
         const record = asRecord(item)
         return record ? toolAction(record, `${eventSourceId}:${index}`) : null
       })
       .filter((action): action is RealtimeToolAction => Boolean(action))
+
+    actions.push(...toolActions)
+    return actions
   }
 
   if (type === 'error') {

@@ -25,7 +25,7 @@ import { toolsFor } from '@/server/voice/tools'
  */
 
 /** Launch default — Bible §28. One model, audio to audio, no cascade. */
-export const VOICE_MODEL = 'gpt-realtime-2.1'
+export const VOICE_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview'
 
 const VOICE_BY_DIALECT: Record<string, string> = {
   saudi: 'cedar',

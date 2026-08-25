@@ -41,6 +41,8 @@ type SidebandContext = {
 type SessionState = {
   lastCallerSpeechStoppedAt: number | null
   seenToolCalls: Set<string>
+  inputTokens: number
+  outputTokens: number
 }
 
 function stableId(prefix: string, ...parts: string[]) {
@@ -362,6 +364,12 @@ async function handleAction(
     return
   }
 
+  if (action.kind === 'usage') {
+    state.inputTokens += action.inputTokens
+    state.outputTokens += action.outputTokens
+    return
+  }
+
   const safeMessage = sanitizeLogText(action.message)
   await recordEvent(ctx, 'realtime_error', action.sourceId, {
     code: action.code,
@@ -395,7 +403,12 @@ async function handleMessage(
   }
 }
 
-async function finalizeCall(ctx: SidebandContext, code: number, reason: Buffer) {
+async function finalizeCall(
+  ctx: SidebandContext,
+  code: number,
+  reason: Buffer,
+  state: SessionState,
+) {
   const endedAt = new Date()
   const normalClose = NORMAL_CLOSE_CODES.has(code)
   const [row] = await db
@@ -419,6 +432,14 @@ async function finalizeCall(ctx: SidebandContext, code: number, reason: Buffer) 
       status,
       endedAt,
       durationSeconds,
+      audioTokens:
+        state.inputTokens + state.outputTokens > 0
+          ? Math.round(state.inputTokens * 0.4 + state.outputTokens * 0.6)
+          : null, // Approx if Realtime API doesn't split audio/text in usage yet
+      textTokens:
+        state.inputTokens + state.outputTokens > 0
+          ? Math.round(state.inputTokens * 0.6 + state.outputTokens * 0.4)
+          : null,
       metadata: {
         ...(row.metadata ?? {}),
         sideband: {
@@ -494,6 +515,8 @@ async function runSideband(ctx: SidebandContext) {
   const state: SessionState = {
     lastCallerSpeechStoppedAt: null,
     seenToolCalls: new Set(),
+    inputTokens: 0,
+    outputTokens: 0,
   }
   let queue = Promise.resolve()
   const heartbeat = setInterval(() => {
@@ -541,7 +564,7 @@ async function runSideband(ctx: SidebandContext) {
       clearTimeout(timeout)
       clearInterval(heartbeat)
       queue = queue
-        .then(() => finalizeCall(ctx, code, reason))
+        .then(() => finalizeCall(ctx, code, reason, state))
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
         .finally(resolve)
     })
