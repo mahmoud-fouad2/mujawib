@@ -1,13 +1,10 @@
 import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import {
-  type ClientBusinessInfo,
-  ClientRowActions,
-  clientEditable,
-} from '@/components/console/client-actions'
+import { ClientRowActions } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { Pill } from '@/components/ui/primitives'
+import { type ClientBusinessInfo, clientEditable } from '@/lib/client-editable'
 import { num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getClients } from '@/server/data/console'

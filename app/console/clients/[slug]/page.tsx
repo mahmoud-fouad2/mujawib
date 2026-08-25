@@ -3,14 +3,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DailyBars, Ratio, Sparkline } from '@/components/console/charts'
-import {
-  type ClientBusinessInfo,
-  ClientRowActions,
-  clientEditable,
-} from '@/components/console/client-actions'
+import { ClientRowActions } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
+import { type ClientBusinessInfo, clientEditable } from '@/lib/client-editable'
 import {
   CALL_OUTCOME_LABEL,
   CHANGE_STATUS_LABEL,

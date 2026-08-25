@@ -33,64 +33,7 @@ const STATUSES = [
   { value: 'paused', label: 'موقوف — المكالمات تذهب للفريق' },
 ] as const
 
-/**
- * The loosely-typed half of a workspace row.
- *
- * `businessInfo` is a jsonb bag, so this is the one place that says what the
- * console expects to find in it. Both client screens read it through
- * `clientEditable` rather than each picking their own keys out of the blob.
- */
-export type ClientBusinessInfo = {
-  legalName?: string
-  industry?: string
-  city?: string
-  country?: string
-  website?: string
-  supportEmail?: string
-  publicPhone?: string
-  transferTo?: string
-  notes?: string
-  hours?: { sun_thu?: string }
-}
-
-export function clientEditable(
-  workspace: { id: string; slug: string; name: string; status: string },
-  info: ClientBusinessInfo,
-): ClientEditable {
-  return {
-    workspaceId: workspace.id,
-    slug: workspace.slug,
-    name: workspace.name,
-    status: workspace.status,
-    legalName: info.legalName ?? '',
-    industry: info.industry ?? '',
-    city: info.city ?? '',
-    country: info.country ?? '',
-    website: info.website ?? '',
-    supportEmail: info.supportEmail ?? '',
-    publicPhone: info.publicPhone ?? '',
-    hoursWeekday: info.hours?.sun_thu ?? '',
-    transferTo: info.transferTo ?? '',
-    notes: info.notes ?? '',
-  }
-}
-
-export type ClientEditable = {
-  workspaceId: string
-  slug: string
-  name: string
-  status: string
-  legalName: string
-  industry: string
-  city: string
-  country: string
-  website: string
-  supportEmail: string
-  publicPhone: string
-  hoursWeekday: string
-  transferTo: string
-  notes: string
-}
+import type { ClientEditable } from '@/lib/client-editable'
 
 /** A labelled input. Declared once so every field in the sheet matches. */
 function Field({
