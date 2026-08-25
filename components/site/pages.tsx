@@ -141,7 +141,7 @@ export function PricingPage({ locale }: { locale: Locale }) {
         title={p.title}
         lead={p.lead}
         media={{
-          src: '/images/product/dashboard-ai-ops-2027.webp',
+          src: '/images/pricing-dashboard.png',
           alt: '',
           caption: ar
             ? 'كل ما تدفع مقابله ظاهر في لوحتك'
@@ -166,7 +166,7 @@ export function PricingPage({ locale }: { locale: Locale }) {
                 <h2>{b.name}</h2>
                 <p className="band__for">{b.forWho}</p>
                 <p className="band__volume">{b.volume}</p>
-                <ul>
+                <ul className="band__includes">
                   {b.includes.map((i) => (
                     <li key={i}>
                       <Check size={15} aria-hidden="true" />
