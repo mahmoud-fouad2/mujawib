@@ -432,14 +432,8 @@ async function finalizeCall(
       status,
       endedAt,
       durationSeconds,
-      audioTokens:
-        state.inputTokens + state.outputTokens > 0
-          ? Math.round(state.inputTokens * 0.4 + state.outputTokens * 0.6)
-          : null, // Approx if Realtime API doesn't split audio/text in usage yet
-      textTokens:
-        state.inputTokens + state.outputTokens > 0
-          ? Math.round(state.inputTokens * 0.6 + state.outputTokens * 0.4)
-          : null,
+      inputTokens: state.inputTokens > 0 ? state.inputTokens : null,
+      outputTokens: state.outputTokens > 0 ? state.outputTokens : null,
       metadata: {
         ...(row.metadata ?? {}),
         sideband: {

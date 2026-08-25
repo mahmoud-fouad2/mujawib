@@ -150,8 +150,13 @@ export const call = pgTable(
     outcome: callOutcomeEnum('outcome'),
     intent: text('intent'),
     durationSeconds: integer('duration_seconds'),
-    audioTokens: integer('audio_tokens'),
-    textTokens: integer('text_tokens'),
+    // Real per-call totals from OpenAI's own usage event — not split into
+    // audio/text, because the Realtime API does not report that breakdown for
+    // this model. A prior version stored a made-up 40/60 split under
+    // audio_tokens/text_tokens; nothing had been written to those columns
+    // yet, so renaming was safe rather than migrating fabricated data.
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
     recordingUrl: text('recording_url'),
     transcript: jsonb('transcript').$type<unknown[]>().default([]),
     transcriptEncrypted: text('transcript_encrypted'),
