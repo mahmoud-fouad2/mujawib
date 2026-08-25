@@ -396,8 +396,8 @@ export function IntegrationWires({
                 <Image
                   src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
                   alt={p.label}
-                  width={36}
-                  height={36}
+                  width={48}
+                  height={48}
                 />
               </span>
             </div>

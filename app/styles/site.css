@@ -966,11 +966,16 @@
 
 .integration-image {
   margin-block-start: var(--s-6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.integration-image img {
+  width: 100%;
+  max-width: 1040px;
+  height: auto;
   border-radius: var(--r-hero);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  overflow: hidden;
-  box-shadow: var(--shadow-panel);
 }
 
 .integration-image__dark {
