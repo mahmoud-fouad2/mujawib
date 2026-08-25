@@ -369,6 +369,23 @@ export function IntegrationWires({
           title={copy.integrations.title}
           lead={copy.integrations.lead}
         />
+
+        <div className="integration-image reveal">
+          <Image
+            src="/images/site/integrations-light.png"
+            alt="Integrations Architecture"
+            width={1200}
+            height={600}
+            className="integration-image__light"
+          />
+          <Image
+            src="/images/site/integrations-dark.png"
+            alt="Integrations Architecture"
+            width={1200}
+            height={600}
+            className="integration-image__dark"
+          />
+        </div>
       </div>
 
       <div className="integration-marquee">
@@ -379,8 +396,8 @@ export function IntegrationWires({
                 <Image
                   src={PROVIDER_LOGO[p.provider] ?? '/images/integrations/webhooks.svg'}
                   alt={p.label}
-                  width={28}
-                  height={28}
+                  width={36}
+                  height={36}
                 />
               </span>
             </div>

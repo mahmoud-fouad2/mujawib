@@ -964,6 +964,27 @@
 
 /* ─── integrations ─────────────────────────────────────────────────────── */
 
+.integration-image {
+  margin-block-start: var(--s-6);
+  border-radius: var(--r-hero);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+
+.integration-image__dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .integration-image__light {
+  display: none;
+}
+
+:root[data-theme="dark"] .integration-image__dark {
+  display: block;
+}
+
 .wires {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
