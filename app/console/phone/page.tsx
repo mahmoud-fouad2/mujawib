@@ -11,7 +11,7 @@ import {
   phoneLifecycleTone,
   relative,
 } from '@/lib/format'
-import { getPhoneNumbers } from '@/server/data/console'
+import { getClientBySlug, getPhoneNumbers } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الهاتف' }
 export const dynamic = 'force-dynamic'
@@ -22,8 +22,14 @@ const MODE_LABEL: Record<string, string> = {
   after_hours: 'خارج الدوام',
 }
 
-export default async function PhonePage() {
-  const numbers = await getPhoneNumbers()
+export default async function PhonePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>
+}) {
+  const params = await searchParams
+  const client = params.client ? await getClientBySlug(params.client) : null
+  const numbers = await getPhoneNumbers(client ? { workspaceId: client.id } : {})
 
   // Counted from evidence, not from the status string: a seeded row can carry
   // `verified` without any call ever having proved it.
@@ -37,7 +43,11 @@ export default async function PhonePage() {
     <>
       <PageHead
         title="الأرقام والتوجيه"
-        sub="أي موظف صوتي يرد على أي رقم، وهل أثبتت مكالمة حقيقية أن المسار يعمل"
+        sub={
+          client
+            ? `أرقام ${client.name}، وهل أثبتت مكالمة حقيقية أن المسار يعمل`
+            : 'أي موظف صوتي يرد على أي رقم، وهل أثبتت مكالمة حقيقية أن المسار يعمل'
+        }
       />
 
       <SummaryBar

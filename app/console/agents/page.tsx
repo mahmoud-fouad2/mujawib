@@ -4,13 +4,19 @@ import { AgentRowActions } from '@/components/console/agent-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { Pill } from '@/components/ui/primitives'
 import { num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
-import { getAgents } from '@/server/data/console'
+import { getAgents, getClientBySlug } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الموظفون الصوتيون' }
 export const dynamic = 'force-dynamic'
 
-export default async function AgentsPage() {
-  const agents = await getAgents()
+export default async function AgentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>
+}) {
+  const params = await searchParams
+  const client = params.client ? await getClientBySlug(params.client) : null
+  const agents = await getAgents(client ? { workspaceId: client.id } : {})
 
   const published = agents.filter((a) => a.live?.status === 'published').length
   const blocked = agents.filter((a) => a.draft && !a.draftTestGate?.canPublish).length
@@ -20,7 +26,11 @@ export default async function AgentsPage() {
     <>
       <PageHead
         title="الموظفون الصوتيون"
-        sub="النسخة التي تعمل الآن، والمسودة التالية، وما يمنعها من النشر"
+        sub={
+          client
+            ? `موظفو ${client.name} الصوتيون`
+            : 'النسخة التي تعمل الآن، والمسودة التالية، وما يمنعها من النشر'
+        }
       />
 
       <SummaryBar

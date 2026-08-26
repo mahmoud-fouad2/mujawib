@@ -146,7 +146,7 @@ export function ClientRowActions({
         <RowAction icon={<Radio size={15} />} href={`/console/calls?client=${client.slug}`}>
           مكالماته
         </RowAction>
-        <RowAction icon={<Building2 size={15} />} href={`/portal?client=${client.slug}`}>
+        <RowAction icon={<Building2 size={15} />} href={`/portal/switch?client=${client.slug}`}>
           افتح بوابته
         </RowAction>
 

@@ -4,13 +4,19 @@ import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { HEALTH_LABEL, healthTone, num, relative, TOOL_LABEL } from '@/lib/format'
 import { INTEGRATION_ACTION_LABEL } from '@/lib/integrations'
-import { getIntegrations } from '@/server/data/console'
+import { getClientBySlug, getIntegrations } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الربط' }
 export const dynamic = 'force-dynamic'
 
-export default async function IntegrationsPage() {
-  const { rows, executions } = await getIntegrations()
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>
+}) {
+  const params = await searchParams
+  const client = params.client ? await getClientBySlug(params.client) : null
+  const { rows, executions } = await getIntegrations(client ? { workspaceId: client.id } : {})
 
   const connected = rows.filter((r) => r.health === 'connected').length
   const ready = rows.filter((r) => r.setup.ready).length
@@ -23,7 +29,11 @@ export default async function IntegrationsPage() {
     <>
       <PageHead
         title="الربط والأدوات"
-        sub="حالة كل اتصال، والأثر الفعلي لتنفيذ الأدوات خلال آخر سبعة أيام"
+        sub={
+          client
+            ? `اتصالات ${client.name}، والأثر الفعلي لتنفيذ الأدوات خلال آخر سبعة أيام`
+            : 'حالة كل اتصال، والأثر الفعلي لتنفيذ الأدوات خلال آخر سبعة أيام'
+        }
       />
 
       <SummaryBar

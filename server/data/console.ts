@@ -586,7 +586,7 @@ export async function getClients() {
     .sort((a, b) => b.calls30d - a.calls30d)
 }
 
-async function getClientBySlug(slug: string) {
+export async function getClientBySlug(slug: string) {
   const [row] = await db.select().from(workspace).where(eq(workspace.slug, slug)).limit(1)
   return row ?? null
 }
@@ -820,7 +820,7 @@ export async function getAgentDetail(agentId: string) {
 
 /* ─── Agents ─────────────────────────────────────────────────────────────── */
 
-export async function getAgents() {
+export async function getAgents(options: { workspaceId?: string } = {}) {
   const rows = await db
     .select({
       id: agent.id,
@@ -833,6 +833,7 @@ export async function getAgents() {
     })
     .from(agent)
     .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+    .where(options.workspaceId ? eq(agent.workspaceId, options.workspaceId) : undefined)
     .orderBy(workspace.name)
     .limit(100)
 
@@ -1149,7 +1150,7 @@ export async function getVoiceLab() {
 
 /* ─── Integrations ───────────────────────────────────────────────────────── */
 
-export async function getIntegrations() {
+export async function getIntegrations(options: { workspaceId?: string } = {}) {
   const rawRows = await db
     .select({
       id: integrationConnection.id,
@@ -1166,6 +1167,9 @@ export async function getIntegrations() {
     })
     .from(integrationConnection)
     .innerJoin(workspace, eq(integrationConnection.workspaceId, workspace.id))
+    .where(
+      options.workspaceId ? eq(integrationConnection.workspaceId, options.workspaceId) : undefined,
+    )
     .orderBy(workspace.name)
 
   const rows = rawRows.map((row) => {
@@ -1195,7 +1199,13 @@ export async function getIntegrations() {
     })
     .from(toolExecution)
     .innerJoin(call, eq(toolExecution.callId, call.id))
-    .where(and(gte(toolExecution.executedAt, daysBack(7)), eq(call.origin, 'live')))
+    .where(
+      and(
+        gte(toolExecution.executedAt, daysBack(7)),
+        eq(call.origin, 'live'),
+        options.workspaceId ? eq(call.workspaceId, options.workspaceId) : undefined,
+      ),
+    )
     .groupBy(toolExecution.toolName)
     .orderBy(desc(sql`count(*)`))
 
@@ -1204,7 +1214,7 @@ export async function getIntegrations() {
 
 /* ─── Phone ──────────────────────────────────────────────────────────────── */
 
-export async function getPhoneNumbers() {
+export async function getPhoneNumbers(options: { workspaceId?: string } = {}) {
   return db
     .select({
       id: phoneNumber.id,
@@ -1241,6 +1251,7 @@ export async function getPhoneNumbers() {
     .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
     .leftJoin(agent, eq(phoneNumber.agentId, agent.id))
     .leftJoin(agentVersion, eq(agentVersion.id, agent.liveVersionId))
+    .where(options.workspaceId ? eq(phoneNumber.workspaceId, options.workspaceId) : undefined)
     .orderBy(workspace.name)
 }
 
