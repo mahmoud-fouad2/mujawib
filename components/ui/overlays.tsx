@@ -8,13 +8,19 @@ import { Button } from '@/components/ui/button'
 function useDismissable(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
+  // Read through a ref rather than depending on onClose directly: callers
+  // pass a fresh inline closure on every render, and this effect must not
+  // re-run on every keystroke inside the overlay — it did, and each re-run
+  // yanked focus back to the close button (see the querySelector below).
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
     restoreTo.current = document.activeElement as HTMLElement | null
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
       if (e.key !== 'Tab' || !ref.current) return
 
       // Keep Tab inside the overlay while it is open.
@@ -37,7 +43,12 @@ function useDismissable(open: boolean, onClose: () => void) {
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     requestAnimationFrame(() => {
-      ref.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus()
+      // Excludes [data-dismiss]: Sheet's header close button sits before the
+      // body in DOM order, so the untargeted selector focused it instead of
+      // the first real field every time this ran.
+      ref.current
+        ?.querySelector<HTMLElement>('input, textarea, select, button:not([data-dismiss])')
+        ?.focus()
     })
 
     return () => {
@@ -45,7 +56,7 @@ function useDismissable(open: boolean, onClose: () => void) {
       document.body.style.overflow = ''
       restoreTo.current?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   return ref
 }
@@ -83,7 +94,13 @@ export function Sheet({
             <h2>{title}</h2>
             {description ? <p>{description}</p> : null}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="إغلاق">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onClose}
+            aria-label="إغلاق"
+            data-dismiss
+          >
             <X size={18} />
           </button>
         </header>
