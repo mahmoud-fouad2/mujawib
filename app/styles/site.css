@@ -234,8 +234,45 @@
 }
 
 @media (max-width: 520px) {
-  .site-header__actions .site-header__signin {
+  /* The logo alone was ~47% of a 375px viewport at the uncapped 48px height,
+     leaving no room for sign-in once the nav collapses. Capping max-height
+     shrinks it proportionally (width stays auto) without touching the
+     component's default sizing used everywhere else. */
+  .site-header__brand .brand-logo {
+    max-block-size: 26px;
+  }
+
+  .lang-switch span {
     display: none;
+  }
+  .lang-switch {
+    padding: 5px 7px;
+  }
+
+  /* Least essential of the four action controls — tucked into the sheet
+     below so sign-in can stay directly visible instead. */
+  .site-header__theme {
+    display: none;
+  }
+
+  .site-header__actions {
+    gap: 6px;
+  }
+
+  .site-header__actions .icon-btn {
+    inline-size: 30px;
+    block-size: 30px;
+  }
+
+  .site-header__actions .site-header__signin {
+    padding-inline: var(--s-2);
+    font-size: 0.75rem;
+  }
+
+  /* Sized for brand + nav + actions; with nav hidden below, the full gap is
+     unclaimed space between just two items. */
+  .site-header__inner {
+    gap: var(--s-2);
   }
 }
 
@@ -276,6 +313,30 @@
   margin-block-start: var(--s-3);
   padding-block-start: var(--s-4);
   border-block-start: 1px solid var(--line);
+}
+
+/* Mirrors .site-header__theme's breakpoint: visible here exactly when it's
+   hidden from the collapsed bar, so there's always exactly one control. */
+.site-sheet__theme {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .site-sheet__theme {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    border-radius: var(--r-control);
+    color: var(--text-muted);
+    font-size: var(--step-1);
+    font-weight: 500;
+  }
+
+  .site-sheet__theme:hover {
+    background: var(--raised);
+    color: var(--text);
+  }
 }
 
 /* ─── hero ─────────────────────────────────────────────────────────────── */

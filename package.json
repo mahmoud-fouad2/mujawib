@@ -12,7 +12,6 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "brand:build": "node scripts/build-brand-variants.mjs",
     "og:build": "node scripts/build-og-card.mjs",
     "knip": "knip",
     "check": "corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test:unit && corepack pnpm test:contracts && corepack pnpm build",

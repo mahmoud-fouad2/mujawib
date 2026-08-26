@@ -12,7 +12,7 @@ import Image from 'next/image'
  * on /en pages, so it is opt-in rather than threaded through every caller.
  */
 
-const LOCKUP_RATIO = { ar: 1469 / 322, en: 1923 / 298 } as const
+const LOCKUP_RATIO = { ar: 1243 / 292, en: 1250 / 270 } as const
 const HEIGHTS = { sm: 24, md: 30, lg: 38, xl: 48 } as const
 
 export type LogoSize = keyof typeof HEIGHTS

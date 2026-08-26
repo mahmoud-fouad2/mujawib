@@ -79,7 +79,7 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
 
             <button
               type="button"
-              className="icon-btn"
+              className="icon-btn site-header__theme"
               onClick={toggle}
               aria-label={copy.common.theme}
             >
@@ -120,6 +120,14 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
               {item.label}
             </Link>
           ))}
+          <button type="button" className="site-sheet__theme" onClick={toggle}>
+            {mode === 'dark' ? (
+              <Sun size={17} aria-hidden="true" />
+            ) : (
+              <Moon size={17} aria-hidden="true" />
+            )}
+            {copy.common.theme}
+          </button>
           <div className="site-sheet__actions">
             <LinkButton href="/sign-in" size="md" block>
               {copy.common.signIn}
