@@ -64,12 +64,15 @@ type Pages = {
   partners: {
     title: string
     lead: string
+    stats: { num: string; label: string }[]
     tracksTitle: string
-    tracks: { title: string; desc: string; forWho: string }[]
+    tracks: { title: string; desc: string; forWho: string; features: string[] }[]
     benefitsTitle: string
     benefits: { title: string; desc: string }[]
     stepsTitle: string
     steps: { n: string; title: string; desc: string }[]
+    faqTitle: string
+    faq: { q: string; a: string }[]
     ctaTitle: string
     ctaBody: string
     ctaButton: string
@@ -360,67 +363,138 @@ const ar: Pages = {
       'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: من 5 إلى 14 يوم عمل حسب حجم الربط والسيناريوهات.',
   },
   partners: {
-    title: 'شركاء النجاح: معاً نصنع مستقبل الأعمال.',
-    lead: 'نؤمن بقوة التعاون. إذا كنت وكالة تسويق، أو شركة استشارات، أو مزود حلول تقنية، دعنا نتعاون لتقديم تجربة اتصال استثنائية لعملائك ومضاعفة أرباحهم عبر حلول "مُجاوِب" للذكاء الاصطناعي الصوتي.',
-    tracksTitle: 'مسارات الشراكة والتعاون',
+    title: 'برنامج شركاء مُجاوِب: ضاعف أرباحك بتقديم أول موظف استقبال صوتي ذكي لعملائك.',
+    lead: 'انضم لبرنامج شركاء مُجاوِب واربح عمولات شهرية متكررة مستمرة تبدأ من 20%، أو أعد بيع الخدمة تحت مظلة وكالتك بهوامش ربحية مجزية، دون أن تتحمل أي أعباء برمجية أو هندسية. نحن نتولى تشغيل وضمان جودة الموظف الصوتي، وأنت تجني ثمار الشراكة.',
+    stats: [
+      {
+        num: '20% – 30%',
+        label: 'عمولة شهرية متكررة مستمرة طوال فترة اشتراك عميلك',
+      },
+      {
+        num: 'صفر ريال',
+        label: 'لا توجد رسوم انضمام، ولا اشتراكات مفروضة على الشركاء',
+      },
+      {
+        num: '100% مُدار',
+        label: 'مهندسو مُجاوِب يتكفلون بالتدريب، والربط، ومراقبة الجودة 24/7',
+      },
+      {
+        num: 'Sandbox',
+        label: 'حساب تجريبي حي لعرض مكالمات الذكاء الاصطناعي أمام عملائك',
+      },
+    ],
+    tracksTitle: 'ثلاثة مسارات شراكة مرنة تناسب نموذج عملك',
     tracks: [
       {
-        title: 'شريك الإحالة (Referral Partner)',
-        desc: 'أوصِ بـ "مُجاوِب" لعملائك أو شبكة معارفك واحصل على نسبة عمولة شهرية مجزية ومستمرة طوال فترة اشتراك العميل.',
-        forWho: 'المستشارون، وصناع المحتوى، وخبراء تحسين العمليات.',
+        title: 'مسار شركاء الإحالة (Referral Partners)',
+        desc: 'المسار الأسرع لتحقيق دخل سلبي متكرر. أوصِ بـ "مُجاوِب" لعملائك ومعارفك، ودع فريقنا يتولى إغلاق الصفقة وربط الخدمة، واستلم عمولتك الشهرية تلقائياً.',
+        forWho: 'المستشارون الإداريون، صناع المحتوى، وخبراء أتمتة الأعمال',
+        features: [
+          'عمولة شهرية نقدية تبدأ من 20% لكل فاتورة يدفعها عميلك',
+          'تتبع فوري وموثق للعملاء المحالين عبر لوحة مخصصة',
+          'صفر دعم فني وصفر مسؤولية تشغيلية بعد الإحالة',
+        ],
       },
       {
-        title: 'شريك الوكالات (Agency & Solutions)',
-        desc: 'قدّم حلول الاستقبال الصوتي الذكي كخدمة مضافة لعملائك مع أسعار تفضيلية ودعم فني مخصص لتنفيذ مشاريعهم.',
-        forWho: 'وكالات التسويق، شركات التحول الرقمي، ومطورو الحلول البرمجية.',
+        title: 'مسار الوكالات وحلول الأعمال (Agency & Solution Partners)',
+        desc: 'أضف حلول الاستقبال الصوتي المتقدمة كخدمة قيمة مضافة لعملائك. اشترِ باقات مُجاوِب بأسعار الجملة التفضيلية وأعد تسعيرها ودمجها ضمن عقود خدماتك المتكاملة.',
+        forWho: 'وكالات التسويق الرقمي، شركات إدارة الحملات والـ Media Buying، ومطورو الويب',
+        features: [
+          'أسعار جملة تفضيلية بهوامش ربحية مجزية تحددها بنفسك لعملائك',
+          'لوحة إدارة موحدة لمتابعة كافة عملاء وكالتك من شاشة واحدة',
+          'حقيبة عروض تقديمية قابلة للتخصيص باسم وكالتك (Pitch Decks)',
+          'أولوية مطلقة في هندسة المسارات المخصصة والربط التقني',
+        ],
       },
       {
-        title: 'شريك التكامل والتقنية (Technology Partner)',
-        desc: 'اربط برمجياتك (CRM، أنظمة ERP، منصات إدارة العيادات والمطاعم) بـ "مُجاوِب" لتوفير استقبال صوتي فوري لعملائك.',
-        forWho: 'شركات SaaS ومنصات إدارة المنشآت الطبية والتجارية.',
+        title: 'مسار التكامل البرمجي والمنصات (Technology & ISV Partners)',
+        desc: 'اربط نظامك أو منصتك السحابية بـ "مُجاوِب" عبر الـ APIs لتمكين مستخدميك من تشغيل موظف استقبال صوتي متصل مباشرة بقاعدة بياناتك وتقويم مواعيدك.',
+        forWho: 'أنظمة إدارة العيادات والمراكز الطبية (EMR)، منصات حجز المطاعم، وأنظمة الـ CRM',
+        features: [
+          'ربط برمجي ثنائي الاتجاه (Two-way Native API Integration)',
+          'تسويق مشترك وإدراج منصتك في دليل التكاملات الرسمي لدينا',
+          'نموذج تقاسم إيرادات (Revenue Share) مخصص لحجم مستخدميك',
+          'قناة تواصل هندسية مباشرة مع فريق تطوير مُجاوِب',
+        ],
       },
     ],
-    benefitsTitle: 'لماذا تنضم لبرنامج شركاء مُجاوِب؟',
+    benefitsTitle: 'حقيبة تمكين الشريك: كل ما يلزمك لإغلاق الصفقات',
     benefits: [
       {
-        title: 'عوائد شهرية متكررة (Recurring Revenue)',
-        desc: 'نموذج أرباح شفاف ومستمر ينمو شهرياً مع كل عميل يستمر في استخدام الخدمة.',
+        title: 'أرباح نقدية شهرية متكررة',
+        desc: 'استلم أرباحك وعمولاتك الشهرية بانتظام عبر تحويل بنكي مباشر، مع كشف حساب تفصيلي يوضح حجم واشتراك كل عميل.',
       },
       {
-        title: 'بيئة تجريبية وأولوية في الدعم الفني',
-        desc: 'حساب تجريبي (Sandbox) مجاني لعرض تجارب المكالمات الحية أمام عملائك، مع قناة دعم هندسي مباشرة.',
+        title: 'حساب تجريبي حي (Live Demo Sandbox)',
+        desc: 'لا تحتاج لبيع الفكرة بالكلام؛ اتصل برقم العرض التجريبي ودع عميلك يستمع لانسيابية الصوت باللهجة الخليجية بنفسه في الاجتماع.',
       },
       {
-        title: 'مواد بيعية وتدريب مخصص',
-        desc: 'نزودك بعروض توضيحية، دراسات حالة موثقة، وجلسات تدريبية لفريقك لمساعدتك في إغلاق الصفقات بسهولة.',
+        title: 'حقيبة المبيعات والتسويق المتكاملة',
+        desc: 'نوفر لك شرائح عرض احترافية، نصوص بيعية، دراسات حالة لقطاعات مختلفة، وحاسبة عائد الاستثمار لتسهيل الإقناع.',
       },
       {
-        title: 'خدمة مُدارة بالكامل (نحن نتولى التشغيل)',
-        desc: 'أنت تكسب العميل وتبني العلاقة، ونحن نتكفل بالربط البرمجي، وهندسة الصوت، وضمان الجودة 24/7.',
+        title: 'فريق تشغيل كامل في ظهرك',
+        desc: 'نحن لا نبيع برمجيات ونتركك؛ مهندسو مُجاوِب يتولون كل شيء: هندسة النبرة، إعداد الـ APIs، والدعم الفني على مدار الساعة.',
+      },
+      {
+        title: 'حماية وتوثيق العملاء (Deal Registration)',
+        desc: 'سجل العميل المحتمل في نظامنا لضمان حفظ حقك في العمولة دون أي تضارب مع مبيعاتنا المباشرة.',
+      },
+      {
+        title: 'جلسات تدريب وتطوير لفريقك',
+        desc: 'ورش عمل دورية لشرح أحدث إمكانيات الذكاء الاصطناعي الصوتي وكيفية تحويل مكالمات العملاء لفرص مبيعات.',
       },
     ],
-    stepsTitle: 'كيف تصبح شريكاً معنا؟',
+    stepsTitle: 'خطوات بدء الشراكة: من التسجيل إلى أول عمولة',
     steps: [
       {
         n: '01',
-        title: 'تقديم طلب الشراكة',
-        desc: 'أرسل بياناتك ونبذة عن خدماتك وقاعدة عملائك عبر نموذج التواصل.',
+        title: 'تعبئة طلب الشراكة',
+        desc: 'سجل بياناتك ونوع نشاطك ومسار الشراكة الذي تفضله عبر النموذج أدناه.',
       },
       {
         n: '02',
-        title: 'جلسة التوافق وتحديد المسار',
-        desc: 'مكالمة سريعة لمدة 20 دقيقة لتحديد مسار الشراكة المناسب ونسب العمولات.',
+        title: 'مكالمة المواءمة التجارية (20 دقيقة)',
+        desc: 'جلسة سريعة مع مدير الشراكات لشرح نسب العمولات، وتسليم حساب الـ Sandbox، واعتماد الاتفاقية.',
       },
       {
         n: '03',
-        title: 'بدء التفعيل وتحقيق الأرباح',
-        desc: 'استلم حسابك والمواد الترويجية وابدأ فوراً في ترشيح العملاء وتوليد العوائد.',
+        title: 'استلام حقيبة المواد وبدء الترويج',
+        desc: 'احصل على روابطك الترويجية ومواد المبيعات وابدأ في عرض الخدمة على عملائك المستهدفين.',
+      },
+      {
+        n: '04',
+        title: 'استلام الأرباح والنمو المتصاعد',
+        desc: 'بمجرد اشتراك عميلك، تبدأ العمولات الشهرية بالتدفق إلى حسابك مع كل دورة تجديد تلقائياً.',
       },
     ],
-    ctaTitle: 'جاهز لتقديم حلول الذكاء الصوتي لعملائك؟',
+    faqTitle: 'الأسئلة الأكثر شيوعاً حول برنامج الشركاء',
+    faq: [
+      {
+        q: 'كيف ومتى يتم دفع العمولات الشهرية؟',
+        a: 'يتم احتساب العمولات مع بداية كل شهر ميلادي عن اشتراكات الشهر السابق، وتُحول مباشرة إلى حسابك البنكي المعتمد مع إشعار تفصيلي.',
+      },
+      {
+        q: 'هل يشترط أن أكون خبيراً تقنياً لأصبح شريكاً؟',
+        a: 'إطلاقاً. لا تحتاج لأي خبرة برمجية. دورك يقتصر على ربطنا بالعميل أو إقناعه بالفكرة، وفريقنا الهندسي يتولى كامل مراحل الإعداد التقني والتشغيل.',
+      },
+      {
+        q: 'هل توجد شروط أو حد أدنى لعدد العملاء؟',
+        a: 'لا يوجد أي حد أدنى. تبدأ في استحقاق عمولاتك فور انضمام أول عميل لك.',
+      },
+      {
+        q: 'في مسار الوكالات، هل يمكنني إعادة بيع الخدمة بالسعر الذي أحدده؟',
+        a: 'نعم بالتأكيد. نوفر لك أسعار الجملة التفضيلية، ولديك الحرية الكاملة في تسعير الخدمة ودمجها مع باقاتك التسويقية أو التشغيلية.',
+      },
+      {
+        q: 'ماذا لو احتاج العميل إلى دعم فني أو واجه مشكلة في المكالمات؟',
+        a: 'فريق دعم مُجاوِب مسؤول بالكامل عن مراقبة جودة المكالمات والدعم الفني 24/7. عميلك في أيدٍ أمينة ولن تضطر للتعامل مع مشاكله التشغيلية.',
+      },
+    ],
+    ctaTitle: 'لنبدأ شراكة استثنائية ونبني قيمة حقيقية لعملائك',
     ctaBody:
-      'انضم لبرنامج الشركاء اليوم واجعل منشأتك في صدارة الشركات المقدمة لأحدث تقنيات الصوت في المنطقة.',
-    ctaButton: 'قدّم طلب الانضمام للشركاء',
+      'سواء كنت ترغب في عمولات إحالة متكررة أو ترقية خدمات وكالتك، فريق الشراكات جاهز لمناقشة التفاصيل معك اليوم.',
+    ctaButton: 'قدّم طلب الشراكة الآن',
   },
 }
 
@@ -711,65 +785,136 @@ const en: Pages = {
     timeline: 'Typical time from first call to going live: one to three weeks.',
   },
   partners: {
-    title: 'Partners in Success: Shaping the Future of Business.',
-    lead: 'We believe in the power of collaboration. Whether you are a marketing agency, a consulting firm, or a tech provider, let’s partner to deliver exceptional voice AI experiences to your clients and boost their revenue with Mujawib.',
-    tracksTitle: 'Partnership Tracks',
+    title: 'Mujawib Partner Program: Compounding Revenue with Arabic Voice AI.',
+    lead: 'Whether you are a digital agency looking to increase client LTV, a management consultant recommending operational efficiency, or an ISV wanting to offer voice reception to your users — the Mujawib Partner Program delivers recurring revenue and enterprise-grade voice AI without adding technical overhead to your team.',
+    stats: [
+      {
+        num: '20% – 30%',
+        label: 'Recurring monthly commissions for the lifetime of your client',
+      },
+      {
+        num: '$0 Cost',
+        label: 'Zero signup fees and no partner maintenance commitments',
+      },
+      {
+        num: '100% Managed',
+        label: 'Mujawib engineering handles prompt tuning, integrations, and 24/7 QA',
+      },
+      {
+        num: 'Sandbox',
+        label: 'Dedicated demo environment to run live trial calls during client meetings',
+      },
+    ],
+    tracksTitle: 'Three Partnership Tracks Tailored to Your Business',
     tracks: [
       {
-        title: 'Referral Partner',
-        desc: 'Recommend Mujawib to your clients and earn generous, recurring monthly commissions for the lifetime of their subscription.',
-        forWho: 'Consultants, business advisors, and digital agencies.',
+        title: 'Referral Partners',
+        desc: 'The easiest way to generate recurring passive revenue. Introduce Mujawib to your business network, and let our sales and engineering team close the deal and deliver the setup.',
+        forWho: 'Consultants, advisors, business coaches, and fractional executives',
+        features: [
+          'Monthly recurring commission starting at 20% of invoice value',
+          'Transparent deal tracking via dedicated partner dashboard',
+          'Zero post-sale involvement or technical maintenance required',
+        ],
       },
       {
-        title: 'Agency & Solution Partner',
-        desc: 'Offer voice AI reception as an added-value service to your clients with preferred wholesale rates and dedicated technical support.',
-        forWho: 'Marketing agencies, digital consultancies, and systems integrators.',
+        title: 'Agency & Solution Partners',
+        desc: 'Add AI voice reception to your agency offering. Purchase wholesale usage tiers at preferred partner margins and package them into your retainer services.',
+        forWho: 'Digital marketing agencies, CRM consultants, and systems integrators',
+        features: [
+          'Substantial wholesale discounts with flexible client pricing',
+          'Consolidated client management workspace in the portal',
+          'Customizable co-branded pitch decks and ROI calculators',
+          'Priority SLA in the engineering deployment queue',
+        ],
       },
       {
-        title: 'Technology Partner',
-        desc: 'Integrate your software (CRM, ERP, clinic and salon booking systems) with Mujawib to deliver seamless voice experiences to your users.',
-        forWho: 'SaaS vendors and business management platforms.',
+        title: 'Technology & ISV Partners',
+        desc: 'Integrate your SaaS platform (clinic management, restaurant booking, CRM) with Mujawib to provide native voice reception to your entire user base.',
+        forWho: 'SaaS vendors, vertical ERPs, and appointment platforms',
+        features: [
+          'Bidirectional native REST & Webhook integrations',
+          'Co-marketing and featured listing in our integrations directory',
+          'Custom volume-based revenue share agreements',
+          'Dedicated developer sandbox and direct engineering channel',
+        ],
       },
     ],
-    benefitsTitle: 'Why Partner with Mujawib?',
+    benefitsTitle: 'Partner Enablement Toolkit',
     benefits: [
       {
-        title: 'Recurring Monthly Revenue',
-        desc: 'A predictable, compounding revenue share model that grows as your referred clients scale.',
+        title: 'Compounding Recurring Income',
+        desc: 'Receive your partner earnings every month via direct wire transfer, backed by detailed per-client reporting.',
       },
       {
-        title: 'Sandbox & Priority Support',
-        desc: 'Free demo environments to showcase live AI calls to your prospects, backed by direct engineering support.',
+        title: 'Live Demo Sandbox',
+        desc: 'No theoretical pitching required; dial into a live demo number and let clients experience natural Arabic voice AI firsthand.',
       },
       {
-        title: 'Co-marketing & Sales Enablement',
-        desc: 'Access sales collateral, pitch decks, case studies, and partner training sessions to close deals faster.',
+        title: 'Full Sales & Marketing Assets',
+        desc: 'Access pitch decks, battle cards, localized case studies, and ROI calculators designed to close deals quickly.',
       },
       {
-        title: '100% Done-for-You Delivery',
-        desc: 'You bring the client relationship; our engineering team handles prompt tuning, API integration, and 24/7 quality assurance.',
+        title: 'Done-for-You Technical Delivery',
+        desc: 'We take full responsibility: dialect engineering, API integrations, and 24/7 call quality monitoring.',
+      },
+      {
+        title: 'Protected Deal Registration',
+        desc: 'Register client leads in our partner portal to protect your commission rights with zero channel conflict.',
+      },
+      {
+        title: 'Sales Enablement & Training',
+        desc: 'Regular product updates and sales coaching for your team to identify the best call automation opportunities.',
       },
     ],
-    stepsTitle: 'How to Get Started',
+    stepsTitle: 'How to Get Started in 4 Simple Steps',
     steps: [
       {
         n: '01',
-        title: 'Submit Application',
-        desc: 'Tell us about your company, services, and current client base.',
+        title: 'Submit Partner Inquiry',
+        desc: 'Fill out the application form with your company details and target client profile.',
       },
       {
         n: '02',
-        title: 'Discovery & Alignment',
-        desc: 'A brief 20-minute call to agree on commercial terms and choose the right partner track.',
+        title: 'Commercial Alignment (20 mins)',
+        desc: 'A quick discovery call with our partnership lead to align on tracks, terms, and handover materials.',
       },
       {
         n: '03',
-        title: 'Launch & Earn',
-        desc: 'Receive your partner assets, start introducing clients, and earn recurring revenue.',
+        title: 'Access Toolkit & Start Outreach',
+        desc: 'Receive your sandbox access, sales enablement kit, and unique referral tracking.',
+      },
+      {
+        n: '04',
+        title: 'Close Clients & Scale Revenue',
+        desc: 'Watch your clients launch their voice reception while monthly recurring revenue builds.',
+      },
+    ],
+    faqTitle: 'Partner Program FAQ',
+    faq: [
+      {
+        q: 'How and when are commissions paid?',
+        a: 'Commissions are calculated on the 1st of each month for the previous billing period, and wired directly to your verified bank account.',
+      },
+      {
+        q: 'Do I need technical or AI engineering expertise?',
+        a: 'None at all. You provide the client relationship; our specialized engineering team handles all prompt engineering, system connections, and call tuning.',
+      },
+      {
+        q: 'Is there a minimum client volume requirement?',
+        a: 'No minimums. You start earning recurring revenue from your very first referred client.',
+      },
+      {
+        q: 'Can agencies bundle and rebrand the service?',
+        a: 'Yes. In the Agency track you can bundle Mujawib into your own retainers and price the service however best serves your market.',
+      },
+      {
+        q: 'Who is responsible for customer support and call quality?',
+        a: 'Mujawib operations handles 24/7 system health, failovers, and latency monitoring. Your clients are completely supported by our team.',
       },
     ],
     ctaTitle: 'Ready to deliver voice AI to your clients?',
-    ctaBody: 'Join the Mujawib partner program today and stay ahead of the technology curve.',
+    ctaBody: 'Join our partner program today and start building compounding recurring revenue.',
     ctaButton: 'Apply for Partnership',
   },
 }

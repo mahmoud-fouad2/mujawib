@@ -632,18 +632,15 @@ export function PartnersPage({ locale }: { locale: Locale }) {
 
   return (
     <>
-      <PageHero
-        eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
-        title={p.title}
-        lead={p.lead}
-        media={{
-          src: '/images/site/partners.png',
-          alt: 'Mujawib Partnerships',
-          caption: ar ? 'معاً للقمة' : 'Together to the top',
-          sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
-        }}
-      >
-        <div style={{ marginTop: 'var(--s-6)' }}>
+      <PageHero eyebrow={ar ? 'برنامج الشركاء' : 'Partner Program'} title={p.title} lead={p.lead}>
+        <div
+          style={{
+            marginTop: 'var(--s-6)',
+            display: 'flex',
+            gap: 'var(--s-3)',
+            flexWrap: 'wrap',
+          }}
+        >
           <LinkButton
             href={localePath(locale, '/contact')}
             variant="primary"
@@ -654,6 +651,35 @@ export function PartnersPage({ locale }: { locale: Locale }) {
           </LinkButton>
         </div>
       </PageHero>
+
+      {/* Clean, unzoomed natural aspect-ratio banner */}
+      <div className="container" style={{ marginBlockEnd: 'var(--s-6)' }}>
+        <div className="partner-banner-wrapper reveal">
+          <Image
+            src="/images/site/partners.png"
+            alt={ar ? 'برنامج شركاء مُجاوِب' : 'Mujawib Partner Program'}
+            width={1942}
+            height={809}
+            priority
+            className="partner-banner-img"
+            sizes="(max-width: 1160px) 100vw, 1160px"
+          />
+        </div>
+      </div>
+
+      {/* Program Highlights */}
+      <section className="section" style={{ paddingBlockStart: 0 }}>
+        <div className="container">
+          <div className="stat-strip reveal">
+            {p.stats.map((st) => (
+              <div key={st.num} className="stat-item">
+                <span className="stat-item__num">{st.num}</span>
+                <span className="stat-item__label">{st.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Tracks */}
       <section className="section">
@@ -672,8 +698,16 @@ export function PartnersPage({ locale }: { locale: Locale }) {
               <article key={track.title} className="track-card">
                 <h3>{track.title}</h3>
                 <p>{track.desc}</p>
+                <ul className="track-card__features">
+                  {track.features.map((feat) => (
+                    <li key={feat}>
+                      <Check size={15} aria-hidden="true" />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
                 <div className="track-card__who">
-                  <span>{ar ? 'الفئة المستهدفة:' : 'For:'}</span>
+                  <span>{ar ? 'الفئة المستهدفة:' : 'Best for:'}</span>
                   <strong>{track.forWho}</strong>
                 </div>
               </article>
@@ -729,8 +763,41 @@ export function PartnersPage({ locale }: { locale: Locale }) {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* Partner FAQ */}
       <section className="section section--tinted">
+        <div className="container">
+          <SectionHead
+            label={ar ? 'الأسئلة الشائعة' : 'FAQ'}
+            title={p.faqTitle}
+            lead={
+              ar
+                ? 'إجابات واضحة على كل ما يخص العمولات، آلية التعاقد، والدعم الفني.'
+                : 'Everything you need to know about payouts, contracting, and support.'
+            }
+          />
+          <div
+            className="faq-panel__items"
+            style={{ maxInlineSize: '820px', marginBlockStart: 'var(--s-5)' }}
+          >
+            {p.faq.map((f) => (
+              <details key={f.q} className="faq-item">
+                <summary className="faq-item__summary">
+                  <strong>{f.q}</strong>
+                  <span className="faq-item__icon">
+                    <Plus className="icon-plus" size={16} />
+                  </span>
+                </summary>
+                <div className="faq-item__body">
+                  <p>{f.a}</p>
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="section">
         <div className="container">
           <div className="page-cta reveal">
             <h2>{p.ctaTitle}</h2>
