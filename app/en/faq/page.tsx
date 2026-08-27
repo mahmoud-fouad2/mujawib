@@ -7,9 +7,9 @@ import { breadcrumbSchema, faqSchema, JsonLd, pageMetadata } from '@/lib/seo'
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
   path: '/faq',
-  title: 'FAQ',
+  title: 'Frequently Asked Questions — Arabic Voice AI Receptionist | Mujawib',
   description:
-    'Time to launch, Arabic voice quality, calendar booking, and how failures are handled.',
+    'Clear answers about deployment timelines, dialect comprehension, calendar & WhatsApp integrations, and enterprise reliability.',
 })
 
 export default function Page() {

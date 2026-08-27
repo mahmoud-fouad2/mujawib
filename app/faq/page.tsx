@@ -7,8 +7,9 @@ import { breadcrumbSchema, faqSchema, JsonLd, pageMetadata } from '@/lib/seo'
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
   path: '/faq',
-  title: 'الأسئلة الشائعة',
-  description: 'مدة التشغيل، جودة الصوت العربي، الحجز في التقويم، والتعامل مع الأعطال.',
+  title: 'الأسئلة الشائعة — كل ما تريد معرفته عن تشغيل الموظف الصوتي | مُجاوِب',
+  description:
+    'إجابات شافية حول مدة التجهيز، فهم اللهجات السعودية والخليجية، الربط مع التقويم والواتساب، وجودة المكالمات الهاتفية.',
 })
 
 export default function Page() {

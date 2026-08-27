@@ -53,7 +53,13 @@ export function pageMetadata({
     description,
     alternates: {
       canonical,
-      languages: { ar: arUrl, en: enUrl, 'x-default': arUrl },
+      languages: {
+        ar: arUrl,
+        'ar-SA': arUrl,
+        en: enUrl,
+        'en-US': enUrl,
+        'x-default': arUrl,
+      },
     },
     openGraph: {
       type: 'website',
@@ -70,6 +76,12 @@ export function pageMetadata({
       title,
       description,
       images: [absolute(ogCard(locale))],
+    },
+    other: {
+      'geo.region': 'SA-01',
+      'geo.placename': 'Riyadh',
+      'geo.position': '24.7136;46.6753',
+      ICBM: '24.7136, 46.6753',
     },
   }
 }
@@ -95,6 +107,12 @@ export function organizationSchema(locale: Locale) {
       url: absolute('/images/brand/logo-horizontal-hq.png'),
       width: 1319,
       height: 382,
+    },
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Riyadh',
+      addressRegion: 'Riyadh Province',
+      addressCountry: 'SA',
     },
     description: ar
       ? 'منصة عربية لإدارة المكالمات الواردة بموظف صوتي يفهم العربية وينفّذ الحجز والتحويل داخل أنظمة الشركة.'
@@ -201,6 +219,26 @@ export function breadcrumbSchema(trail: { name: string; path: string }[]) {
       name: t.name,
       item: absolute(t.path),
     })),
+  }
+}
+
+export function contactPageSchema(locale: Locale) {
+  const ar = locale === 'ar'
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ContactPage',
+    '@id': `${SITE_URL}${localePath(locale, '/contact')}#webpage`,
+    url: `${SITE_URL}${localePath(locale, '/contact')}`,
+    name: ar ? 'تواصل مع مُجاوِب' : 'Contact Mujawib',
+    description: ar
+      ? 'تواصل مع فريق مُجاوِب لحجز استشارة تجريبية ومناقشة سيناريوهات الاستقبال الصوتي لمنشأتك.'
+      : 'Contact the Mujawib team to book a live demo and discuss voice AI reception for your business.',
+    mainEntity: {
+      '@type': 'Organization',
+      name: ar ? ORG_NAME_AR : ORG_NAME_EN,
+      email: ORG_EMAIL,
+      telephone: ORG_PHONE,
+    },
   }
 }
 

@@ -66,7 +66,14 @@ Every call handled by Mujawib passes through a 9-layer guardrail pipeline:
 - **Growing Companies (الشركات والعيادات المتوسطة):** Up to 2,500 minutes/month, multi-branch support, CRM integration, custom pronunciation lexicon, dedicated account manager.
 - **Enterprise & Healthcare Chains (المؤسسات وسلاسل الفروع):** Custom volume, dedicated isolated infrastructure, custom brand voice cloning, 99.9% uptime SLA, HIS/EMR custom integrations.
 
-## 8. Official Contact & Verification
+## 8. B2B Partner Program (برنامج الشركاء والوكالات)
+
+- **Referral Track:** 20% to 30% lifetime monthly recurring revenue for introduced clients.
+- **Agency & Solution Track:** Wholesale tiered pricing allowing agencies to bundle and re-price voice AI into client retainers.
+- **ISV & Tech Partner Track:** Native bidirectional REST & Webhook APIs for healthcare EMR, POS, and CRM software vendors.
+- **Partner Toolkit:** Free Live Demo Sandbox, customizable co-branded pitch decks, dedicated partner support engineer.
+
+## 9. Official Contact & Verification
 
 - **Website:** https://mujawib.com
 - **HQ:** Riyadh, Kingdom of Saudi Arabia

@@ -6,9 +6,9 @@ import { JsonLd, organizationSchema, pageMetadata, serviceSchema, websiteSchema 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
   path: '/',
-  title: 'مُجاوِب — موظف استقبال صوتي عربي يرد ويحجز',
+  title: 'مُجاوِب — موظف استقبال صوتي ذكي بالذكاء الاصطناعي | رد وحجز 24/7',
   description:
-    'مُجاوِب يرد على مكالمات شركتك بالعربية على مدار الساعة، يفهم طلب العميل، يحجز الموعد في تقويمك، ويرسل التأكيد — ويحوّل للموظف عند الحاجة.',
+    'مُجاوِب يرد على مكالمات شركتك بالعربية على مدار الساعة، يفهم طلب العميل بلهجته المحلية، يحجز الموعد في تقويمك، ويرسل التأكيد فوراً عبر واتساب.',
 })
 
 export default function HomePage() {

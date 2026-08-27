@@ -24,11 +24,17 @@ import { dirOf, type Locale } from '@/lib/i18n'
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
   title: {
-    default: 'مُجاوِب — تشغيل صوتي عربي للشركات',
+    default: 'مُجاوِب — تشغيل صوتي عربي للشركات بالذكاء الاصطناعي',
     template: '%s — مُجاوِب',
   },
   description:
     'منصة B2B مُدارة لتشغيل موظفي استقبال وخدمة عملاء صوتيين بالعربية: إعداد مضبوط، جودة صوت مختبَرة، وربط فعلي بالحجز والأنظمة.',
+  other: {
+    'geo.region': 'SA-01',
+    'geo.placename': 'Riyadh',
+    'geo.position': '24.7136;46.6753',
+    ICBM: '24.7136, 46.6753',
+  },
 }
 
 export const viewport: Viewport = {

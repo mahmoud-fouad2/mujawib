@@ -7,10 +7,22 @@
 - [الرئيسية / Home](https://mujawib.com/): Overview of Mujawib's AI voice receptionist, interactive demo playback, and live call records.
 - [كيف يعمل / How It Works](https://mujawib.com/how-it-works): 4-step deployment guide from phone forwarding to 24/7 autonomous operation.
 - [الأسعار والخطط / Pricing](https://mujawib.com/pricing): Transparent tiered plans for emerging clinics, growing companies, and enterprise chains.
+- [برنامج الشركاء / Partners](https://mujawib.com/partners): B2B partnership tracks for agencies, SaaS ISVs, and referral partners with up to 30% recurring commissions.
 - [الأسئلة الشائعة / FAQ](https://mujawib.com/faq): Common questions on Arabic dialects, interruption handling, calendar sync, and SLAs.
-- [الأمان والامتثال / Security](https://mujawib.com/security): Data isolation, TLS 1.3/AES-256 encryption, PII masking, and Saudi compliance.
+- [الأمان والامتثال / Security](https://mujawib.com/security): Data isolation, TLS 1.3/AES-256 encryption, PII masking, and Saudi compliance (PDPL & NCA).
 - [عن مُجاوِب / About Us](https://mujawib.com/about): Mission, technology philosophy, and Arabic speech synthesis innovation.
 - [تواصل معنا / Contact & Demo](https://mujawib.com/contact): Request a tailored operating plan and live phone test.
+
+## دليل الذكاء الاصطناعي بالعربية (Arabic AI Summary)
+
+- **ما هو مُجاوِب؟** منصة سعودية متخصصة في تشغيل موظفي استقبال وخدمة عملاء صوتيين بالذكاء الاصطناعي للمنشآت والعيادات والمراكز الخدمية في المملكة العربية السعودية ودول الخليج العربي.
+- **أبرز الإمكانيات:**
+  - الرد على المكالمات الهاتفية الواردة باللهجات السعودية والخليجية بزمن استجابة أقل من 800 مللي ثانية ودعم كامل للمقاطعة الطبيعية (Full-Duplex).
+  - حجز وتعديل المواعيد آلياً عبر الربط المباشر مع Google Calendar و Microsoft Outlook.
+  - إرسال تفاصيل الموعد ورابط الموقع الجغرافي للعميل عبر واتساب فور انتهاء المكالمة.
+  - تحديث أنظمة الـ CRM (مثل Zoho, HubSpot, Odoo) وسجلات العملاء لحظياً.
+  - تحويل المكالمات المعقدة أو الطارئة إلى الموظف البشري مع تمرير ملخص وسياق المحادثة كاملاً.
+  - التوافق التام مع نظام حماية البيانات الشخصية السعودي (PDPL) وعزل قواعد البيانات بنسبة 100%.
 
 ## Key Capabilities
 

@@ -2,23 +2,41 @@ import type { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/seo'
 
 export default function robots(): MetadataRoute.Robots {
+  const privateRoutes = [
+    '/console',
+    '/portal',
+    '/onboarding',
+    '/sign-in',
+    '/forgot-password',
+    '/reset-password',
+    '/two-factor',
+    '/access-denied',
+    '/access-pending',
+    '/account',
+    '/invite',
+    '/api/',
+  ]
+
   return {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
-        // Signed-in surfaces and auth endpoints carry no public content.
-        disallow: [
-          '/console',
-          '/portal',
-          '/onboarding',
-          '/sign-in',
-          '/forgot-password',
-          '/reset-password',
-          '/access-pending',
-          '/invite',
-          '/api/',
+        allow: ['/', '/llms.txt', '/llms-full.txt'],
+        disallow: privateRoutes,
+      },
+      {
+        userAgent: [
+          'Googlebot',
+          'Bingbot',
+          'Applebot',
+          'GPTBot',
+          'PerplexityBot',
+          'ClaudeBot',
+          'Google-Extended',
+          'Applebot-Extended',
         ],
+        allow: ['/', '/llms.txt', '/llms-full.txt'],
+        disallow: privateRoutes,
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

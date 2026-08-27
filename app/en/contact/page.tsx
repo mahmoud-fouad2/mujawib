@@ -1,19 +1,28 @@
 import type { Metadata } from 'next'
 import { ContactPage } from '@/components/site/pages'
 import { SiteShell } from '@/components/site/site-shell'
-import { pageMetadata } from '@/lib/seo'
+import { breadcrumbSchema, contactPageSchema, JsonLd, pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
   path: '/contact',
-  title: 'Contact',
+  title: 'Contact Us — Book a Discovery Consultation & Live Demo | Mujawib',
   description:
-    'Talk to the Mujawib team by email, phone or WhatsApp. We start with a call to understand your business.',
+    'Speak directly with Mujawib AI engineers via phone, email, or WhatsApp. We start with a tailored consultation to model voice reception for your business.',
 })
 
 export default function Page() {
   return (
     <SiteShell locale="en">
+      <JsonLd
+        data={[
+          breadcrumbSchema([
+            { name: 'Home', path: '/en' },
+            { name: 'Contact Us', path: '/en/contact' },
+          ]),
+          contactPageSchema('en'),
+        ]}
+      />
       <ContactPage locale="en" />
     </SiteShell>
   )

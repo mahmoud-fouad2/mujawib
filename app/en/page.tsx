@@ -6,9 +6,9 @@ import { JsonLd, organizationSchema, pageMetadata, serviceSchema, websiteSchema 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
   path: '/',
-  title: 'Arabic voice reception that answers and books',
+  title: 'Enterprise Arabic Voice AI Receptionist | 24/7 Call Automation',
   description:
-    'Mujawib answers your business calls in Arabic around the clock, understands the request, books the slot in your calendar and sends the confirmation — handing over to a person when needed.',
+    'Mujawib answers inbound business calls in natural Arabic dialects around the clock, books calendar appointments, sends instant WhatsApp confirmations, and syncs CRM data.',
 })
 
 export default function EnglishHomePage() {
