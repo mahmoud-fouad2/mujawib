@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { RecordingPlayer } from '@/components/calls/recording-player'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/primitives'
 import {
@@ -325,6 +326,8 @@ function PortalCallDetail({ call }: { call: CallDetail }) {
           ) : null}
         </div>
       ) : null}
+
+      <RecordingPlayer callId={call.id} status={call.recordingStatus} />
 
       <div className="portal-call-conversation">
         <div className="portal-call-conversation__head">

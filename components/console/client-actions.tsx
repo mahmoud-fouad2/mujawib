@@ -15,6 +15,7 @@ import {
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
+import { Pill } from '@/components/ui/primitives'
 import { RowAction, RowActionSeparator, RowActions, useAction } from '@/components/ui/row-actions'
 import {
   archiveClient,
@@ -22,6 +23,7 @@ import {
   deleteClientPermanently,
   getClientDeletionImpact,
   restoreClient,
+  setClientCrmEnabled,
   updateClient,
 } from '@/server/actions/console'
 
@@ -441,5 +443,32 @@ export function ClientRowActions({
         />
       </Sheet>
     </>
+  )
+}
+
+/* ─── CRM feature flag ───────────────────────────────────────────────────── */
+
+/** A packaging switch, not a settings form — one flag, flipped and done. */
+export function CrmFeatureToggle({
+  workspaceId,
+  enabled,
+}: {
+  workspaceId: string
+  enabled: boolean
+}) {
+  const { run, pending } = useAction()
+
+  return (
+    <div className="cluster">
+      <Pill tone={enabled ? 'good' : 'neutral'}>{enabled ? 'CRM مفعّلة' : 'CRM غير مفعّلة'}</Pill>
+      <Button
+        size="sm"
+        variant={enabled ? 'danger' : 'primary'}
+        disabled={pending}
+        onClick={() => run(() => setClientCrmEnabled({ workspaceId, enabled: !enabled }))}
+      >
+        {enabled ? 'عطّل CRM' : 'فعّل CRM لهذا العميل'}
+      </Button>
+    </div>
   )
 }

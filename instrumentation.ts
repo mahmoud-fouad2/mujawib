@@ -13,6 +13,10 @@ export async function register() {
       // login sends every browser to a URL that does not exist outside the
       // container — see lib/app-url.ts for the incident this is.
       if (problem) throw new Error(problem)
+
+      const { recordingStorageProblem } = await import('./server/storage/recordings')
+      const storageProblem = recordingStorageProblem()
+      if (storageProblem) throw new Error(storageProblem)
     }
 
     const { startBackgroundWorker } = await import('./server/jobs/worker')

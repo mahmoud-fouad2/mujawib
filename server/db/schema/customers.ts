@@ -2,9 +2,25 @@ import { index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'dri
 import { user } from './auth-schema'
 import { workspace } from './workspaces'
 
+/** A record's own lifecycle inside the CRM — deliberately three states, not a pipeline. */
+export const crmCustomerStatusEnum = pgEnum('crm_customer_status', ['lead', 'active', 'inactive'])
+
 /**
- * Caller identity aggregated across calls — Bible §20 "Customers".
- * Structured knowledge lives in `knowledgeItem` (schema/agents.ts).
+ * Caller identity aggregated across calls — Bible §20 "Customers" — and, when
+ * `workspace.crmEnabled`, the client's own CRM record for that same contact.
+ * There is one row per phone number per workspace either way; the CRM adds
+ * columns to it rather than forking a second table, so a contact created by
+ * hand and one surfaced by a real booking are the same record once matched.
+ *
+ * `source` says which came first: `call` rows are written by the voice path
+ * the moment it captures a name and phone together (a booking or a callback
+ * request — never a bare, unidentified call); `manual` rows are created by a
+ * client from the CRM screen. Either can acquire the other's data later (a
+ * manually-added contact who then calls in keeps their id and gains
+ * `lastCallAt`), so the field is provenance, not a permanent category.
+ *
+ * Structured knowledge lives in `knowledgeItem` (schema/agents.ts) — this
+ * table is about a person, not the business's own services or policies.
  */
 export const customer = pgTable(
   'customer',
@@ -15,13 +31,20 @@ export const customer = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     phone: text('phone').notNull(),
     name: text('name'),
+    email: text('email'),
+    status: crmCustomerStatusEnum('status').notNull().default('lead'),
     notes: text('notes'),
     tags: jsonb('tags').$type<string[]>().default([]),
+    source: text('source').$type<'call' | 'manual'>().notNull().default('manual'),
     lastCallAt: timestamp('last_call_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('customer_workspace_phone_idx').on(t.workspaceId, t.phone)],
+  (t) => [
+    uniqueIndex('customer_workspace_phone_idx').on(t.workspaceId, t.phone),
+    index('customer_workspace_status_idx').on(t.workspaceId, t.status),
+    index('customer_workspace_created_idx').on(t.workspaceId, t.createdAt),
+  ],
 )
 
 export const salesInquiryStatusEnum = pgEnum('sales_inquiry_status', [

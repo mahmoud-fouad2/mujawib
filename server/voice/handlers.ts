@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type IntegrationAction, normalizeIntegrationConfig } from '@/lib/integrations'
+import { upsertCustomerFromContact } from '@/server/crm/upsert'
 import { db } from '@/server/db'
 import {
   booking,
@@ -14,7 +15,7 @@ import {
   toolExecution,
 } from '@/server/db/schema'
 import { type IntegrationFailureCode, invokeIntegration } from '@/server/integrations/runtime'
-import { protectJson, revealJson } from '@/server/security/protected-data'
+import { protectJson, protectString, revealJson } from '@/server/security/protected-data'
 import type { ToolName, ToolResult } from '@/server/voice/tools'
 
 /**
@@ -296,6 +297,7 @@ async function createBooking(
 
   // Only recorded once the upstream calendar confirmed it.
   const proposedBookingId = id('bk')
+  const bookedAt = new Date()
   const bookingId = await db.transaction(async (tx) => {
     const [inserted] = await tx
       .insert(booking)
@@ -305,12 +307,14 @@ async function createBooking(
         callId: ctx.callId,
         externalId: response.data.bookingId,
         customerName: parsed.data.customerName,
+        customerNameEncrypted: protectString(parsed.data.customerName),
         customerPhone: parsed.data.customerPhone,
+        customerPhoneEncrypted: protectString(parsed.data.customerPhone),
         service: parsed.data.service,
         scheduledAt: new Date(parsed.data.slot),
         status: 'confirmed',
         metadata: { branch: parsed.data.branch, notes: parsed.data.notes, source: 'voice' },
-        createdAt: new Date(),
+        createdAt: bookedAt,
       })
       .onConflictDoNothing({ target: [booking.workspaceId, booking.externalId] })
       .returning({ id: booking.id })
@@ -329,6 +333,13 @@ async function createBooking(
     if (!existing) throw new Error('booking result could not be reconciled')
     return existing.id
   })
+
+  await upsertCustomerFromContact({
+    workspaceId: ctx.workspaceId,
+    phone: parsed.data.customerPhone,
+    name: parsed.data.customerName,
+    when: bookedAt,
+  }).catch(() => console.error('[voice] could not upsert CRM contact from booking'))
 
   return { ok: true, data: { bookingId, slot: parsed.data.slot } }
 }
@@ -391,6 +402,13 @@ async function createCallback(
       metadata: {
         phone: parsed.data.customerPhone,
         name: parsed.data.customerName,
+        // Additive: the plain fields above still carry the number, since
+        // that is what Ops actually dials to call the customer back and no
+        // request-detail view exists yet to read a decrypted field from.
+        // These twins mean a raw database read alone — a leaked connection
+        // string, a stray backup — doesn't also hand over the number.
+        phoneEncrypted: parsed.data.customerPhone ? protectString(parsed.data.customerPhone) : null,
+        nameEncrypted: parsed.data.customerName ? protectString(parsed.data.customerName) : null,
         callId: ctx.callId,
       },
       createdAt: now,
@@ -400,6 +418,16 @@ async function createCallback(
     .returning({ id: changeRequest.id })
 
   await db.update(call).set({ outcome: 'callback' }).where(eq(call.id, ctx.callId))
+
+  if (parsed.data.customerPhone) {
+    await upsertCustomerFromContact({
+      workspaceId: ctx.workspaceId,
+      phone: parsed.data.customerPhone,
+      name: parsed.data.customerName ?? null,
+      when: now,
+    }).catch(() => console.error('[voice] could not upsert CRM contact from callback'))
+  }
+
   return { ok: true, data: { logged: true, ...(inserted ? { requestId: inserted.id } : {}) } }
 }
 

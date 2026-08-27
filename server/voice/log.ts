@@ -38,6 +38,9 @@ export type VoiceStage =
   | 'TOOL_CALL_COMPLETED'
   | 'POST_CALL_COMPLETED'
   | 'POST_CALL_FAILED'
+  | 'RECORDING_READY'
+  | 'RECORDING_FAILED'
+  | 'RECORDING_EVENT_FAILED'
   | 'LATENCY_MEASURED'
   | 'ERROR'
 
@@ -116,5 +119,21 @@ export function voiceLog(stage: VoiceStage, detail?: unknown) {
 }
 
 export function voiceError(stage: VoiceStage, detail: unknown) {
-  console.error(`[voice] ${stage} ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`)
+  const text = typeof detail === 'string' ? detail : JSON.stringify(detail)
+  console.error(`[voice] ${stage} ${text}`)
+  // `text` reaching here has already been through sanitizeLogText/maskNumber
+  // at every call site that carries provider data — the same string that was
+  // already safe enough for the Render log stream is safe enough for Sentry.
+  // A no-op when SENTRY_DSN is unset, same as every other optional integration.
+  void reportVoiceError(stage, text)
+}
+
+async function reportVoiceError(stage: VoiceStage, text: string) {
+  if (!process.env.SENTRY_DSN) return
+  try {
+    const Sentry = await import('@sentry/nextjs')
+    Sentry.captureMessage(`[voice] ${stage} ${text}`, 'error')
+  } catch {
+    // Sentry itself must never be why a call fails.
+  }
 }

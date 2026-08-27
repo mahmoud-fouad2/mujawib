@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { db } from '@/server/db'
 import { protectedDataReady } from '@/server/security/protected-data'
+import { recordingStorageProblem, recordingStorageReady } from '@/server/storage/recordings'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,12 @@ export async function GET() {
     .catch(() => false)
   const voiceReady = Boolean(env.OPENAI_API_KEY && env.OPENAI_WEBHOOK_SECRET)
   const encryptionReady = protectedDataReady()
-  const ready = databaseReady && (env.NODE_ENV !== 'production' || (voiceReady && encryptionReady))
+  const storageProblem = recordingStorageProblem()
+  const recordingsReady = recordingStorageReady()
+  const ready =
+    databaseReady &&
+    !storageProblem &&
+    (env.NODE_ENV !== 'production' || (voiceReady && encryptionReady))
 
   return NextResponse.json(
     {
@@ -23,6 +29,7 @@ export async function GET() {
         database: databaseReady ? 'ok' : 'down',
         voice: voiceReady ? 'ok' : 'disabled',
         protectedData: encryptionReady ? 'ok' : 'disabled',
+        recordings: storageProblem ? 'misconfigured' : recordingsReady ? 'ok' : 'disabled',
       },
       timestamp: new Date().toISOString(),
     },

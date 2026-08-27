@@ -133,6 +133,14 @@ export const phoneNumber = pgTable(
  */
 export type CallOrigin = 'seed' | 'live'
 
+export type CallRecordingStatus =
+  | 'disabled'
+  | 'capturing'
+  | 'processing'
+  | 'ready'
+  | 'partial'
+  | 'failed'
+
 export const call = pgTable(
   'call',
   {
@@ -157,7 +165,19 @@ export const call = pgTable(
     // yet, so renaming was safe rather than migrating fabricated data.
     inputTokens: integer('input_tokens'),
     outputTokens: integer('output_tokens'),
-    recordingUrl: text('recording_url'),
+    // The physical name predates the recording pipeline. It stores a private
+    // object key, never a public or presigned URL; media is only served by an
+    // authenticated MUJAWIB route.
+    recordingObjectKey: text('recording_url'),
+    recordingStatus: text('recording_status')
+      .$type<CallRecordingStatus>()
+      .notNull()
+      .default('disabled'),
+    recordingContentType: text('recording_content_type'),
+    recordingByteSize: integer('recording_byte_size'),
+    recordingSha256: text('recording_sha256'),
+    recordingFailureCode: text('recording_failure_code'),
+    recordingCompletedAt: timestamp('recording_completed_at', { withTimezone: true }),
     transcript: jsonb('transcript').$type<unknown[]>().default([]),
     transcriptEncrypted: text('transcript_encrypted'),
     sipMetadataEncrypted: text('sip_metadata_encrypted'),
@@ -173,6 +193,7 @@ export const call = pgTable(
     uniqueIndex('call_external_unique_idx').on(t.externalCallId),
     index('call_origin_idx').on(t.workspaceId, t.origin),
     index('call_caller_hash_idx').on(t.workspaceId, t.callerNumberHash),
+    index('call_recording_status_idx').on(t.workspaceId, t.recordingStatus),
   ],
 )
 
@@ -260,8 +281,18 @@ export const booking = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     callId: text('call_id').references(() => call.id, { onDelete: 'set null' }),
     externalId: text('external_id'),
+    /**
+     * Encrypted twins added alongside the existing plain columns, not in
+     * place of them — `customerPhone` is a live join key (`getCrmCustomers`
+     * correlates it against `customer.phone`), so replacing it with a masked
+     * or encrypted value would silently break that correlation. This closes
+     * the "no encryption at rest" gap for a database-level read (a leaked
+     * `DATABASE_URL`, a stray backup) without touching the query path.
+     */
     customerName: text('customer_name'),
+    customerNameEncrypted: text('customer_name_encrypted'),
     customerPhone: text('customer_phone'),
+    customerPhoneEncrypted: text('customer_phone_encrypted'),
     service: text('service'),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
     status: text('status').notNull().default('confirmed'),
@@ -283,7 +314,9 @@ export const lead = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     callId: text('call_id').references(() => call.id, { onDelete: 'set null' }),
     name: text('name'),
+    nameEncrypted: text('name_encrypted'),
     phone: text('phone'),
+    phoneEncrypted: text('phone_encrypted'),
     interest: text('interest'),
     status: text('status').notNull().default('new'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),

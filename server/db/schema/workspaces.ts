@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   index,
   jsonb,
@@ -45,6 +46,8 @@ export const workspace = pgTable(
     locale: text('locale').notNull().default('ar-SA'),
     businessInfo: jsonb('business_info').$type<Record<string, unknown>>().default({}),
     retentionPolicy: jsonb('retention_policy').$type<Record<string, unknown>>().default({}),
+    /** Console-only toggle — a packaging decision, not something a client can flip. */
+    crmEnabled: boolean('crm_enabled').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

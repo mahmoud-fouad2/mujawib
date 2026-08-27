@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DailyBars, Ratio, Sparkline } from '@/components/console/charts'
-import { ClientRowActions } from '@/components/console/client-actions'
+import { ClientRowActions, CrmFeatureToggle } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
@@ -92,6 +92,7 @@ export default async function ClientDetailPage({ params }: Props) {
                 {readiness.nextStep.nextAction ?? 'راجع الجاهزية'}
               </LinkButton>
             ) : null}
+            <CrmFeatureToggle workspaceId={ws.id} enabled={ws.crmEnabled} />
             <ClientRowActions
               client={clientEditable(ws, info as ClientBusinessInfo)}
               canDelete={access.role === 'owner'}

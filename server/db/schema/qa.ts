@@ -1,4 +1,13 @@
-import { boolean, index, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 import { agentVersion } from './agents'
 import { user } from './auth-schema'
 import { call } from './calls'
@@ -18,7 +27,10 @@ export const qaResult = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('qa_call_idx').on(t.callId)],
+  // One review record per call — also what lets automatic queue population
+  // (server/calls/intelligence.ts) insert with onConflictDoNothing and stay
+  // idempotent across retries instead of piling up duplicate rows.
+  (t) => [uniqueIndex('qa_call_unique_idx').on(t.callId)],
 )
 
 export const scenarioTest = pgTable(

@@ -31,6 +31,7 @@ export type PortalAccess = {
   name: string
   role: string
   workspace: typeof workspace.$inferSelect
+  twoFactorEnabled: boolean
   /**
    * True when an operator is looking at a client's portal rather than the
    * client themselves. The portal must say so on screen: the two look
@@ -111,8 +112,15 @@ export async function requireOperatorPermissionPage(
   return access
 }
 
+type PortalMembership = {
+  userId: string
+  role: string
+  workspace: typeof workspace.$inferSelect
+  viewingAsOperator?: boolean
+}
+
 const portalAccessForUser = cache(
-  async (userId: string, slug?: string): Promise<PortalAccess | null> => {
+  async (userId: string, slug?: string): Promise<PortalMembership | null> => {
     const rows = await db
       .select({
         role: workspaceAccess.role,
@@ -130,11 +138,18 @@ const portalAccessForUser = cache(
       .orderBy(workspace.name)
 
     const access = rows.find((row) => isClientRole(row.role))
-    return access
-      ? { userId, email: '', name: '', role: access.role, workspace: access.workspace }
-      : null
+    return access ? { userId, role: access.role, workspace: access.workspace } : null
   },
 )
+
+/** Session fields every PortalAccess needs, read the same way OperatorAccess reads them. */
+function sessionPortalFields(session: NonNullable<Awaited<ReturnType<typeof currentSession>>>) {
+  return {
+    email: session.user.email,
+    name: session.user.name,
+    twoFactorEnabled: Boolean((session.user as { twoFactorEnabled?: boolean }).twoFactorEnabled),
+  }
+}
 
 export async function getPortalAccess(slug?: string): Promise<PortalAccess | null> {
   const session = await currentSession()
@@ -145,7 +160,7 @@ export async function getPortalAccess(slug?: string): Promise<PortalAccess | nul
     access ??
     (selectedSlug ? await portalAccessForUser(session.user.id) : null) ??
     (await operatorPortalView(session.user.id, selectedSlug))
-  return fallback ? { ...fallback, email: session.user.email, name: session.user.name } : null
+  return fallback ? { ...fallback, ...sessionPortalFields(session) } : null
 }
 
 /**
@@ -170,7 +185,7 @@ export async function getPortalAccess(slug?: string): Promise<PortalAccess | nul
 async function operatorPortalView(
   userId: string,
   slug: string | undefined,
-): Promise<PortalAccess | null> {
+): Promise<PortalMembership | null> {
   const operator = await operatorAccessForUser(userId)
   if (!operator || !canOperator(operator.role, 'client.manage')) return null
 
@@ -182,14 +197,7 @@ async function operatorPortalView(
     .limit(1)
   if (!row) return null
 
-  return {
-    userId,
-    email: '',
-    name: '',
-    role: 'client_admin',
-    workspace: row,
-    viewingAsOperator: true,
-  }
+  return { userId, role: 'client_admin', workspace: row, viewingAsOperator: true }
 }
 
 export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAccess> {
@@ -203,7 +211,16 @@ export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAcc
   if (!access || !canClient(access.role, 'portal.view')) {
     redirect('/access-denied?area=portal')
   }
-  return { ...access, email: session.user.email, name: session.user.name }
+  const fields = sessionPortalFields(session)
+  // Mirrors requireOperatorPage exactly: a client-portal session gets the
+  // same page-level 2FA gate an operator session already has. Password-only
+  // access to a client's own customer data was the one asymmetry the console
+  // side didn't have — a compromised portal password used to be enough on
+  // its own for account takeover.
+  if (!fields.twoFactorEnabled) {
+    redirect('/account/security?required=portal')
+  }
+  return { ...access, ...fields }
 }
 
 /**
@@ -219,7 +236,7 @@ export async function requirePortalPage(returnTo = '/portal'): Promise<PortalAcc
 async function operatorClientAdminAccess(
   userId: string,
   workspaceId: string,
-): Promise<PortalAccess | null> {
+): Promise<PortalMembership | null> {
   const operator = await operatorAccessForUser(userId)
   if (!operator || !canOperator(operator.role, 'client.manage')) return null
 
@@ -230,14 +247,7 @@ async function operatorClientAdminAccess(
     .limit(1)
   if (!row) return null
 
-  return {
-    userId,
-    email: '',
-    name: '',
-    role: 'client_admin',
-    workspace: row,
-    viewingAsOperator: true,
-  }
+  return { userId, role: 'client_admin', workspace: row, viewingAsOperator: true }
 }
 
 export async function authorizeClientWorkspace(
@@ -259,19 +269,26 @@ export async function authorizeClientWorkspace(
     )
     .limit(1)
 
+  const fields = sessionPortalFields(session)
+
   if (row && canClient(row.role, permission)) {
+    // The page-level redirect in requirePortalPage does not stop a Server
+    // Action from being invoked directly, so the same 2FA requirement is
+    // re-checked here — matching authorizeOperator's own
+    // `access?.twoFactorEnabled && canOperator(...)` pattern for the console.
+    if (!fields.twoFactorEnabled) return null
     return {
       userId: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
       role: row.role,
       workspace: row.workspace,
+      ...fields,
     }
   }
 
   const operatorAccess = await operatorClientAdminAccess(session.user.id, workspaceId)
   if (!operatorAccess || !canClient(operatorAccess.role, permission)) return null
-  return { ...operatorAccess, email: session.user.email, name: session.user.name }
+  if (!fields.twoFactorEnabled) return null
+  return { ...operatorAccess, ...fields }
 }
 
 export async function getPortalWorkspacesForCurrentUser() {

@@ -729,6 +729,50 @@ export async function rollbackAgent(agentId: string): Promise<ActionResult> {
   return { ok: true, message: `تم الرجوع إلى v${previous.versionNumber}.` }
 }
 
+/* ─── CRM feature flag ───────────────────────────────────────────────────── */
+
+const crmFlagSchema = z.object({
+  workspaceId: z.string().min(1),
+  enabled: z.boolean(),
+})
+
+/** A packaging decision, not something a client can flip for themselves. */
+export async function setClientCrmEnabled(
+  input: z.input<typeof crmFlagSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+  const parsed = crmFlagSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'بيانات غير صحيحة.' }
+
+  const [row] = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, parsed.data.workspaceId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+
+  await db
+    .update(workspace)
+    .set({ crmEnabled: parsed.data.enabled, updatedAt: new Date() })
+    .where(eq(workspace.id, row.id))
+
+  await audit({
+    workspaceId: row.id,
+    action: parsed.data.enabled ? 'crm.enabled' : 'crm.disabled',
+    resourceType: 'workspace',
+    resourceId: row.id,
+    note: `${parsed.data.enabled ? 'تفعيل' : 'تعطيل'} CRM لـ ${row.name}`,
+  })
+
+  revalidatePath(`/console/clients/${parsed.data.workspaceId}`)
+  revalidatePath('/console/clients')
+  return {
+    ok: true,
+    message: parsed.data.enabled ? 'فُعّل CRM لهذا العميل.' : 'عُطّل CRM لهذا العميل.',
+  }
+}
+
 /* ─── Integrations ───────────────────────────────────────────────────────── */
 
 const integrationUpdateSchema = z.object({
@@ -883,6 +927,83 @@ export async function requestPhoneTest(phoneId: string): Promise<ActionResult> {
 
   revalidatePath('/console/phone')
   return { ok: true, message: `سُجّل طلب اختبار للرقم ${row.e164}.` }
+}
+
+/**
+ * Registering a number used to require shell access to
+ * `scripts/link-test-number.ts` — an operator with `phone.manage` and nothing
+ * else could not connect a client's number without someone running a CLI
+ * command for them. This is that same insert, reachable from the console.
+ *
+ * It still does not provision anything with a carrier — MUJAWIB has no
+ * telephony-provider API key for the SIP path itself (voice runs on OpenAI's
+ * own SIP acceptance of a number already pointed at it — see
+ * server/voice/session.ts). The SIP trunk connection stays the ops-team step
+ * the phone page already describes; this only removes the terminal from
+ * *entering* the number, not from wiring the trunk itself.
+ */
+const createPhoneSchema = z.object({
+  workspaceId: z.string().min(1),
+  e164: z
+    .string()
+    .trim()
+    .regex(/^\+[1-9]\d{7,14}$/, 'أدخل الرقم بصيغة دولية كاملة تبدأ بـ + ورمز الدولة.'),
+  label: z.string().trim().max(80).optional(),
+})
+
+export async function createPhoneNumber(
+  input: z.input<typeof createPhoneSchema>,
+): Promise<ActionResult<{ phoneId: string }>> {
+  const denied = await requireActionPermission('phone.manage')
+  if (denied) return denied
+  const parsed = createPhoneSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات الرقم غير صحيحة.' }
+  }
+
+  const [ws] = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, parsed.data.workspaceId))
+    .limit(1)
+  if (!ws) return { ok: false, error: 'العميل غير موجود.' }
+
+  const [existing] = await db
+    .select({ id: phoneNumber.id })
+    .from(phoneNumber)
+    .where(eq(phoneNumber.e164, parsed.data.e164))
+    .limit(1)
+  if (existing) return { ok: false, error: 'هذا الرقم مربوط بالفعل.' }
+
+  const phoneId = id('phone')
+  const now = new Date()
+  await db.insert(phoneNumber).values({
+    id: phoneId,
+    workspaceId: parsed.data.workspaceId,
+    e164: parsed.data.e164,
+    label: parsed.data.label || null,
+    mode: 'all_calls',
+    sipStatus: 'pending',
+    routingRules: {},
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  await audit({
+    workspaceId: parsed.data.workspaceId,
+    action: 'phone.created',
+    resourceType: 'phone_number',
+    resourceId: phoneId,
+    note: `ربط رقم جديد ${parsed.data.e164}`,
+  })
+
+  revalidatePath('/console/phone')
+  revalidatePath('/console/clients')
+  return {
+    ok: true,
+    message: `أُضيف ${parsed.data.e164}. اضبط التوجيه ثم اطلب مكالمة اختبار.`,
+    data: { phoneId },
+  }
 }
 
 const routeSchema = z

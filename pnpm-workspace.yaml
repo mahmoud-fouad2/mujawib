@@ -19,9 +19,15 @@ minimumReleaseAgeExclude:
   - '@biomejs/cli-win32-x64@2.5.10'
 
 # Native post-install scripts pnpm is allowed to run.
-#   esbuild — backs tsx, used by `pnpm db:seed`
-#   sharp   — Next's image optimiser
+#   esbuild    — backs tsx, used by `pnpm db:seed`
+#   sharp      — Next's image optimiser
+#   @sentry/cli — only downloads a binary for source-map upload, which needs a
+#     SENTRY_AUTH_TOKEN/org/project this deployment does not have configured.
+#     The SDK itself (Sentry.init/captureException/captureMessage) does not
+#     need this binary at all, so it stays false until that upload step is
+#     deliberately set up — never flip this without also wiring the token.
 allowBuilds:
+  '@sentry/cli': false
   esbuild: true
   sharp: true
 

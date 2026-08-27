@@ -6,6 +6,7 @@ import {
   ExternalLink,
   PhoneCall,
   PlugZap,
+  Plus,
   Power,
   Settings2,
 } from 'lucide-react'
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
 import {
+  createPhoneNumber,
   getReassignTargets,
   type ReassignTarget,
   reassignPhoneNumber,
@@ -506,6 +508,119 @@ function PhoneReassignSheet({
         confirmLabel="انقل الرقم"
         pending={pending}
       />
+    </>
+  )
+}
+
+/* ─── add phone number ───────────────────────────────────────────────────── */
+
+/**
+ * The only way to register a number used to be `pnpm voice:link-number` from
+ * a shell with production database access — an operator with `phone.manage`
+ * and nothing else could not connect a client's number without asking
+ * someone to run a command for them. This is the same insert, from the
+ * console. It does not provision anything with a carrier: the SIP trunk
+ * connection is still the operations-team step the page already describes
+ * above — this only removes the terminal from *entering* the number, not
+ * from wiring the trunk itself.
+ */
+export function AddPhoneNumberAction({ clients }: { clients: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false)
+  const [workspaceId, setWorkspaceId] = useState(clients[0]?.id ?? '')
+  const [e164, setE164] = useState('')
+  const [label, setLabel] = useState('')
+  const { run, pending } = useAction()
+
+  const valid = /^\+[1-9]\d{7,14}$/.test(e164.trim()) && workspaceId
+
+  return (
+    <>
+      <Button
+        variant="primary"
+        size="sm"
+        leading={<Plus size={15} />}
+        onClick={() => setOpen(true)}
+        disabled={clients.length === 0}
+        title={clients.length === 0 ? 'أضف عميلًا أولًا' : undefined}
+      >
+        ربط رقم
+      </Button>
+
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="ربط رقم جديد"
+        description="يسجَّل الرقم بحالة «بانتظار أول مكالمة» — يثبته وصول مكالمة حقيقية عليه، لا هذا النموذج."
+        footer={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={pending}>
+              إلغاء
+            </Button>
+            <Button
+              variant="primary"
+              disabled={pending || !valid}
+              onClick={() =>
+                run(
+                  () =>
+                    createPhoneNumber({
+                      workspaceId,
+                      e164: e164.trim(),
+                      label: label.trim() || undefined,
+                    }),
+                  () => {
+                    setOpen(false)
+                    setE164('')
+                    setLabel('')
+                  },
+                )
+              }
+            >
+              {pending ? 'جارٍ الربط…' : 'اربط الرقم'}
+            </Button>
+          </>
+        }
+      >
+        <div className="field">
+          <label htmlFor="new-phone-client">العميل</label>
+          <select
+            id="new-phone-client"
+            className="input"
+            value={workspaceId}
+            onChange={(event) => setWorkspaceId(event.target.value)}
+          >
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="new-phone-e164">الرقم بصيغة دولية</label>
+          <input
+            id="new-phone-e164"
+            className="input mono"
+            dir="ltr"
+            inputMode="tel"
+            value={e164}
+            onChange={(event) => setE164(event.target.value)}
+            placeholder="+966920012130"
+          />
+          <span className="field__hint">يبدأ بـ + ورمز الدولة، بلا مسافات أو رموز أخرى.</span>
+        </div>
+
+        <div className="field">
+          <label htmlFor="new-phone-label">تسمية (اختياري)</label>
+          <input
+            id="new-phone-label"
+            className="input"
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="الفرع الرئيسي"
+          />
+        </div>
+      </Sheet>
     </>
   )
 }

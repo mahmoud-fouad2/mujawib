@@ -97,6 +97,13 @@ export function compilePrompt(input: CompileInput): string {
   const rules = (version.businessRules ?? {}) as { hours?: string; transferTo?: string }
   const routing = (version.routing ?? {}) as { afterHours?: string; escalation?: string }
   const flows = ((version.flows ?? []) as string[]).filter(Boolean)
+  const identity = (version.identity ?? {}) as {
+    role?: string
+    goals?: string[]
+    restricted?: string[]
+  }
+  const goals = (identity.goals ?? []).filter(Boolean)
+  const restricted = (identity.restricted ?? []).filter(Boolean)
 
   const services = knowledge.filter((k) => k.category === 'service')
   const branches = knowledge.filter((k) => k.category === 'branch')
@@ -112,7 +119,14 @@ export function compilePrompt(input: CompileInput): string {
       '02',
       'الهوية',
       `اسمك ${agentName}. تعمل لدى «${ws.name}»${info.city ? ` في ${info.city}` : ''}.
-افتح المكالمة بـ: «${ws.name}، معك ${agentName}. كيف أقدر أساعدك؟»`,
+افتح المكالمة بـ: «${ws.name}، معك ${agentName}. كيف أقدر أساعدك؟»
+${identity.role ? `\n${identity.role}` : ''}${
+  goals.length ? `\nما تسعى لتحقيقه في كل مكالمة:\n${goals.map((g) => `- ${g}`).join('\n')}` : ''
+}${
+  restricted.length
+    ? `\nممنوع عليك مهما طلب المتصل:\n${restricted.map((r) => `- ${r}`).join('\n')}`
+    : ''
+}`,
     ),
   )
 

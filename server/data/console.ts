@@ -984,8 +984,26 @@ export async function getCallDetail(id: string) {
     intelligence.state === 'processing' &&
     Date.now() - new Date(intelligence.startedAt).getTime() > 90_000
 
+  const {
+    callerNumberEncrypted,
+    callerNumberHash,
+    recordingObjectKey,
+    recordingSha256,
+    sipMetadataEncrypted,
+    transcriptEncrypted,
+    ...operatorSafeCall
+  } = row.call
+  void [
+    callerNumberEncrypted,
+    callerNumberHash,
+    recordingObjectKey,
+    recordingSha256,
+    sipMetadataEncrypted,
+    transcriptEncrypted,
+  ]
+
   return {
-    ...row.call,
+    ...operatorSafeCall,
     workspaceName: row.workspaceName,
     workspaceSlug: row.workspaceSlug,
     agentName: row.agentName,

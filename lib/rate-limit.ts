@@ -1,4 +1,4 @@
-export const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
 
 // Periodically prune expired entries to prevent memory leaks
 if (typeof setInterval !== 'undefined') {

@@ -11,7 +11,15 @@ import {
 import { env } from '@/lib/env'
 import { normalizeTranscript, type TranscriptTurn } from '@/server/calls/presentation'
 import { db } from '@/server/db'
-import { backgroundJob, booking, call, callEvent, lead, toolExecution } from '@/server/db/schema'
+import {
+  backgroundJob,
+  booking,
+  call,
+  callEvent,
+  lead,
+  qaResult,
+  toolExecution,
+} from '@/server/db/schema'
 import { revealJson } from '@/server/security/protected-data'
 import { maskIdentifier, voiceError, voiceLog } from '@/server/voice/log'
 
@@ -264,8 +272,59 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
     followUpRequired: parsed.summary.followUpRequired,
     urgency: parsed.summary.urgency,
   })
+  await queueForReviewIfWarranted(callId, row.status, row.outcome, parsed.summary, evidence.tools)
   voiceLog('POST_CALL_COMPLETED', { callId: maskIdentifier(callId), model, attempt })
   return { state: 'completed', reused: false }
+}
+
+/**
+ * `qa_result` used to have no intake at all for a real call — an operator had
+ * to already suspect something was wrong to go looking, and nothing pointed
+ * them at which call. This fires once per call, right after the AI summary
+ * lands, and flags exactly the calls where an existing, already-computed
+ * signal says the interaction did not go cleanly — never a heuristic guess
+ * at "sounds off": a call that actually failed to connect (`call.status`),
+ * one the agent could only resolve by promising a callback, one the summary
+ * itself marked high-urgency or needing follow-up, or one where a tool the
+ * agent invoked came back failed. A call with none of those signals is not
+ * queued — the review list is for calls worth a human's time, not a log of
+ * everything that happened.
+ */
+async function queueForReviewIfWarranted(
+  callId: string,
+  status: string,
+  outcome: string | null,
+  summary: { urgency: string; followUpRequired: boolean },
+  tools: { name: string; succeeded: boolean }[],
+) {
+  const toolFailed = tools.some((tool) => !tool.succeeded)
+  const reasons = [
+    status === 'failed' && 'call_failed',
+    outcome === 'callback' && 'ended_in_callback',
+    summary.urgency === 'high' && 'high_urgency',
+    summary.followUpRequired && 'follow_up_required',
+    toolFailed && 'tool_failed',
+  ].filter((reason): reason is string => Boolean(reason))
+
+  if (reasons.length === 0) return
+
+  await db
+    .insert(qaResult)
+    .values({
+      id: `qa_${randomUUID().replaceAll('-', '').slice(0, 16)}`,
+      callId,
+      reviewerId: null,
+      score: null,
+      flags: reasons,
+      notes: null,
+      action: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    // A retry (`force: true`) re-runs this after the row already exists —
+    // idempotent by the same unique-per-call index that makes the insert safe
+    // to repeat rather than something that has to be checked for first.
+    .onConflictDoNothing({ target: qaResult.callId })
 }
 
 function jobId(dedupeKey: string) {

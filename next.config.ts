@@ -38,6 +38,21 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }]
   },
+  webpack(config) {
+    // OpenTelemetry's Node auto-instrumentation (pulled in by @sentry/node for
+    // tracing an Express app this project doesn't have) hooks `require()`
+    // dynamically to patch libraries at load time — a pattern webpack cannot
+    // statically analyze and, correctly, warns about. It is not a bug; it is
+    // what `withSentryConfig`'s webpack plugin would normally suppress. Doing
+    // it here directly avoids depending on that plugin, which needs a real
+    // Sentry auth token/org/project this deployment doesn't have configured
+    // yet — source-map upload can adopt it later without touching this.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      { module: /node_modules\/require-in-the-middle/ },
+    ]
+    return config
+  },
 }
 
 export default nextConfig

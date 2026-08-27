@@ -280,3 +280,34 @@ export function phoneLifecycleTone(status: string | null): Tone {
       return 'warn'
   }
 }
+
+export const CRM_STATUS_LABEL: Record<string, string> = {
+  lead: 'عميل محتمل',
+  active: 'نشط',
+  inactive: 'غير نشط',
+}
+
+export function crmStatusTone(status: string): Tone {
+  switch (status) {
+    case 'active':
+      return 'good'
+    case 'lead':
+      return 'signal'
+    default:
+      return 'neutral'
+  }
+}
+
+export const CRM_SOURCE_LABEL: Record<string, string> = {
+  call: 'من مكالمة',
+  manual: 'أُضيف يدويًا',
+}
+
+// Order matters here — it is iterated to build the range <select>, "all" first.
+export const CRM_RANGE_LABEL: Record<string, string> = {
+  all: 'كل الوقت',
+  today: 'اليوم',
+  week: 'آخر أسبوع',
+  month: 'آخر شهر',
+  year: 'آخر سنة',
+}

@@ -1,7 +1,8 @@
 import { CircleHelp } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { PhoneRowActions } from '@/components/console/infra-actions'
+import { AddPhoneNumberAction, PhoneRowActions } from '@/components/console/infra-actions'
+import { PendingPhoneRequestsSection } from '@/components/console/phone-requests'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
@@ -11,7 +12,8 @@ import {
   phoneLifecycleTone,
   relative,
 } from '@/lib/format'
-import { getClientBySlug, getPhoneNumbers } from '@/server/data/console'
+import { getPendingPhoneRequests } from '@/server/actions/twilio'
+import { getClientBySlug, getClientOptions, getPhoneNumbers } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الهاتف' }
 export const dynamic = 'force-dynamic'
@@ -28,7 +30,11 @@ export default async function PhonePage({
   searchParams: Promise<{ client?: string }>
 }) {
   const params = await searchParams
-  const client = params.client ? await getClientBySlug(params.client) : null
+  const [client, clients, pendingRequests] = await Promise.all([
+    params.client ? getClientBySlug(params.client) : Promise.resolve(null),
+    getClientOptions(),
+    getPendingPhoneRequests(),
+  ])
   const numbers = await getPhoneNumbers(client ? { workspaceId: client.id } : {})
 
   // Counted from evidence, not from the status string: a seeded row can carry
@@ -67,7 +73,17 @@ export default async function PhonePage({
         ]}
       />
 
-      <Section title="الأرقام" flush>
+      {pendingRequests.length > 0 ? (
+        <Section
+          title="طلبات شراء أرقام بانتظار الاعتماد"
+          meta={`${num(pendingRequests.length)} طلب`}
+          flush
+        >
+          <PendingPhoneRequestsSection requests={pendingRequests} />
+        </Section>
+      ) : null}
+
+      <Section title="الأرقام" action={<AddPhoneNumberAction clients={clients} />} flush>
         {numbers.length === 0 ? (
           <EmptyState
             title="لا يوجد رقم مربوط"

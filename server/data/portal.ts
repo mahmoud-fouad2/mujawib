@@ -229,6 +229,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
       durationSeconds: call.durationSeconds,
       transcript: call.transcript,
       transcriptEncrypted: call.transcriptEncrypted,
+      recordingStatus: call.recordingStatus,
       metadata: call.metadata,
       startedAt: call.startedAt,
       endedAt: call.endedAt,
@@ -263,6 +264,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
     durationSeconds: row.durationSeconds,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
+    recordingStatus: row.recordingStatus,
     branch: typeof metadata.branch === 'string' ? metadata.branch : null,
     transcript,
     summary: buildCallSummary({

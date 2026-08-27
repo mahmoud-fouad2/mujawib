@@ -1415,6 +1415,70 @@
   padding: var(--s-5);
 }
 
+.recording-player {
+  display: grid;
+  gap: var(--s-3);
+  padding-block: var(--s-4);
+  border-block: 1px solid var(--line);
+}
+
+.recording-player__head,
+.recording-player--pending {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.recording-player__head > svg,
+.recording-player--pending > svg {
+  color: var(--signal);
+  flex: 0 0 auto;
+}
+
+.recording-player__head div,
+.recording-player--pending div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recording-player__head span,
+.recording-player--pending span {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.recording-player__partial {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: auto;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.recording-player audio {
+  inline-size: 100%;
+  block-size: 42px;
+  color-scheme: light dark;
+}
+
+.recording-player__spinner {
+  animation: recording-spin 900ms linear infinite;
+}
+
+@keyframes recording-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-player__spinner {
+    animation: none;
+  }
+}
+
 .portal-call-conversation__head {
   display: flex;
   align-items: center;

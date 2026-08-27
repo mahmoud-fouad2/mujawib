@@ -1,5 +1,6 @@
 import { Check, MessageSquareText, UserRound, X } from 'lucide-react'
 import Link from 'next/link'
+import { RecordingPlayer } from '@/components/calls/recording-player'
 import { CallIntelligenceStatus } from '@/components/console/call-intelligence-status'
 import { Pill } from '@/components/ui/primitives'
 import {
@@ -230,6 +231,8 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
           </ul>
         ) : null}
       </section>
+
+      <RecordingPlayer callId={call.id} status={call.recordingStatus} />
 
       <section>
         <div className="detail-section-label">الحوار</div>

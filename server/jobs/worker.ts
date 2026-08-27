@@ -96,6 +96,16 @@ function safeDatabaseError(error: unknown) {
   }
 }
 
+async function reportWorkerFailure(error: unknown) {
+  if (!process.env.SENTRY_DSN) return
+  try {
+    const Sentry = await import('@sentry/nextjs')
+    Sentry.captureException(error)
+  } catch {
+    // Sentry itself must never be why the maintenance tick fails.
+  }
+}
+
 export function startBackgroundWorker() {
   if (workerGlobal.__mujawibWorkerTimer) return
 
@@ -105,7 +115,11 @@ export function startBackgroundWorker() {
     try {
       await runMaintenanceTick()
     } catch (error) {
+      // Before Sentry this line was the only record a tick failed at all —
+      // a dependency down for an hour looked identical to one down for a
+      // minute unless someone was actively reading the Render log stream.
       console.error('[worker] maintenance tick failed', safeDatabaseError(error))
+      await reportWorkerFailure(error)
     } finally {
       workerGlobal.__mujawibWorkerRunning = false
     }

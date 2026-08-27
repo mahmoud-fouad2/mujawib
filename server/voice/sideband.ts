@@ -22,6 +22,7 @@ import {
   type RealtimeToolAction,
   type RealtimeTranscriptAction,
 } from '@/server/voice/realtime-events'
+import { type RealtimeRecordingCapture, startRealtimeRecording } from '@/server/voice/recording'
 import type { ToolResult } from '@/server/voice/tools'
 
 const REALTIME_WS = 'wss://api.openai.com/v1/realtime'
@@ -387,6 +388,7 @@ async function handleMessage(
   ctx: SidebandContext,
   data: RawData,
   state: SessionState,
+  recording: RealtimeRecordingCapture | null,
 ) {
   let event: unknown
   try {
@@ -396,6 +398,17 @@ async function handleMessage(
       message: 'Realtime event was not valid JSON',
     })
     return
+  }
+
+  if (recording) {
+    try {
+      await recording.handleEvent(ws, event)
+    } catch {
+      recording.noteWarning('capture_event_failed')
+      voiceError('RECORDING_EVENT_FAILED', {
+        callId: maskIdentifier(ctx.externalCallId),
+      })
+    }
   }
 
   for (const action of actionsFromRealtimeEvent(event)) {
@@ -502,6 +515,18 @@ async function runSideband(ctx: SidebandContext) {
   }
 
   voiceLog('SIDEBAND_CONNECTING', { callId: maskIdentifier(ctx.externalCallId) })
+  const recording = await startRealtimeRecording({
+    callRecordId: ctx.callRecordId,
+    externalCallId: ctx.externalCallId,
+    workspaceId: ctx.workspaceId,
+    startedAt: ctx.startedAt,
+  }).catch(() => {
+    voiceError('RECORDING_FAILED', {
+      callId: maskIdentifier(ctx.externalCallId),
+      code: 'recording_start_failed',
+    })
+    return null
+  })
   const url = `${REALTIME_WS}?call_id=${encodeURIComponent(ctx.externalCallId)}`
   const connectStartTime = Date.now()
   let ttfbMeasured = false
@@ -541,7 +566,7 @@ async function runSideband(ctx: SidebandContext) {
         })
       }
       queue = queue
-        .then(() => handleMessage(ws, ctx, data, state))
+        .then(() => handleMessage(ws, ctx, data, state, recording))
         .catch((error) => {
           voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error)))
         })
@@ -559,6 +584,7 @@ async function runSideband(ctx: SidebandContext) {
       clearInterval(heartbeat)
       queue = queue
         .then(() => finalizeCall(ctx, code, reason, state))
+        .then(() => recording?.finalize())
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
         .finally(resolve)
     })
@@ -566,9 +592,9 @@ async function runSideband(ctx: SidebandContext) {
 }
 
 /**
- * Starts one control channel for an accepted SIP call. The call audio stays
- * directly between OpenAI and the SIP ingress; this socket only receives
- * private control events, executes tools, and persists verified evidence.
+ * Starts one control channel for an accepted SIP call. Media transport stays
+ * directly between OpenAI and SIP; when private recording storage is enabled,
+ * this monitoring socket also persists the Realtime audio representations.
  */
 export async function startRealtimeSideband(ctx: SidebandContext): Promise<boolean> {
   if (!(await claimSideband(ctx))) return false
