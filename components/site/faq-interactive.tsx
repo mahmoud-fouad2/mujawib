@@ -8,6 +8,7 @@ import { type Locale, localePath } from '@/lib/i18n'
 export function FaqInteractive({
   groups,
   labels,
+  initialQuery = '',
 }: {
   groups: { title: string; items: { q: string; a: string }[] }[]
   labels: {
@@ -18,8 +19,9 @@ export function FaqInteractive({
     contactCtaButton: string
     locale: Locale
   }
+  initialQuery?: string
 }) {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
   // Filter groups

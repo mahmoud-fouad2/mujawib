@@ -262,7 +262,7 @@ export function PricingPage({ locale }: { locale: Locale }) {
 
 /* ─── faq ────────────────────────────────────────────────────────────────── */
 
-export function FaqPage({ locale }: { locale: Locale }) {
+export function FaqPage({ locale, initialQuery = '' }: { locale: Locale; initialQuery?: string }) {
   const p = pagesFor(locale).faq
   const ar = locale === 'ar'
 
@@ -291,7 +291,7 @@ export function FaqPage({ locale }: { locale: Locale }) {
         </div>
       </PageHero>
 
-      <FaqInteractive groups={p.groups} labels={labels} />
+      <FaqInteractive groups={p.groups} labels={labels} initialQuery={initialQuery} />
     </>
   )
 }

@@ -68,6 +68,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        <link
+          rel="search"
+          type="application/opensearchdescription+xml"
+          href="/opensearch.xml"
+          title="مُجاوِب"
+        />
         {/* Applies the stored colour mode before paint so the ground never flashes. */}
         <script
           // biome-ignore lint/security/noDangerouslySetInnerHtml: must run before hydration

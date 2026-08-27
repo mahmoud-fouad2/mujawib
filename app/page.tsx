@@ -1,7 +1,14 @@
 import type { Metadata } from 'next'
 import { Landing } from '@/components/site/landing'
 import { SiteShell } from '@/components/site/site-shell'
-import { JsonLd, organizationSchema, pageMetadata, serviceSchema, websiteSchema } from '@/lib/seo'
+import {
+  JsonLd,
+  organizationSchema,
+  pageMetadata,
+  serviceSchema,
+  siteNavigationSchema,
+  websiteSchema,
+} from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
@@ -14,7 +21,14 @@ export const metadata: Metadata = pageMetadata({
 export default function HomePage() {
   return (
     <SiteShell locale="ar">
-      <JsonLd data={[organizationSchema('ar'), websiteSchema('ar'), serviceSchema('ar')]} />
+      <JsonLd
+        data={[
+          organizationSchema('ar'),
+          websiteSchema('ar'),
+          serviceSchema('ar'),
+          siteNavigationSchema('ar'),
+        ]}
+      />
       <Landing locale="ar" />
     </SiteShell>
   )

@@ -12,7 +12,8 @@ export const metadata: Metadata = pageMetadata({
     'Clear answers about deployment timelines, dialect comprehension, calendar & WhatsApp integrations, and enterprise reliability.',
 })
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams
   const items = pagesFor('en').faq.groups.flatMap((g) => g.items)
 
   return (
@@ -26,7 +27,7 @@ export default function Page() {
           ]),
         ]}
       />
-      <FaqPage locale="en" />
+      <FaqPage locale="en" initialQuery={q ?? ''} />
     </SiteShell>
   )
 }

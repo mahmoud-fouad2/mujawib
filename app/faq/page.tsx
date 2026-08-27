@@ -12,7 +12,8 @@ export const metadata: Metadata = pageMetadata({
     'إجابات شافية حول مدة التجهيز، فهم اللهجات السعودية والخليجية، الربط مع التقويم والواتساب، وجودة المكالمات الهاتفية.',
 })
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams
   const items = pagesFor('ar').faq.groups.flatMap((g) => g.items)
 
   return (
@@ -26,7 +27,7 @@ export default function Page() {
           ]),
         ]}
       />
-      <FaqPage locale="ar" />
+      <FaqPage locale="ar" initialQuery={q ?? ''} />
     </SiteShell>
   )
 }

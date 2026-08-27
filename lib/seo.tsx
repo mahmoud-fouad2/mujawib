@@ -135,14 +135,62 @@ export function organizationSchema(locale: Locale) {
 }
 
 export function websiteSchema(locale: Locale) {
+  const ar = locale === 'ar'
+  const searchUrl = `${SITE_URL}${localePath(locale, '/faq')}?q={search_term_string}`
+
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     '@id': `${SITE_URL}/#website`,
     url: SITE_URL,
-    name: locale === 'ar' ? ORG_NAME_AR : ORG_NAME_EN,
-    inLanguage: locale === 'ar' ? 'ar-SA' : 'en',
+    name: ar ? ORG_NAME_AR : ORG_NAME_EN,
+    alternateName: ar
+      ? ['مجاوب', 'منصة مجاوب', 'Mujawib', 'Mujawib Voice AI']
+      : ['Mujawib', 'Mujawib AI', 'Mujawib Arabic Voice Receptionist'],
+    inLanguage: ar ? 'ar-SA' : 'en',
     publisher: { '@id': `${SITE_URL}/#organization` },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: searchUrl,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+}
+
+/** Google Sitelinks Navigation schema to encourage rich sitelinks under the main search snippet. */
+export function siteNavigationSchema(locale: Locale) {
+  const ar = locale === 'ar'
+  const items = ar
+    ? [
+        { name: 'كيف نبدأ معك', url: absolute('/how-it-works') },
+        { name: 'الأسعار والباقات', url: absolute('/pricing') },
+        { name: 'برنامج الشركاء', url: absolute('/partners') },
+        { name: 'الأمان والموثوقية', url: absolute('/security') },
+        { name: 'الأسئلة الشائعة', url: absolute('/faq') },
+        { name: 'من نحن', url: absolute('/about') },
+        { name: 'تواصل معنا', url: absolute('/contact') },
+      ]
+    : [
+        { name: 'How It Works', url: absolute('/en/how-it-works') },
+        { name: 'Pricing & Plans', url: absolute('/en/pricing') },
+        { name: 'Partner Program', url: absolute('/en/partners') },
+        { name: 'Security & Privacy', url: absolute('/en/security') },
+        { name: 'FAQ', url: absolute('/en/faq') },
+        { name: 'About Us', url: absolute('/en/about') },
+        { name: 'Contact Us', url: absolute('/en/contact') },
+      ]
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': items.map((item, idx) => ({
+      '@type': 'SiteNavigationElement',
+      position: idx + 1,
+      name: item.name,
+      url: item.url,
+    })),
   }
 }
 
@@ -155,9 +203,10 @@ export function serviceSchema(locale: Locale) {
     '@id': `${SITE_URL}/#software`,
     name: ar ? 'مُجاوِب — موظف استقبال صوتي عربي' : 'Mujawib — Arabic voice receptionist',
     applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web',
+    operatingSystem: 'Cloud, Web, Telephony (SIP)',
     inLanguage: ['ar', 'en'],
     provider: { '@id': `${SITE_URL}/#organization` },
+    screenshot: absolute(ogCard(locale)),
     description: ar
       ? 'يرد على مكالمات الشركة بالعربية على مدار الساعة، يحجز المواعيد في التقويم، يرسل التأكيد، ويحوّل للموظف عند الحاجة.'
       : 'Answers business calls in Arabic around the clock, books appointments in your calendar, sends confirmations, and hands over to a person when needed.',
