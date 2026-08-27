@@ -474,3 +474,263 @@
   line-height: 1.6;
   color: var(--text-muted);
 }
+
+/* ─── trust badges (security) ─────────────────────────────────────────── */
+
+.trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-block-start: var(--s-5);
+}
+
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: var(--step--1);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.trust-badge svg {
+  color: var(--signal);
+  flex-shrink: 0;
+}
+
+/* ─── stat strip (about) ───────────────────────────────────────────────── */
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--s-4);
+  margin-block: var(--s-6);
+  padding: var(--s-6);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-item__num {
+  font-size: var(--step-2);
+  font-weight: 700;
+  color: var(--signal);
+  font-family: var(--font-mono);
+}
+
+.stat-item__label {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ─── shield & can icons ───────────────────────────────────────────────── */
+
+.shield-card,
+.can-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  transition:
+    border-color var(--t-base) var(--ease),
+    transform var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease);
+}
+
+.shield-card:hover,
+.can-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-panel);
+}
+
+.shield-card__icon,
+.can-card__icon {
+  display: grid;
+  place-items: center;
+  inline-size: 42px;
+  block-size: 42px;
+  border-radius: 8px;
+  background: var(--signal-soft);
+  color: var(--signal);
+  margin-block-end: var(--s-1);
+}
+
+.shield-card h3,
+.can-card h3 {
+  font-size: var(--step-0);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.shield-card p,
+.can-card p {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+/* ─── partner tracks & benefits ────────────────────────────────────────── */
+
+.tracks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-5);
+  margin-block: var(--s-5) var(--s-8);
+}
+
+.track-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  transition:
+    border-color var(--t-base) var(--ease),
+    transform var(--t-base) var(--ease);
+}
+
+.track-card:hover {
+  border-color: var(--signal-line);
+  transform: translateY(-2px);
+}
+
+.track-card h3 {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+
+.track-card p {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.7;
+  flex-grow: 1;
+}
+
+.track-card__who {
+  display: flex;
+  gap: var(--s-2);
+  align-items: baseline;
+  padding-block-start: var(--s-3);
+  border-block-start: 1px solid var(--line-faint);
+  font-size: 0.8125rem;
+  color: var(--text-faint);
+}
+
+.track-card__who strong {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-4);
+  margin-block: var(--s-5) var(--s-8);
+}
+
+.benefit-card {
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+
+.benefit-card h3 {
+  font-size: var(--step-0);
+  font-weight: 600;
+  margin-block-end: var(--s-2);
+}
+
+.benefit-card p {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.partner-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-5);
+  margin-block: var(--s-5) var(--s-8);
+}
+
+.partner-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-6);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+}
+
+.partner-step__num {
+  font-family: var(--font-mono);
+  font-size: var(--step-1);
+  font-weight: 700;
+  color: var(--signal);
+}
+
+.partner-step h3 {
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.partner-step p {
+  font-size: var(--step--1);
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+/* ─── generic page CTA ─────────────────────────────────────────────────── */
+
+.page-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-4);
+  padding: clamp(var(--s-7), 6vw, var(--s-9)) var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-hero);
+  margin-block: var(--s-6);
+}
+
+.page-cta h2 {
+  font-size: var(--step-3);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.page-cta p {
+  max-inline-size: 58ch;
+  color: var(--text-muted);
+  font-size: var(--step-0);
+  line-height: 1.7;
+}
+
+.page-cta__actions {
+  display: flex;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-block-start: var(--s-2);
+}

@@ -189,20 +189,20 @@ export function ContactForm({ locale }: { locale: Locale }) {
 
         <div className="field contact-form__need">
           <label htmlFor={`${locale}-contact-need`}>
-            {ar ? 'أول نتيجة أو سيناريو تريد تشغيله' : 'First outcome to automate'}
+            {ar
+              ? 'أول نتيجة أو سيناريو تريد تشغيله (اختياري)'
+              : 'First outcome to automate (optional)'}
           </label>
           <textarea
             id={`${locale}-contact-need`}
             name="need"
             className="input"
-            required
-            minLength={8}
             maxLength={1200}
-            rows={4}
+            rows={3}
             placeholder={
               ar
-                ? 'مثال: حجز وتعديل مواعيد المرضى في عيادة الأسنان والرد على أسعار الكشف وإرسال الموقع عبر واتساب.'
-                : 'Example: automate patient appointment booking for clinic, answer pricing inquiries, and send WhatsApp location confirmations.'
+                ? 'مثال: حجز وتعديل مواعيد المرضى في العيادة، أو الاستفسارات المتكررة خارج أوقات الدوام الرسمي.'
+                : 'Example: automate patient appointment booking for clinic, or handling out-of-hours inquiries.'
             }
           />
         </div>

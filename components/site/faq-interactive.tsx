@@ -93,8 +93,19 @@ export function FaqInteractive({
 
       <div className="faq-content">
         {filteredGroups.length === 0 ? (
-          <div className="container empty-state">
-            {isAr ? 'لا توجد نتائج مطابقة لبحثك.' : 'No results found.'}
+          <div
+            className="container empty-state"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 'var(--s-3)',
+            }}
+          >
+            <p>{isAr ? 'لم نجد سؤالاً مطابقاً لبحثك.' : 'No matching questions found.'}</p>
+            <LinkButton href={localePath(labels.locale, '/contact')} variant="default" size="sm">
+              {isAr ? 'اسألنا هذا السؤال مباشرة' : 'Ask us directly'}
+            </LinkButton>
           </div>
         ) : (
           filteredGroups.map((g, i) => (

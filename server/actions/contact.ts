@@ -19,7 +19,7 @@ const schema = z.object({
     .max(254)
     .transform((value) => value.toLowerCase()),
   phone: z.string().trim().max(30).optional(),
-  need: z.string().trim().min(12).max(1200),
+  need: z.string().trim().max(1200).default(''),
   monthlyCalls: z.enum(['under_500', '500_2000', '2000_10000', 'over_10000', 'unknown']),
   locale: z.enum(['ar', 'en']),
   consent: z.boolean().refine((value) => value, 'Consent is required'),
@@ -86,7 +86,12 @@ export async function createSalesInquiry(input: z.input<typeof schema>): Promise
     company: parsed.data.company,
     email: parsed.data.email,
     phone: parsed.data.phone || null,
-    need: parsed.data.need,
+    need:
+      parsed.data.need.length > 0
+        ? parsed.data.need
+        : parsed.data.locale === 'ar'
+          ? 'طلب استشارة عام'
+          : 'General inquiry',
     monthlyCalls: parsed.data.monthlyCalls,
     locale: parsed.data.locale,
     source: 'website',

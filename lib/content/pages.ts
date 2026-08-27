@@ -64,6 +64,15 @@ type Pages = {
   partners: {
     title: string
     lead: string
+    tracksTitle: string
+    tracks: { title: string; desc: string; forWho: string }[]
+    benefitsTitle: string
+    benefits: { title: string; desc: string }[]
+    stepsTitle: string
+    steps: { n: string; title: string; desc: string }[]
+    ctaTitle: string
+    ctaBody: string
+    ctaButton: string
   }
 }
 
@@ -288,11 +297,11 @@ const ar: Pages = {
     practices: [
       {
         title: 'عزل تام لبيانات المنشآت (Tenant Isolation)',
-        body: 'تتمتع كل منشأة بمساحة عمل مشفرة ومعزولة كليًا على مستوى قاعدة البيانات المركزية (Database Level)، مما يمنع استحالة تداخل البيانات أو أي وصول غير مصرح به.',
+        body: 'تتمتع كل منشأة بمساحة عمل مشفرة ومعزولة كليًا على مستوى قاعدة البيانات (Database Level)، مما يجعل تداخل البيانات بين المنشآت مستحيلاً تماماً.',
       },
       {
-        title: 'تشفير مفاتيح الربط العسكري (Encryption at Rest)',
-        body: 'تُخزن مفاتيح الربط وأنظمة الـ API الخاصة بك (مثل مفاتيح WhatsApp و CRM) بصيغ مشفرة ومعقدة، ولا تظهر كنص مقروء حتى لكبار مهندسينا في فريق التشغيل.',
+        title: 'تشفير متقدم للمفاتيح وقواعد البيانات (AES-256 & TLS 1.3)',
+        body: 'تُحفظ كافة مفاتيح الربط وسجلات المكالمات بتشفير قياسي معتمد مؤسسياً (AES-256 أثناء السكون وبروتوكول TLS 1.3 أثناء النقل)، ولا تظهر كنص مقروء لأي طرف غير مصرح له.',
       },
       {
         title: 'صلاحيات وصول دقيقة ومخصصة (RBAC)',
@@ -334,7 +343,7 @@ const ar: Pages = {
       },
       {
         n: '03',
-        title: 'اختبارات الاختراق الصوتي وضبط النبرة',
+        title: 'محاكاة الحالات المعقدة وضبط النبرة',
         body: 'نُخضع الموظف الصوتي لعشرات السيناريوهات المعقدة (مقاطعات، أسئلة مفاجئة، أرقام طويلة) للتأكد من لباقته وسرعة بديهته وعدم ارتباكه أبداً.',
         youDo: 'تجربة الاتصال برقم تجريبي، محاولة تحدي الموظف الصوتي، وتأكيد رضاك التام عن أدائه.',
         weDo: 'الضبط الدقيق للاستجابة بالمللي ثانية، تحسين مخارج الحروف، واعتماد النسخة الذهبية.',
@@ -348,11 +357,70 @@ const ar: Pages = {
       },
     ],
     timeline:
-      'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: أسبوعان إلى ثلاثة أسابيع.',
+      'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: من 5 إلى 14 يوم عمل حسب حجم الربط والسيناريوهات.',
   },
   partners: {
     title: 'شركاء النجاح: معاً نصنع مستقبل الأعمال.',
     lead: 'نؤمن بقوة التعاون. إذا كنت وكالة تسويق، أو شركة استشارات، أو مزود حلول تقنية، دعنا نتعاون لتقديم تجربة اتصال استثنائية لعملائك ومضاعفة أرباحهم عبر حلول "مُجاوِب" للذكاء الاصطناعي الصوتي.',
+    tracksTitle: 'مسارات الشراكة والتعاون',
+    tracks: [
+      {
+        title: 'شريك الإحالة (Referral Partner)',
+        desc: 'أوصِ بـ "مُجاوِب" لعملائك أو شبكة معارفك واحصل على نسبة عمولة شهرية مجزية ومستمرة طوال فترة اشتراك العميل.',
+        forWho: 'المستشارون، وصناع المحتوى، وخبراء تحسين العمليات.',
+      },
+      {
+        title: 'شريك الوكالات (Agency & Solutions)',
+        desc: 'قدّم حلول الاستقبال الصوتي الذكي كخدمة مضافة لعملائك مع أسعار تفضيلية ودعم فني مخصص لتنفيذ مشاريعهم.',
+        forWho: 'وكالات التسويق، شركات التحول الرقمي، ومطورو الحلول البرمجية.',
+      },
+      {
+        title: 'شريك التكامل والتقنية (Technology Partner)',
+        desc: 'اربط برمجياتك (CRM، أنظمة ERP، منصات إدارة العيادات والمطاعم) بـ "مُجاوِب" لتوفير استقبال صوتي فوري لعملائك.',
+        forWho: 'شركات SaaS ومنصات إدارة المنشآت الطبية والتجارية.',
+      },
+    ],
+    benefitsTitle: 'لماذا تنضم لبرنامج شركاء مُجاوِب؟',
+    benefits: [
+      {
+        title: 'عوائد شهرية متكررة (Recurring Revenue)',
+        desc: 'نموذج أرباح شفاف ومستمر ينمو شهرياً مع كل عميل يستمر في استخدام الخدمة.',
+      },
+      {
+        title: 'بيئة تجريبية وأولوية في الدعم الفني',
+        desc: 'حساب تجريبي (Sandbox) مجاني لعرض تجارب المكالمات الحية أمام عملائك، مع قناة دعم هندسي مباشرة.',
+      },
+      {
+        title: 'مواد بيعية وتدريب مخصص',
+        desc: 'نزودك بعروض توضيحية، دراسات حالة موثقة، وجلسات تدريبية لفريقك لمساعدتك في إغلاق الصفقات بسهولة.',
+      },
+      {
+        title: 'خدمة مُدارة بالكامل (نحن نتولى التشغيل)',
+        desc: 'أنت تكسب العميل وتبني العلاقة، ونحن نتكفل بالربط البرمجي، وهندسة الصوت، وضمان الجودة 24/7.',
+      },
+    ],
+    stepsTitle: 'كيف تصبح شريكاً معنا؟',
+    steps: [
+      {
+        n: '01',
+        title: 'تقديم طلب الشراكة',
+        desc: 'أرسل بياناتك ونبذة عن خدماتك وقاعدة عملائك عبر نموذج التواصل.',
+      },
+      {
+        n: '02',
+        title: 'جلسة التوافق وتحديد المسار',
+        desc: 'مكالمة سريعة لمدة 20 دقيقة لتحديد مسار الشراكة المناسب ونسب العمولات.',
+      },
+      {
+        n: '03',
+        title: 'بدء التفعيل وتحقيق الأرباح',
+        desc: 'استلم حسابك والمواد الترويجية وابدأ فوراً في ترشيح العملاء وتوليد العوائد.',
+      },
+    ],
+    ctaTitle: 'جاهز لتقديم حلول الذكاء الصوتي لعملائك؟',
+    ctaBody:
+      'انضم لبرنامج الشركاء اليوم واجعل منشأتك في صدارة الشركات المقدمة لأحدث تقنيات الصوت في المنطقة.',
+    ctaButton: 'قدّم طلب الانضمام للشركاء',
   },
 }
 
@@ -645,6 +713,64 @@ const en: Pages = {
   partners: {
     title: 'Partners in Success: Shaping the Future of Business.',
     lead: 'We believe in the power of collaboration. Whether you are a marketing agency, a consulting firm, or a tech provider, let’s partner to deliver exceptional voice AI experiences to your clients and boost their revenue with Mujawib.',
+    tracksTitle: 'Partnership Tracks',
+    tracks: [
+      {
+        title: 'Referral Partner',
+        desc: 'Recommend Mujawib to your clients and earn generous, recurring monthly commissions for the lifetime of their subscription.',
+        forWho: 'Consultants, business advisors, and digital agencies.',
+      },
+      {
+        title: 'Agency & Solution Partner',
+        desc: 'Offer voice AI reception as an added-value service to your clients with preferred wholesale rates and dedicated technical support.',
+        forWho: 'Marketing agencies, digital consultancies, and systems integrators.',
+      },
+      {
+        title: 'Technology Partner',
+        desc: 'Integrate your software (CRM, ERP, clinic and salon booking systems) with Mujawib to deliver seamless voice experiences to your users.',
+        forWho: 'SaaS vendors and business management platforms.',
+      },
+    ],
+    benefitsTitle: 'Why Partner with Mujawib?',
+    benefits: [
+      {
+        title: 'Recurring Monthly Revenue',
+        desc: 'A predictable, compounding revenue share model that grows as your referred clients scale.',
+      },
+      {
+        title: 'Sandbox & Priority Support',
+        desc: 'Free demo environments to showcase live AI calls to your prospects, backed by direct engineering support.',
+      },
+      {
+        title: 'Co-marketing & Sales Enablement',
+        desc: 'Access sales collateral, pitch decks, case studies, and partner training sessions to close deals faster.',
+      },
+      {
+        title: '100% Done-for-You Delivery',
+        desc: 'You bring the client relationship; our engineering team handles prompt tuning, API integration, and 24/7 quality assurance.',
+      },
+    ],
+    stepsTitle: 'How to Get Started',
+    steps: [
+      {
+        n: '01',
+        title: 'Submit Application',
+        desc: 'Tell us about your company, services, and current client base.',
+      },
+      {
+        n: '02',
+        title: 'Discovery & Alignment',
+        desc: 'A brief 20-minute call to agree on commercial terms and choose the right partner track.',
+      },
+      {
+        n: '03',
+        title: 'Launch & Earn',
+        desc: 'Receive your partner assets, start introducing clients, and earn recurring revenue.',
+      },
+    ],
+    ctaTitle: 'Ready to deliver voice AI to your clients?',
+    ctaBody: 'Join the Mujawib partner program today and stay ahead of the technology curve.',
+    ctaButton: 'Apply for Partnership',
   },
 }
 

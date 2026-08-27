@@ -1,4 +1,24 @@
-import { ArrowLeft, ArrowRight, Check, Mail, MessageCircle, Phone } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarClock,
+  Check,
+  CheckCircle2,
+  Database,
+  History,
+  KeyRound,
+  Lock,
+  Mail,
+  MessageCircle,
+  Phone,
+  PhoneForwarded,
+  Plus,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  UserCheck,
+  Wrench,
+} from 'lucide-react'
 import Image from 'next/image'
 import { ContactForm } from '@/components/site/contact-form'
 import { FaqInteractive } from '@/components/site/faq-interactive'
@@ -131,7 +151,6 @@ export function ContactPage({ locale }: { locale: Locale }) {
 
 export function PricingPage({ locale }: { locale: Locale }) {
   const p = pagesFor(locale).pricing
-  const site = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
   const ar = locale === 'ar'
 
@@ -181,7 +200,7 @@ export function PricingPage({ locale }: { locale: Locale }) {
                   block
                   trailing={<Arrow size={16} className="arrow" aria-hidden="true" />}
                 >
-                  {site.common.bookDemo}
+                  {ar ? `اطلب تسعير ${b.name}` : `Get quote for ${b.name}`}
                 </LinkButton>
               </article>
             ))}
@@ -217,11 +236,21 @@ export function PricingPage({ locale }: { locale: Locale }) {
             label={ar ? 'أسئلة عن السعر' : 'Pricing questions'}
             title={ar ? 'قبل أن تسأل.' : 'Before you ask.'}
           />
-          <div className="faq">
+          <div
+            className="faq-panel__items"
+            style={{ maxInlineSize: '760px', marginBlockStart: 'var(--s-4)' }}
+          >
             {p.faq.map((f) => (
-              <details key={f.q}>
-                <summary>{f.q}</summary>
-                <p>{f.a}</p>
+              <details key={f.q} className="faq-item">
+                <summary className="faq-item__summary">
+                  <strong>{f.q}</strong>
+                  <span className="faq-item__icon">
+                    <Plus className="icon-plus" size={16} />
+                  </span>
+                </summary>
+                <div className="faq-item__body">
+                  <p>{f.a}</p>
+                </div>
               </details>
             ))}
           </div>
@@ -272,6 +301,8 @@ export function FaqPage({ locale }: { locale: Locale }) {
 export function AboutPage({ locale }: { locale: Locale }) {
   const p = pagesFor(locale).about
   const ar = locale === 'ar'
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+  const PRINCIPLE_ICONS = [CheckCircle2, Sparkles, Wrench, ShieldCheck]
 
   return (
     <>
@@ -293,6 +324,41 @@ export function AboutPage({ locale }: { locale: Locale }) {
 
       <section className="section">
         <div className="container">
+          <div className="stat-strip reveal">
+            <div className="stat-item">
+              <span className="stat-item__num">800ms</span>
+              <span className="stat-item__label">
+                {ar
+                  ? 'استجابة فائقة السرعة تماثل الحوار البشري'
+                  : 'Ultra-low conversational latency'}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-item__num">24/7</span>
+              <span className="stat-item__label">
+                {ar
+                  ? 'استقبال فوري وموثوق للمكالمات دون أي توقف'
+                  : 'Zero dropped calls around the clock'}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-item__num">100%</span>
+              <span className="stat-item__label">
+                {ar
+                  ? 'عزل وتشفير كامل لبيانات منشأتك ومحادثاتك'
+                  : 'Tenant isolation & enterprise security'}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-item__num">4+</span>
+              <span className="stat-item__label">
+                {ar
+                  ? 'لهجات خليجية وعربية متقنة بنبرة طبيعية'
+                  : 'Accents & dialects tuned natively'}
+              </span>
+            </div>
+          </div>
+
           <div className="prose">
             {p.story.map((s) => (
               <p key={s.slice(0, 24)}>{s}</p>
@@ -307,13 +373,19 @@ export function AboutPage({ locale }: { locale: Locale }) {
             label={ar ? 'مبادئ' : 'Principles'}
             title={ar ? 'أربعة أشياء لا نتنازل عنها.' : 'Four things we do not bend on.'}
           />
-          <div className="cans reveal-group">
-            {p.principles.map((pr) => (
-              <article key={pr.title} className="can lift">
-                <h3>{pr.title}</h3>
-                <p>{pr.body}</p>
-              </article>
-            ))}
+          <div className="shields reveal-group" style={{ marginBlockStart: 'var(--s-6)' }}>
+            {p.principles.map((pr, idx) => {
+              const Icon = PRINCIPLE_ICONS[idx % PRINCIPLE_ICONS.length] ?? CheckCircle2
+              return (
+                <article key={pr.title} className="can-card">
+                  <div className="can-card__icon" aria-hidden="true">
+                    <Icon size={20} />
+                  </div>
+                  <h3>{pr.title}</h3>
+                  <p>{pr.body}</p>
+                </article>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -326,6 +398,31 @@ export function AboutPage({ locale }: { locale: Locale }) {
           </div>
         </div>
       </section>
+
+      <section className="section section--tinted">
+        <div className="container">
+          <div className="page-cta reveal">
+            <h2>
+              {ar ? 'هل ترغب في تجربة موظفك الصوتي الجديد؟' : 'Ready to hear your AI receptionist?'}
+            </h2>
+            <p>
+              {ar
+                ? 'احجز جلسة استشارية أولى مع خبرائنا لنفهم طبيعة نشاطك ونجهز لك تجربة حية على رقم هاتفك.'
+                : 'Book a 20-minute discovery call. We listen to your case and prepare a tailored trial call.'}
+            </p>
+            <div className="page-cta__actions">
+              <LinkButton
+                href={localePath(locale, '/contact')}
+                variant="primary"
+                size="lg"
+                trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+              >
+                {ar ? 'احجز جلستك الاستشارية' : 'Book a discovery call'}
+              </LinkButton>
+            </div>
+          </div>
+        </div>
+      </section>
     </>
   )
 }
@@ -335,11 +432,13 @@ export function AboutPage({ locale }: { locale: Locale }) {
 export function SecurityPage({ locale }: { locale: Locale }) {
   const p = pagesFor(locale).security
   const ar = locale === 'ar'
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
+  const PRACTICE_ICONS = [Database, KeyRound, UserCheck, History, CalendarClock, PhoneForwarded]
 
   return (
     <>
       <PageHero
-        eyebrow={ar ? 'الموثوقية' : 'Reliability'}
+        eyebrow={ar ? 'الموثوقية والأمان' : 'Security & Reliability'}
         title={p.title}
         lead={p.lead}
         media={{
@@ -350,7 +449,26 @@ export function SecurityPage({ locale }: { locale: Locale }) {
             ? 'من غيّر ماذا ومتى — قابل للمراجعة، وقابل للتراجع.'
             : 'Who changed what and when — reviewable, and reversible.',
         }}
-      />
+      >
+        <div className="trust-badges">
+          <span className="trust-badge">
+            <ShieldCheck size={16} aria-hidden="true" />
+            {ar ? 'متوافق مع نظام حماية البيانات (PDPL)' : 'Saudi PDPL Compliant'}
+          </span>
+          <span className="trust-badge">
+            <Lock size={16} aria-hidden="true" />
+            {ar ? 'تشفير AES-256 و TLS 1.3' : 'AES-256 & TLS 1.3'}
+          </span>
+          <span className="trust-badge">
+            <Database size={16} aria-hidden="true" />
+            {ar ? 'عزل كامل لقواعد البيانات' : 'Tenant Database Isolation'}
+          </span>
+          <span className="trust-badge">
+            <Server size={16} aria-hidden="true" />
+            {ar ? 'جاهزية سحابية 99.9%' : '99.9% Uptime Cloud'}
+          </span>
+        </div>
+      </PageHero>
 
       <section className="section">
         <div className="container">
@@ -368,13 +486,19 @@ export function SecurityPage({ locale }: { locale: Locale }) {
             label={ar ? 'ما نفعله' : 'What we do'}
             title={ar ? 'ست ممارسات مطبَّقة اليوم.' : 'Six practices in place today.'}
           />
-          <div className="shields reveal-group">
-            {p.practices.map((s) => (
-              <article key={s.title} className="shield">
-                <h3>{s.title}</h3>
-                <p>{s.body}</p>
-              </article>
-            ))}
+          <div className="shields reveal-group" style={{ marginBlockStart: 'var(--s-6)' }}>
+            {p.practices.map((s, idx) => {
+              const Icon = PRACTICE_ICONS[idx % PRACTICE_ICONS.length] ?? ShieldCheck
+              return (
+                <article key={s.title} className="shield-card">
+                  <div className="shield-card__icon" aria-hidden="true">
+                    <Icon size={20} />
+                  </div>
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </article>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -385,6 +509,33 @@ export function SecurityPage({ locale }: { locale: Locale }) {
           <div className="stance stance--plain">
             <h2>{ar ? 'ما لا ندّعيه' : 'What we do not claim'}</h2>
             <p>{p.notClaimed}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="section section--tinted">
+        <div className="container">
+          <div className="page-cta reveal">
+            <h2>
+              {ar
+                ? 'هل لديك متطلبات أمان أو امتثال خاصة؟'
+                : 'Have custom security or compliance needs?'}
+            </h2>
+            <p>
+              {ar
+                ? 'فريقنا الهندسي جاهز لمناقشة اتفاقيات سرية البيانات (NDA)، وتخصيص سياسات الحفظ، وضمان توافق النظام مع متطلبات منشأتك.'
+                : 'Our engineering team is ready to discuss NDAs, custom data retention policies, and enterprise security requirements.'}
+            </p>
+            <div className="page-cta__actions">
+              <LinkButton
+                href={localePath(locale, '/contact')}
+                variant="primary"
+                size="lg"
+                trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+              >
+                {ar ? 'تحدث مع فريق الأمن والامتثال' : 'Speak with our security team'}
+              </LinkButton>
+            </div>
           </div>
         </div>
       </section>
@@ -477,24 +628,126 @@ export function HowItWorksPage({ locale }: { locale: Locale }) {
 export function PartnersPage({ locale }: { locale: Locale }) {
   const p = pagesFor(locale).partners
   const ar = locale === 'ar'
+  const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
   return (
-    <PageHero
-      eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
-      title={p.title}
-      lead={p.lead}
-      media={{
-        src: '/images/site/partners.png',
-        alt: 'Mujawib Partnerships',
-        caption: ar ? 'معاً للقمة' : 'Together to the top',
-        sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
-      }}
-    >
-      <div style={{ marginTop: 'var(--s-6)' }}>
-        <LinkButton href={localePath(locale, '/contact')} variant="primary" size="lg">
-          {ar ? 'تواصل معنا للشراكة' : 'Contact us to partner'}
-        </LinkButton>
-      </div>
-    </PageHero>
+    <>
+      <PageHero
+        eyebrow={ar ? 'الشركاء والتعاون' : 'Partners & Collaboration'}
+        title={p.title}
+        lead={p.lead}
+        media={{
+          src: '/images/site/partners.png',
+          alt: 'Mujawib Partnerships',
+          caption: ar ? 'معاً للقمة' : 'Together to the top',
+          sub: ar ? 'بناء شراكات مستدامة.' : 'Building sustainable partnerships.',
+        }}
+      >
+        <div style={{ marginTop: 'var(--s-6)' }}>
+          <LinkButton
+            href={localePath(locale, '/contact')}
+            variant="primary"
+            size="lg"
+            trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+          >
+            {p.ctaButton}
+          </LinkButton>
+        </div>
+      </PageHero>
+
+      {/* Tracks */}
+      <section className="section">
+        <div className="container">
+          <SectionHead
+            label={ar ? 'المسارات' : 'Tracks'}
+            title={p.tracksTitle}
+            lead={
+              ar
+                ? 'اختر نموذج الشراكة الأنسب لطبيعة خدماتك وعملائك لنبني نموذج عمل مربح للطرفين.'
+                : 'Choose the partnership model that best fits your business model.'
+            }
+          />
+          <div className="tracks-grid reveal-group">
+            {p.tracks.map((track) => (
+              <article key={track.title} className="track-card">
+                <h3>{track.title}</h3>
+                <p>{track.desc}</p>
+                <div className="track-card__who">
+                  <span>{ar ? 'الفئة المستهدفة:' : 'For:'}</span>
+                  <strong>{track.forWho}</strong>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits */}
+      <section className="section section--tinted">
+        <div className="container">
+          <SectionHead
+            label={ar ? 'المزايا' : 'Benefits'}
+            title={p.benefitsTitle}
+            lead={
+              ar
+                ? 'نوفر لشركائنا الأدوات التشغيلية، والدعم التقني، والعمولات المستمرة لضمان نجاح مشترك.'
+                : 'We empower partners with tools, enablement, and compounding commissions.'
+            }
+          />
+          <div className="benefits-grid reveal-group">
+            {p.benefits.map((b) => (
+              <div key={b.title} className="benefit-card">
+                <h3>{b.title}</h3>
+                <p>{b.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Steps */}
+      <section className="section">
+        <div className="container">
+          <SectionHead
+            label={ar ? 'الخطوات' : 'Process'}
+            title={p.stepsTitle}
+            lead={
+              ar
+                ? 'آلية انضمام مبسطة تتيح لك البدء خلال أيام عمل معدودة دون أي تعقيد بيروقراطي.'
+                : 'A streamlined onboarding process to get you up and running within days.'
+            }
+          />
+          <div className="partner-steps reveal-group">
+            {p.steps.map((s) => (
+              <div key={s.n} className="partner-step">
+                <span className="partner-step__num">{s.n}</span>
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="section section--tinted">
+        <div className="container">
+          <div className="page-cta reveal">
+            <h2>{p.ctaTitle}</h2>
+            <p>{p.ctaBody}</p>
+            <div className="page-cta__actions">
+              <LinkButton
+                href={localePath(locale, '/contact')}
+                variant="primary"
+                size="lg"
+                trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
+              >
+                {p.ctaButton}
+              </LinkButton>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
   )
 }
