@@ -2,18 +2,26 @@ import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
 import { CONTACT } from '@/lib/content/contact'
-import { pageMetadata } from '@/lib/seo'
+import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
   path: '/privacy',
-  title: 'Privacy policy',
-  description: 'How Mujawib handles your call data and your callers’ data.',
+  title: 'Privacy Policy & Data Protection | Mujawib',
+  description: 'How Mujawib handles your call data and your callers’ data securely.',
 })
 
 export default function EnglishPrivacyPage() {
   return (
     <SiteShell locale="en">
+      <JsonLd
+        data={[
+          breadcrumbSchema([
+            { name: 'Home', path: '/en' },
+            { name: 'Privacy Policy', path: '/en/privacy' },
+          ]),
+        ]}
+      />
       <LegalPage
         locale="en"
         eyebrow="Privacy"

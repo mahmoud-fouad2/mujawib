@@ -2,18 +2,26 @@ import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
 import { CONTACT } from '@/lib/content/contact'
-import { pageMetadata } from '@/lib/seo'
+import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
   path: '/privacy',
-  title: 'سياسة الخصوصية',
-  description: 'كيف يتعامل مُجاوِب مع بيانات مكالماتك وبيانات عملائك.',
+  title: 'سياسة الخصوصية وحماية البيانات الشخصية | مُجاوِب',
+  description: 'كيف يتعامل مُجاوِب مع بيانات مكالماتك وبيانات عملائك وفق المعايير والأنظمة المعتمدة.',
 })
 
 export default function PrivacyPage() {
   return (
     <SiteShell locale="ar">
+      <JsonLd
+        data={[
+          breadcrumbSchema([
+            { name: 'الرئيسية', path: '/' },
+            { name: 'سياسة الخصوصية', path: '/privacy' },
+          ]),
+        ]}
+      />
       <LegalPage
         locale="ar"
         eyebrow="الخصوصية"

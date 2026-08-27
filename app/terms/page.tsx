@@ -1,18 +1,26 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
-import { pageMetadata } from '@/lib/seo'
+import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
   path: '/terms',
-  title: 'الشروط والأحكام',
-  description: 'شروط استخدام خدمة مُجاوِب للتشغيل الصوتي.',
+  title: 'شروط وأحكام الخدمة والاتفاق التعاقدي | مُجاوِب',
+  description: 'شروط استخدام خدمة مُجاوِب للتشغيل الصوتي بالذكاء الاصطناعي.',
 })
 
 export default function TermsPage() {
   return (
     <SiteShell locale="ar">
+      <JsonLd
+        data={[
+          breadcrumbSchema([
+            { name: 'الرئيسية', path: '/' },
+            { name: 'الشروط والأحكام', path: '/terms' },
+          ]),
+        ]}
+      />
       <LegalPage
         locale="ar"
         eyebrow="الشروط"

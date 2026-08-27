@@ -1,18 +1,27 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
-import { pageMetadata } from '@/lib/seo'
+import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
   path: '/terms',
-  title: 'Terms of use',
-  description: 'The terms under which Mujawib runs voice reception for your business.',
+  title: 'Terms of Service & Service Agreement | Mujawib',
+  description:
+    'The operational and legal terms under which Mujawib runs voice reception for your business.',
 })
 
 export default function EnglishTermsPage() {
   return (
     <SiteShell locale="en">
+      <JsonLd
+        data={[
+          breadcrumbSchema([
+            { name: 'Home', path: '/en' },
+            { name: 'Terms of Service', path: '/en/terms' },
+          ]),
+        ]}
+      />
       <LegalPage
         locale="en"
         eyebrow="Terms"
