@@ -1,8 +1,9 @@
 import 'server-only'
 
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { getPortalAccess } from '@/server/auth/access'
 import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
+import { liveCallCountsByPhone } from '@/server/data/crm'
 import { db } from '@/server/db'
 import {
   booking,
@@ -311,44 +312,60 @@ export async function getPortalBookings(workspaceId: string, limit = 40) {
     .limit(limit)
 }
 
+/**
+ * The default, always-on "who called you" list (the CRM upgrade replaces it
+ * with `getCrmCustomers`). `call.callerNumber` is masked at write time, so it
+ * can no longer be matched against `customer.phone` with a plain equality —
+ * see the comment on `liveCallCountsByPhone` — which is why this can't stay
+ * a single query: which customers even qualify (had a live call at all) can
+ * only be known after that hash-or-legacy-plaintext correlation runs.
+ */
 export async function getPortalCustomers(workspaceId: string, limit = 40) {
-  return db
+  const candidates = await db
     .select({
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
       tags: customer.tags,
       lastCallAt: customer.lastCallAt,
-      calls: sql<number>`(
-        select count(*) from ${call}
-        where ${call.workspaceId} = ${workspaceId}
-          and ${call.callerNumber} = ${customer.phone}
-          and ${call.origin} = 'live'
-      )`.mapWith(Number),
-      bookings: sql<number>`(
-        select count(*) from ${booking}
-        where ${booking.workspaceId} = ${workspaceId}
-          and ${booking.customerPhone} = ${customer.phone}
-          and exists (
-            select 1 from ${call}
-            where ${call.id} = ${booking.callId} and ${call.origin} = 'live'
-          )
-      )`.mapWith(Number),
     })
     .from(customer)
+    .where(eq(customer.workspaceId, workspaceId))
+    .orderBy(desc(customer.lastCallAt))
+
+  if (candidates.length === 0) return []
+
+  const callCounts = await liveCallCountsByPhone(
+    workspaceId,
+    candidates.map((c) => c.phone),
+  )
+  const withCalls = candidates.filter((c) => (callCounts.get(c.phone) ?? 0) > 0).slice(0, limit)
+
+  if (withCalls.length === 0) return []
+
+  const bookingRows = await db
+    .select({ phone: booking.customerPhone, count: sql<number>`count(*)`.mapWith(Number) })
+    .from(booking)
+    .innerJoin(call, eq(booking.callId, call.id))
     .where(
       and(
-        eq(customer.workspaceId, workspaceId),
-        sql`exists (
-          select 1 from ${call}
-          where ${call.workspaceId} = ${workspaceId}
-            and ${call.callerNumber} = ${customer.phone}
-            and ${call.origin} = 'live'
-        )`,
+        eq(booking.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        inArray(
+          booking.customerPhone,
+          withCalls.map((c) => c.phone),
+        ),
       ),
     )
-    .orderBy(desc(customer.lastCallAt))
-    .limit(limit)
+    .groupBy(booking.customerPhone)
+  const bookingsByPhone = new Map(bookingRows.map((b) => [b.phone, b.count]))
+
+  return withCalls.map((c) => ({
+    ...c,
+    tags: c.tags ?? [],
+    calls: callCounts.get(c.phone) ?? 0,
+    bookings: bookingsByPhone.get(c.phone) ?? 0,
+  }))
 }
 
 /** Daily volume + outcome mix for the insights page. */

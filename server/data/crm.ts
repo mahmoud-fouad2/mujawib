@@ -1,8 +1,9 @@
 import 'server-only'
 
-import { and, desc, eq, gte, ilike, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import { db } from '@/server/db'
 import { call, customer } from '@/server/db/schema'
+import { protectedLookup } from '@/server/security/protected-data'
 
 export type CrmDateRange = 'today' | 'week' | 'month' | 'year' | 'all'
 export type CrmStatusFilter = 'lead' | 'active' | 'inactive' | 'all'
@@ -83,6 +84,62 @@ function crmConditions(workspaceId: string, filters: CrmFilters) {
   return and(...conditions)
 }
 
+/**
+ * Live-call counts per customer phone, keyed by the exact phone strings
+ * passed in.
+ *
+ * `call.callerNumber` is masked at write time (`+966****4567`) and the real
+ * number only survives as `callerNumberHash`, a keyed HMAC — so it can never
+ * be compared against `customer.phone` (kept in full, since it is the CRM's
+ * own join key) with a plain equality. Calls recorded before that masking
+ * shipped have no hash yet, so they are matched the old way instead. Every
+ * live call falls into exactly one of the two groups, never both.
+ */
+export async function liveCallCountsByPhone(
+  workspaceId: string,
+  phones: string[],
+): Promise<Map<string, number>> {
+  if (phones.length === 0) return new Map()
+
+  const hashByPhone = new Map(phones.map((phone) => [phone, protectedLookup(phone)] as const))
+
+  const [byHash, byPlainNumber] = await Promise.all([
+    db
+      .select({ key: call.callerNumberHash, count: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(
+        and(
+          eq(call.workspaceId, workspaceId),
+          eq(call.origin, 'live'),
+          inArray(call.callerNumberHash, [...hashByPhone.values()]),
+        ),
+      )
+      .groupBy(call.callerNumberHash),
+    db
+      .select({ key: call.callerNumber, count: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(
+        and(
+          eq(call.workspaceId, workspaceId),
+          eq(call.origin, 'live'),
+          isNull(call.callerNumberHash),
+          inArray(call.callerNumber, phones),
+        ),
+      )
+      .groupBy(call.callerNumber),
+  ])
+
+  const countByHash = new Map(byHash.map((r) => [r.key, r.count]))
+  const countByPlainNumber = new Map(byPlainNumber.map((r) => [r.key, r.count]))
+
+  const counts = new Map<string, number>()
+  for (const phone of phones) {
+    const hash = hashByPhone.get(phone) ?? ''
+    counts.set(phone, (countByHash.get(hash) ?? 0) + (countByPlainNumber.get(phone) ?? 0))
+  }
+  return counts
+}
+
 /** The table's rows, newest first — used by both the page and the CSV export. */
 export async function getCrmCustomers(
   workspaceId: string,
@@ -102,22 +159,25 @@ export async function getCrmCustomers(
       lastCallAt: customer.lastCallAt,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
-      calls: sql<number>`(
-        select count(*) from ${call}
-        where ${call.workspaceId} = ${workspaceId}
-          and ${call.callerNumber} = ${customer.phone}
-          and ${call.origin} = 'live'
-      )`.mapWith(Number),
     })
     .from(customer)
     .where(crmConditions(workspaceId, filters))
     .orderBy(desc(customer.createdAt))
     .limit(limit)
 
+  const callCounts = await liveCallCountsByPhone(
+    workspaceId,
+    rows.map((row) => row.phone),
+  )
+
   // `tags` is a nullable jsonb column at the schema level (no row has ever
   // been written with a null there, but the type has to admit it) — settled
   // once here so every caller gets a plain array, not `string[] | null`.
-  return rows.map((row) => ({ ...row, tags: row.tags ?? [] }))
+  return rows.map((row) => ({
+    ...row,
+    tags: row.tags ?? [],
+    calls: callCounts.get(row.phone) ?? 0,
+  }))
 }
 
 export async function getCrmSummary(workspaceId: string) {
