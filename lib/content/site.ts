@@ -111,7 +111,7 @@ const ar: Copy = {
     assurances: [
       'يعمل مباشرة على أرقامك الحالية دون تغيير',
       'تشغيل مُدار بالكامل دون الحاجة لفريق تقني من طرفك',
-      'جاهزية تامة وتشغيل سريع خلال أيام معدودة',
+      'جاهزية تامة وتشغيل خلال أسبوع إلى ثلاثة أسابيع',
     ],
     recordTitle: 'سيناريو تجريبي واقعي',
     recordMeta: 'مكالمة حجز موعد بالعربية — تجربة حية',
@@ -684,11 +684,7 @@ const en: Copy = {
       },
       {
         title: 'Account',
-        links: [
-          { label: 'Sign in', href: '/sign-in' },
-          { label: 'Privacy policy', href: '/privacy' },
-          { label: 'Terms of use', href: '/terms' },
-        ],
+        links: [{ label: 'Sign in', href: '/sign-in' }],
       },
     ],
     rights: 'All rights reserved.',

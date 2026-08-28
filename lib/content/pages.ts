@@ -1,4 +1,3 @@
-import { CONTACT, CONTACT_WHATSAPP_URL } from '@/lib/content/contact'
 import type { Locale } from '@/lib/i18n'
 
 /**
@@ -21,7 +20,7 @@ type Pages = {
   contact: {
     title: string
     lead: string
-    channels: { label: string; value: string; href: string; note: string }[]
+    channels: { type: 'email' | 'phone' | 'whatsapp'; label: string; note: string }[]
     expect: { step: string; body: string }[]
     hours: string
   }
@@ -85,21 +84,18 @@ const ar: Pages = {
     lead: 'نقدم مُجاوِب كخدمة متكاملة ومُدارة بالكامل — تبدأ جلستنا الأولى بفهم طبيعة نشاطك وتحديات الاستقبال لديك لنبني لك الحل الأمثل.',
     channels: [
       {
+        type: 'email',
         label: 'البريد الإلكتروني',
-        value: CONTACT.email,
-        href: `mailto:${CONTACT.email}`,
         note: 'نجيب على استفسارك خلال يوم عمل واحد.',
       },
       {
+        type: 'phone',
         label: 'الهاتف المباشر',
-        value: CONTACT.phoneDisplay,
-        href: `tel:${CONTACT.phoneE164}`,
         note: 'من الأحد إلى الخميس، 9:00 ص – 6:00 م بتوقيت الرياض.',
       },
       {
+        type: 'whatsapp',
         label: 'واتساب',
-        value: CONTACT.phoneDisplay,
-        href: CONTACT_WHATSAPP_URL,
         note: 'للاستفسارات السريعة وتنسيق المواعيد.',
       },
     ],
@@ -207,7 +203,7 @@ const ar: Pages = {
         items: [
           {
             q: 'كم يستغرق تجهيز الموظف الصوتي وبدء التشغيل الفعلي؟',
-            a: 'من أسبوعين إلى ثلاثة أسابيع بناءً على حجم نشاطك وتعقيد الربط التقني المطلوب. وعادة ما نطلق النسخة التجريبية الأولى لاختبارها خلال أيام من استلام متطلباتك.',
+            a: 'من أسبوع إلى ثلاثة أسابيع بناءً على حجم نشاطك وتعقيد الربط التقني المطلوب. وعادة ما تكون النسخة التجريبية الأولى جاهزة للاختبار خلال أسبوع من استلام متطلباتك.',
           },
           {
             q: 'هل أحتاج إلى فريق تقني أو مبرمجين من طرفي لإدارة الخدمة؟',
@@ -324,7 +320,7 @@ const ar: Pages = {
       },
     ],
     notClaimed:
-      'نلتزم بالامتثال للأنظمة المحلية لتنظيم الاتصالات وحماية البيانات (PDPL) في المملكة والخليج. يُترك خيار تفعيل رسالة "هذه المكالمة مسجلة لضمان الجودة" لقرارك وحسب سياسات منشأتك الداخلية.',
+      'لا نملك حتى الآن شهادات SOC 2 أو ISO 27001، ولن ندّعي خلاف ذلك. تسجيل المكالمات اختياري ويُفعَّل لكل منشأة بعد مراجعة الأنظمة المحلية، لأن قوانين التسجيل تختلف من دولة لأخرى.',
   },
   howItWorks: {
     title: 'رحلة الانطلاق مع مُجاوِب: من الفكرة إلى التشغيل الفعلي.',
@@ -360,7 +356,7 @@ const ar: Pages = {
       },
     ],
     timeline:
-      'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: من 5 إلى 14 يوم عمل حسب حجم الربط والسيناريوهات.',
+      'المدة القياسية من الجلسة الأولى حتى إطلاق أول مكالمة حقيقية: من أسبوع إلى ثلاثة أسابيع حسب حجم الربط والسيناريوهات.',
   },
   partners: {
     title: 'برنامج شركاء مُجاوِب: ضاعف أرباحك بتقديم أول موظف استقبال صوتي ذكي لعملائك.',
@@ -504,21 +500,18 @@ const en: Pages = {
     lead: 'Mujawib is a managed service — we start with a call to understand your business, not a sign-up form. Pick whichever is easiest.',
     channels: [
       {
+        type: 'email',
         label: 'Email',
-        value: CONTACT.email,
-        href: `mailto:${CONTACT.email}`,
         note: 'We reply within one working day.',
       },
       {
+        type: 'phone',
         label: 'Phone',
-        value: CONTACT.phoneDisplay,
-        href: `tel:${CONTACT.phoneE164}`,
         note: 'Sunday to Thursday, 9am – 6pm Riyadh time.',
       },
       {
+        type: 'whatsapp',
         label: 'WhatsApp',
-        value: CONTACT.phoneDisplay,
-        href: CONTACT_WHATSAPP_URL,
         note: 'For quick questions before a meeting.',
       },
     ],

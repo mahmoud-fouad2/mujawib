@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
-import { CONTACT } from '@/lib/content/contact'
 import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
+import { getPlatformContact } from '@/server/data/platform'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
@@ -11,7 +11,12 @@ export const metadata: Metadata = pageMetadata({
   description: 'كيف يتعامل مُجاوِب مع بيانات مكالماتك وبيانات عملائك وفق المعايير والأنظمة المعتمدة.',
 })
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const contact = await getPlatformContact()
+  const rightsContact = contact.email
+    ? `تواصل معنا على ${contact.email}`
+    : 'تواصل معنا عبر صفحة «تواصل معنا»'
+
   return (
     <SiteShell locale="ar">
       <JsonLd
@@ -65,7 +70,7 @@ export default function PrivacyPage() {
           {
             heading: 'حقوقك',
             body: [
-              `يمكنك في أي وقت طلب نسخة من بياناتك، أو تصحيحها، أو حذفها، أو إيقاف الخدمة وسحب بياناتك. تواصل معنا على ${CONTACT.email} وسنستجيب خلال 30 يومًا كحد أقصى.`,
+              `يمكنك في أي وقت طلب نسخة من بياناتك، أو تصحيحها، أو حذفها، أو إيقاف الخدمة وسحب بياناتك. ${rightsContact} وسنستجيب خلال 30 يومًا كحد أقصى.`,
             ],
           },
         ]}

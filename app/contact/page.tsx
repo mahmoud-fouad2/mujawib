@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ContactPage } from '@/components/site/pages'
 import { SiteShell } from '@/components/site/site-shell'
 import { breadcrumbSchema, contactPageSchema, JsonLd, pageMetadata } from '@/lib/seo'
+import { getPlatformContact } from '@/server/data/platform'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'ar',
@@ -11,7 +12,8 @@ export const metadata: Metadata = pageMetadata({
     'تحدث مباشرة مع مستشاري مُجاوِب عبر الهاتف، البريد، أو واتساب. نبدأ بجلسة سريعة لفهم نشاطك واختبار الموظف الصوتي مباشرة على رقمك.',
 })
 
-export default function Page() {
+export default async function Page() {
+  const contact = await getPlatformContact()
   return (
     <SiteShell locale="ar">
       <JsonLd
@@ -20,10 +22,10 @@ export default function Page() {
             { name: 'الرئيسية', path: '/' },
             { name: 'تواصل معنا', path: '/contact' },
           ]),
-          contactPageSchema('ar'),
+          contactPageSchema('ar', contact),
         ]}
       />
-      <ContactPage locale="ar" />
+      <ContactPage locale="ar" contact={contact} />
     </SiteShell>
   )
 }

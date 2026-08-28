@@ -28,6 +28,7 @@ import { Pill } from '@/components/ui/primitives'
 import { pagesFor } from '@/lib/content/pages'
 import { copyFor } from '@/lib/content/site'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
+import type { PlatformContact } from '@/server/data/platform'
 
 /**
  * Standalone pages. Each has its own layout: a contact page is a set of
@@ -85,11 +86,41 @@ function PageHero({
 
 /* ─── contact ────────────────────────────────────────────────────────────── */
 
-const CHANNEL_ICON = [Mail, Phone, MessageCircle]
+const CHANNEL_ICON = { email: Mail, phone: Phone, whatsapp: MessageCircle } as const
 
-export function ContactPage({ locale }: { locale: Locale }) {
+/**
+ * Email/phone/WhatsApp are only ever shown once an operator has confirmed
+ * the channel actually answers (`getPlatformContact` — Bible: "a published
+ * channel that does not answer costs more than no channel at all"). A
+ * channel with no confirmed value resolves to `null` and is dropped rather
+ * than rendered with a placeholder.
+ */
+function resolveChannel(
+  type: 'email' | 'phone' | 'whatsapp',
+  contact: PlatformContact,
+): { value: string; href: string } | null {
+  if (type === 'email') {
+    return contact.email ? { value: contact.email, href: `mailto:${contact.email}` } : null
+  }
+  if (type === 'phone') {
+    return contact.phone
+      ? { value: contact.phone.display, href: `tel:${contact.phone.e164}` }
+      : null
+  }
+  return contact.whatsappUrl && contact.phone
+    ? { value: contact.phone.display, href: contact.whatsappUrl }
+    : null
+}
+
+export function ContactPage({ locale, contact }: { locale: Locale; contact: PlatformContact }) {
   const p = pagesFor(locale).contact
   const ar = locale === 'ar'
+  const channels = p.channels
+    .map((c) => {
+      const resolved = resolveChannel(c.type, contact)
+      return resolved ? { ...c, ...resolved } : null
+    })
+    .filter((c) => c !== null)
 
   return (
     <>
@@ -110,21 +141,23 @@ export function ContactPage({ locale }: { locale: Locale }) {
       <section className="section page-scope">
         <div className="container">
           <ContactForm locale={locale} />
-          <div className="channels reveal-group">
-            {p.channels.map((c, i) => {
-              const Icon = CHANNEL_ICON[i % CHANNEL_ICON.length] ?? Mail
-              return (
-                <a key={c.label} href={c.href} className="channel">
-                  <span className="channel__icon">
-                    <Icon size={18} aria-hidden="true" />
-                  </span>
-                  <span className="channel__label">{c.label}</span>
-                  <strong className="channel__value mono">{c.value}</strong>
-                  <span className="channel__note">{c.note}</span>
-                </a>
-              )
-            })}
-          </div>
+          {channels.length > 0 ? (
+            <div className="channels reveal-group">
+              {channels.map((c) => {
+                const Icon = CHANNEL_ICON[c.type]
+                return (
+                  <a key={c.type} href={c.href} className="channel">
+                    <span className="channel__icon">
+                      <Icon size={18} aria-hidden="true" />
+                    </span>
+                    <span className="channel__label">{c.label}</span>
+                    <strong className="channel__value mono">{c.value}</strong>
+                    <span className="channel__note">{c.note}</span>
+                  </a>
+                )
+              })}
+            </div>
+          ) : null}
 
           <div className="expect">
             <h2>{ar ? 'ماذا يحدث بعد أن تتواصل' : 'What happens after you get in touch'}</h2>
@@ -325,14 +358,6 @@ export function AboutPage({ locale }: { locale: Locale }) {
       <section className="section">
         <div className="container">
           <div className="stat-strip reveal">
-            <div className="stat-item">
-              <span className="stat-item__num">800ms</span>
-              <span className="stat-item__label">
-                {ar
-                  ? 'استجابة فائقة السرعة تماثل الحوار البشري'
-                  : 'Ultra-low conversational latency'}
-              </span>
-            </div>
             <div className="stat-item">
               <span className="stat-item__num">24/7</span>
               <span className="stat-item__label">
@@ -635,7 +660,7 @@ export function PartnersPage({ locale }: { locale: Locale }) {
       <PageHero eyebrow={ar ? 'برنامج الشركاء' : 'Partner Program'} title={p.title} lead={p.lead}>
         <div
           style={{
-            marginTop: 'var(--s-6)',
+            marginBlockStart: 'var(--s-6)',
             display: 'flex',
             gap: 'var(--s-3)',
             flexWrap: 'wrap',

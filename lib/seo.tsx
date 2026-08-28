@@ -1,14 +1,12 @@
 import type { Metadata } from 'next'
-import { CONTACT } from '@/lib/content/contact'
 import { env } from '@/lib/env'
 import { type Locale, localePath } from '@/lib/i18n'
+import type { PlatformContact } from '@/server/data/platform'
 
 export const SITE_URL = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
 
 const ORG_NAME_AR = 'مُجاوِب'
 const ORG_NAME_EN = 'Mujawib'
-const ORG_EMAIL = CONTACT.email
-const ORG_PHONE = CONTACT.phoneE164
 
 function absolute(path: string) {
   return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`
@@ -92,8 +90,12 @@ export function pageMetadata({
  * Organisation and site identity. Deliberately no `aggregateRating`: star
  * ratings in search results require genuine, collected reviews, and inventing
  * them is both against Google's guidelines and untrue.
+ *
+ * `email`/`telephone` are likewise only included once `contact` says the
+ * channel is confirmed — an unconfirmed one is omitted rather than published
+ * as structured data a search engine treats as verified business fact.
  */
-export function organizationSchema(locale: Locale) {
+export function organizationSchema(locale: Locale, contact: PlatformContact) {
   const ar = locale === 'ar'
   return {
     '@context': 'https://schema.org',
@@ -117,16 +119,16 @@ export function organizationSchema(locale: Locale) {
     description: ar
       ? 'منصة عربية لإدارة المكالمات الواردة بموظف صوتي يفهم العربية وينفّذ الحجز والتحويل داخل أنظمة الشركة.'
       : 'An Arabic voice platform that answers inbound business calls, completes bookings and transfers inside your systems.',
-    email: ORG_EMAIL,
-    telephone: ORG_PHONE,
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.phone ? { telephone: contact.phone.e164 } : {}),
     areaServed: ['SA', 'AE', 'EG', 'KW', 'QA', 'BH', 'OM'],
     knowsLanguage: ['ar', 'en'],
     contactPoint: [
       {
         '@type': 'ContactPoint',
         contactType: ar ? 'المبيعات' : 'sales',
-        email: ORG_EMAIL,
-        telephone: ORG_PHONE,
+        ...(contact.email ? { email: contact.email } : {}),
+        ...(contact.phone ? { telephone: contact.phone.e164 } : {}),
         availableLanguage: ['ar', 'en'],
         areaServed: ['SA', 'AE', 'EG', 'KW', 'QA', 'BH', 'OM'],
       },
@@ -271,7 +273,7 @@ export function breadcrumbSchema(trail: { name: string; path: string }[]) {
   }
 }
 
-export function contactPageSchema(locale: Locale) {
+export function contactPageSchema(locale: Locale, contact: PlatformContact) {
   const ar = locale === 'ar'
   return {
     '@context': 'https://schema.org',
@@ -285,8 +287,8 @@ export function contactPageSchema(locale: Locale) {
     mainEntity: {
       '@type': 'Organization',
       name: ar ? ORG_NAME_AR : ORG_NAME_EN,
-      email: ORG_EMAIL,
-      telephone: ORG_PHONE,
+      ...(contact.email ? { email: contact.email } : {}),
+      ...(contact.phone ? { telephone: contact.phone.e164 } : {}),
     },
   }
 }

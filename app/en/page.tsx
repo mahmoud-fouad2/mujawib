@@ -9,6 +9,7 @@ import {
   siteNavigationSchema,
   websiteSchema,
 } from '@/lib/seo'
+import { getPlatformContact } from '@/server/data/platform'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
@@ -18,12 +19,13 @@ export const metadata: Metadata = pageMetadata({
     'Mujawib answers inbound business calls in natural Arabic dialects around the clock, books calendar appointments, sends instant WhatsApp confirmations, and syncs CRM data.',
 })
 
-export default function EnglishHomePage() {
+export default async function EnglishHomePage() {
+  const contact = await getPlatformContact()
   return (
     <SiteShell locale="en">
       <JsonLd
         data={[
-          organizationSchema('en'),
+          organizationSchema('en', contact),
           websiteSchema('en'),
           serviceSchema('en'),
           siteNavigationSchema('en'),

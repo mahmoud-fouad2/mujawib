@@ -94,7 +94,8 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
     if (step === 1) return Boolean(pack) && agentName.trim().length >= 2
     if (step === 2)
       return (
-        services.some((s) => s.title.trim().length >= 2) && branches.some((b) => b.title.trim())
+        services.some((s) => s.title.trim().length >= 2) &&
+        branches.some((b) => b.title.trim().length >= 2)
       )
     if (step === 3) return /^\+?[0-9\s-]{8,20}$/.test(transferTo.trim())
     return true

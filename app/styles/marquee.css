@@ -280,7 +280,7 @@
   gap: var(--s-3);
   padding: 12px 20px;
   border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border-radius: var(--r-panel);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   white-space: nowrap;

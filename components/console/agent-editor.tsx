@@ -242,7 +242,7 @@ export function AgentEditorSheet({
               padding: 'var(--s-3)',
               background: 'var(--raised)',
               border: '1px dashed var(--signal-line)',
-              borderRadius: 'var(--r-md)',
+              borderRadius: 'var(--r-panel)',
             }}
           >
             <div

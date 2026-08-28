@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { ContactPage } from '@/components/site/pages'
 import { SiteShell } from '@/components/site/site-shell'
 import { breadcrumbSchema, contactPageSchema, JsonLd, pageMetadata } from '@/lib/seo'
+import { getPlatformContact } from '@/server/data/platform'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
@@ -11,7 +12,8 @@ export const metadata: Metadata = pageMetadata({
     'Speak directly with Mujawib AI engineers via phone, email, or WhatsApp. We start with a tailored consultation to model voice reception for your business.',
 })
 
-export default function Page() {
+export default async function Page() {
+  const contact = await getPlatformContact()
   return (
     <SiteShell locale="en">
       <JsonLd
@@ -20,10 +22,10 @@ export default function Page() {
             { name: 'Home', path: '/en' },
             { name: 'Contact Us', path: '/en/contact' },
           ]),
-          contactPageSchema('en'),
+          contactPageSchema('en', contact),
         ]}
       />
-      <ContactPage locale="en" />
+      <ContactPage locale="en" contact={contact} />
     </SiteShell>
   )
 }

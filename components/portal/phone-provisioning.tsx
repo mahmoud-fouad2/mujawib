@@ -127,7 +127,7 @@ export function PhoneProvisioningClient({ workspaceId }: { workspaceId: string }
                   justifyContent: 'space-between',
                   padding: 'var(--s-3)',
                   border: '1px solid var(--signal-line)',
-                  borderRadius: 'var(--r-md)',
+                  borderRadius: 'var(--r-panel)',
                 }}
               >
                 <div className="stack" style={{ gap: '2px' }}>

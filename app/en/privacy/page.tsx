@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/site/legal-page'
 import { SiteShell } from '@/components/site/site-shell'
-import { CONTACT } from '@/lib/content/contact'
 import { breadcrumbSchema, JsonLd, pageMetadata } from '@/lib/seo'
+import { getPlatformContact } from '@/server/data/platform'
 
 export const metadata: Metadata = pageMetadata({
   locale: 'en',
@@ -11,7 +11,12 @@ export const metadata: Metadata = pageMetadata({
   description: 'How Mujawib handles your call data and your callers’ data securely.',
 })
 
-export default function EnglishPrivacyPage() {
+export default async function EnglishPrivacyPage() {
+  const contact = await getPlatformContact()
+  const rightsContact = contact.email
+    ? `Write to ${contact.email}`
+    : 'Write to us via our Contact page'
+
   return (
     <SiteShell locale="en">
       <JsonLd
@@ -65,7 +70,7 @@ export default function EnglishPrivacyPage() {
           {
             heading: 'Your rights',
             body: [
-              `At any point you can ask for a copy of your data, have it corrected or deleted, or stop the service and take your data with you. Write to ${CONTACT.email} and we will respond within 30 days at the latest.`,
+              `At any point you can ask for a copy of your data, have it corrected or deleted, or stop the service and take your data with you. ${rightsContact} and we will respond within 30 days at the latest.`,
             ],
           },
         ]}

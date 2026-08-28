@@ -80,22 +80,22 @@ export function ContactForm({ locale }: { locale: Locale }) {
             padding: 'var(--s-3)',
             background: 'var(--surface)',
             border: '1px solid var(--line)',
-            borderRadius: 'var(--r-md)',
+            borderRadius: 'var(--r-panel)',
             fontSize: 'var(--step--1)',
           }}
         >
           <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
-            <span style={{ color: 'var(--good)' }}>✓</span>
+            <Check size={14} style={{ color: 'var(--good)' }} aria-hidden="true" />
             <span>
-              {ar ? 'استجابة سريعة خلال 4 ساعات عمل' : 'Fast response within 4 working hours'}
+              {ar ? 'نتواصل معك خلال يوم عمل واحد' : 'We reach out within one working day'}
             </span>
           </div>
           <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
-            <span style={{ color: 'var(--good)' }}>✓</span>
+            <Check size={14} style={{ color: 'var(--good)' }} aria-hidden="true" />
             <span>{ar ? 'جلسة تجربة صوتية حية مخصصة' : 'Custom live voice demo session'}</span>
           </div>
           <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
-            <span style={{ color: 'var(--good)' }}>✓</span>
+            <Check size={14} style={{ color: 'var(--good)' }} aria-hidden="true" />
             <span>{ar ? 'سرية وأمان تام للبيانات' : 'Strict data privacy & confidentiality'}</span>
           </div>
         </div>
@@ -177,7 +177,6 @@ export function ContactForm({ locale }: { locale: Locale }) {
                 key={opt.value}
                 type="button"
                 className={`filter-chip${selectedVolume === opt.value ? ' is-active' : ''}`}
-                style={{ fontSize: '0.85rem', padding: '6px 14px' }}
                 onClick={() => setSelectedVolume(opt.value)}
               >
                 {opt.label}
