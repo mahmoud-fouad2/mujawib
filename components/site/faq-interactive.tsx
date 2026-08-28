@@ -141,7 +141,7 @@ export function FaqInteractive({
         )}
       </div>
 
-      <section className="section faq-cta-section">
+      <section className="section faq-cta-section on-ink">
         <div className="container">
           <div className="faq-cta-card reveal">
             <h2>{labels.contactCtaTitle}</h2>

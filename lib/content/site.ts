@@ -390,7 +390,7 @@ const ar: Copy = {
     bookDemo: 'احجز مكالمة تجريبية',
     menu: 'القائمة',
     close: 'إغلاق',
-    theme: 'تبديل المظهر',
+    theme: 'تبديل الوضع',
     langSwitch: 'English',
   },
 }

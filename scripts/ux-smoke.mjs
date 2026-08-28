@@ -309,7 +309,7 @@ async function main() {
     for (const route of routes) {
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
-        colorScheme: viewport.name === 'mobile' ? 'dark' : 'light',
+        colorScheme: viewport.name.startsWith('mobile') ? 'dark' : 'light',
         reducedMotion: 'reduce',
       })
       const page = await context.newPage()

@@ -1332,6 +1332,13 @@
   gap: var(--s-4);
 }
 
+/* Padding + negative margin: grows the tap target to the 24px WCAG 2.2 AA
+   minimum without shifting the visible row rhythm. */
+.site-footer__bar-links a {
+  padding-block: var(--s-1);
+  margin-block: calc(var(--s-1) * -1);
+}
+
 .site-footer__bar a:hover {
   color: var(--text);
 }
@@ -1341,6 +1348,8 @@
   align-items: center;
   gap: var(--s-2);
   margin-inline-start: auto;
+  padding-block: var(--s-1);
+  margin-block: calc(var(--s-1) * -1);
   color: var(--text-faint);
   transition: color var(--t-fast) var(--ease);
 }
@@ -2898,8 +2907,6 @@
 }
 
 .faq-cta-section {
-  background: var(--ink);
-  color: var(--paper);
   padding-block: var(--s-8);
   border-radius: var(--r-hero);
   margin: var(--s-4) var(--s-4) var(--s-8) var(--s-4);
