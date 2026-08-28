@@ -421,6 +421,7 @@ async function finalizeCall(
   code: number,
   reason: Buffer,
   state: SessionState,
+  socketError: string | null,
 ) {
   const endedAt = new Date()
   const normalClose = NORMAL_CLOSE_CODES.has(code)
@@ -435,7 +436,10 @@ async function finalizeCall(
     0,
     Math.round((endedAt.getTime() - row.startedAt.getTime()) / 1000),
   )
-  const closeReason = sanitizeLogText(reason.toString()) || null
+  // A code-1006 abnormal closure never carries a close-frame reason (there was
+  // no close frame) — the only place the actual transport error shows up is
+  // the socket's own 'error' event, captured below and threaded in here.
+  const closeReason = sanitizeLogText(reason.toString()) || socketError
   const previousSideband = asRecord(row.metadata?.sideband) ?? {}
   const status = normalClose ? 'completed' : 'failed'
 
@@ -546,6 +550,8 @@ async function runSideband(ctx: SidebandContext) {
   }, 15_000)
   heartbeat.unref()
 
+  let socketError: string | null = null
+
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => ws.terminate(), CONNECT_TIMEOUT_MS)
 
@@ -572,10 +578,11 @@ async function runSideband(ctx: SidebandContext) {
         })
     })
 
-    ws.on('error', () => {
+    ws.on('error', (error) => {
+      socketError = sanitizeLogText(String(error?.message ?? error))
       voiceError('SIDEBAND_ERROR', {
         callId: maskIdentifier(ctx.externalCallId),
-        message: 'control channel error',
+        message: socketError,
       })
     })
 
@@ -583,7 +590,7 @@ async function runSideband(ctx: SidebandContext) {
       clearTimeout(timeout)
       clearInterval(heartbeat)
       queue = queue
-        .then(() => finalizeCall(ctx, code, reason, state))
+        .then(() => finalizeCall(ctx, code, reason, state, socketError))
         .then(() => recording?.finalize())
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
         .finally(resolve)
