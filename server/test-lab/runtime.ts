@@ -9,6 +9,7 @@ import { db } from '@/server/db'
 import {
   agent,
   agentVersion,
+  flow,
   knowledgeItem,
   pronunciation,
   voiceProfile,
@@ -102,7 +103,7 @@ export async function loadVersionRuntime(versionId: string): Promise<VersionRunt
 
   if (!row || row.version.status === 'archived') return null
 
-  const [profiles, knowledge, pronunciations] = await Promise.all([
+  const [profiles, knowledge, pronunciations, versionFlows] = await Promise.all([
     row.version.voiceProfileId
       ? db
           .select()
@@ -112,6 +113,7 @@ export async function loadVersionRuntime(versionId: string): Promise<VersionRunt
       : Promise.resolve([]),
     db.select().from(knowledgeItem).where(eq(knowledgeItem.workspaceId, row.workspace.id)),
     db.select().from(pronunciation).where(eq(pronunciation.workspaceId, row.workspace.id)),
+    db.select().from(flow).where(eq(flow.agentVersionId, row.version.id)).orderBy(flow.sortOrder),
   ])
 
   const bindings = ((row.version.toolBindings ?? []) as string[]).filter(Boolean)
@@ -130,6 +132,7 @@ export async function loadVersionRuntime(versionId: string): Promise<VersionRunt
       profile: profiles[0] ?? null,
       knowledge,
       pronunciations,
+      flows: versionFlows,
     }),
     tools: toolsFor(bindings),
   }

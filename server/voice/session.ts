@@ -5,6 +5,7 @@ import { db } from '@/server/db'
 import {
   agent,
   agentVersion,
+  flow,
   knowledgeItem,
   phoneNumber,
   pronunciation,
@@ -89,12 +90,13 @@ async function resolveAgentForNumber(
   // A draft must never answer a real caller.
   if (!version) return null
 
-  const [profile, knowledge, words] = await Promise.all([
+  const [profile, knowledge, words, versionFlows] = await Promise.all([
     version.voiceProfileId
       ? db.select().from(voiceProfile).where(eq(voiceProfile.id, version.voiceProfileId)).limit(1)
       : Promise.resolve([]),
     db.select().from(knowledgeItem).where(eq(knowledgeItem.workspaceId, row.ws.id)),
     db.select().from(pronunciation).where(eq(pronunciation.workspaceId, row.ws.id)),
+    db.select().from(flow).where(eq(flow.agentVersionId, version.id)).orderBy(flow.sortOrder),
   ])
 
   const resolvedProfile = profile[0] ?? null
@@ -117,6 +119,7 @@ async function resolveAgentForNumber(
       profile: resolvedProfile,
       knowledge,
       pronunciations: words,
+      flows: versionFlows,
     }),
     tools: toolsFor(bindings),
     voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',

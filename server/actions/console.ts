@@ -471,6 +471,11 @@ export async function updateAgentDraft(
         .select()
         .from(pronunciation)
         .where(eq(pronunciation.workspaceId, parent.workspaceId))
+      const versionFlows = await tx
+        .select()
+        .from(flow)
+        .where(eq(flow.agentVersionId, versionId))
+        .orderBy(flow.sortOrder)
 
       const compiledPrompt = compilePrompt({
         workspace: ws,
@@ -483,6 +488,7 @@ export async function updateAgentDraft(
           flows,
           toolBindings,
         },
+        flows: versionFlows,
         agentName,
         profile: prof ?? null,
         knowledge,

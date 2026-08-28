@@ -3,11 +3,13 @@ import 'server-only'
 import type { InferSelectModel } from 'drizzle-orm'
 import type {
   agentVersion,
+  flow,
   knowledgeItem,
   pronunciation,
   voiceProfile,
   workspace,
 } from '@/server/db/schema'
+import { toolsFor } from '@/server/voice/tools'
 
 /**
  * Prompt Compiler — Product Bible §12.
@@ -28,6 +30,7 @@ type AgentVersion = InferSelectModel<typeof agentVersion>
 type VoiceProfile = InferSelectModel<typeof voiceProfile>
 type KnowledgeItem = InferSelectModel<typeof knowledgeItem>
 type Pronunciation = InferSelectModel<typeof pronunciation>
+type Flow = InferSelectModel<typeof flow>
 
 export type CompileInput = {
   workspace: Workspace
@@ -36,6 +39,13 @@ export type CompileInput = {
   profile: VoiceProfile | null
   knowledge: KnowledgeItem[]
   pronunciations: Pronunciation[]
+  /**
+   * Structured per-flow records (required fields, actions, fallback) — Bible
+   * §15. Optional and additive: a version with none falls back to the flat
+   * `version.flows` name list exactly as before, so nothing that already
+   * compiles today changes shape.
+   */
+  flows?: Flow[]
 }
 
 const DIALECT_GUIDANCE: Record<string, string> = {
@@ -54,6 +64,51 @@ const STYLE_GUIDANCE: Record<string, string> = {
 
 function layer(n: string, title: string, body: string) {
   return `## ${n} — ${title}\n${body.trim()}`
+}
+
+const FALLBACK_LABEL: Record<string, string> = {
+  callback_or_transfer: 'سجّل معاودة اتصال بالاسم والرقم، أو حوّل إن طلب المتصل ذلك',
+  transfer: 'حوّل لموظف بشري',
+  callback: 'سجّل معاودة اتصال بالاسم والرقم',
+}
+
+function describeFallback(fallback: unknown): string {
+  const onFailure = (fallback as { onFailure?: string } | null)?.onFailure
+  return (onFailure && FALLBACK_LABEL[onFailure]) || 'سجّل معاودة اتصال بالاسم والرقم'
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    : []
+}
+
+/**
+ * One flow, in the terms the model actually acts on. `actions` holds real
+ * tool names (Bible §15) — filtered against `enabledToolNames` so this layer
+ * never instructs a call to a tool the version has no binding for; a flow
+ * whose tools are unavailable gets an honest "cannot do this yet" line
+ * instead of a runnable-looking one, matching layer 06's own rule that an
+ * unbound version never claims a business action.
+ */
+function describeFlow(flow: Flow, enabledToolNames: Set<string>): string {
+  const actions = stringArray(flow.actions)
+  const fields = stringArray(flow.requiredFields)
+  const runnable = actions.filter((a) => enabledToolNames.has(a))
+  const fallback = describeFallback(flow.fallback)
+
+  const parts = [`**${flow.name}** — ${flow.goal}`]
+  if (fields.length) parts.push(`اجمع بالترتيب: ${fields.join('، ثم ')}.`)
+
+  if (runnable.length > 0) {
+    parts.push(`نفّذ بالترتيب: ${runnable.join(' ثم ')}. لا تؤكد النتيجة للمتصل قبل نجاح الأداة.`)
+    parts.push(`إذا فشلت الأداة أو تعذّر إتمامه: ${fallback}.`)
+  } else if (actions.some((a) => a !== 'answer')) {
+    parts.push(`لا تملك أداة فعلية لهذا المسار الآن — ${fallback}، ولا تدّعِ أنك نفّذته.`)
+  } else {
+    parts.push('أجب من معرفتك المسجّلة أعلاه فقط.')
+  }
+  return parts.join(' ')
 }
 
 /* ─── 01 base ────────────────────────────────────────────────────────────── */
@@ -87,6 +142,7 @@ const SAFETY = `
 
 export function compilePrompt(input: CompileInput): string {
   const { workspace: ws, version, agentName, profile, knowledge, pronunciations } = input
+  const structuredFlows = [...(input.flows ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
 
   const info = (ws.businessInfo ?? {}) as {
     city?: string
@@ -97,6 +153,9 @@ export function compilePrompt(input: CompileInput): string {
   const rules = (version.businessRules ?? {}) as { hours?: string; transferTo?: string }
   const routing = (version.routing ?? {}) as { afterHours?: string; escalation?: string }
   const flows = ((version.flows ?? []) as string[]).filter(Boolean)
+  const enabledToolNames = new Set(
+    toolsFor(((version.toolBindings ?? []) as string[]).filter(Boolean)).map((t) => t.name),
+  )
   const identity = (version.identity ?? {}) as {
     role?: string
     goals?: string[]
@@ -175,7 +234,22 @@ ${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: $
     ),
   )
 
-  if (flows.length) {
+  if (structuredFlows.length) {
+    const flowLines = structuredFlows.map(
+      (f, i) => `${i + 1}. ${describeFlow(f, enabledToolNames)}`,
+    )
+    layers.push(
+      layer(
+        '05',
+        'المسارات',
+        `مسارات هذا الموظف الصوتي، بالترتيب:
+
+${flowLines.join('\n')}
+
+اعرض خيارين للموعد لا أكثر. أكّد الاسم والرقم بإعادتهما على المتصل قبل التثبيت.`,
+      ),
+    )
+  } else if (flows.length) {
     layers.push(
       layer(
         '05',
