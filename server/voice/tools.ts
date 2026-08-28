@@ -136,11 +136,23 @@ export function toolsFor(bindings: string[]) {
   const has = (p: string) => active.some((b) => b.includes(p))
   const enabled = new Set<ToolName>(['create_callback', 'transfer_to_human'])
 
-  if (has('calendar') || has('microsoft')) {
+  // `rest_api`/`generic_api` carry the same capability set as a branded
+  // provider (lib/integrations.ts) and findIntegration() already falls back
+  // to them for every action — a workspace whose only calendar or WhatsApp
+  // connection is REST-backed must not lose the tool just because its
+  // binding string doesn't literally say "calendar" or "whatsapp". Whether
+  // that specific connection actually has the needed endpoint configured is
+  // checked again at call time by findIntegration/invokeIntegration, so
+  // offering the tool here is never a false promise — a REST connection
+  // bound for something unrelated (e.g. CRM only) still fails cleanly with
+  // the normal "not connected" fallback if the model tries to use it.
+  const hasGenericBackend = has('rest_api') || has('generic_api')
+
+  if (has('calendar') || has('microsoft') || hasGenericBackend) {
     enabled.add('check_availability')
     enabled.add('create_booking')
   }
-  if (has('whatsapp')) enabled.add('send_confirmation')
+  if (has('whatsapp') || hasGenericBackend) enabled.add('send_confirmation')
 
   return TOOL_DEFINITIONS.filter((t) => enabled.has(t.name as ToolName))
 }

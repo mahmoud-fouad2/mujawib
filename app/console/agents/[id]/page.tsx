@@ -90,6 +90,11 @@ export default async function AgentDetailPage({ params }: Props) {
                   style: p.style,
                 }))}
                 integrations={a.integrations}
+                structuredFlows={a.draftFlows.map((f) => ({
+                  id: f.id,
+                  name: f.name,
+                  goal: f.goal,
+                }))}
               />
             ) : null}
             <AgentRowActions

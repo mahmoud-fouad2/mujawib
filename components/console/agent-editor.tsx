@@ -47,6 +47,8 @@ export type AgentEditorProps = {
   }
   voiceProfiles: VoiceProfileOption[]
   integrations: IntegrationOption[]
+  /** The real flow rows the compiled prompt actually uses — see the note by the Flows section below. */
+  structuredFlows: { id: string; name: string; goal: string }[]
 }
 
 export function AgentEditorSheet({
@@ -55,6 +57,7 @@ export function AgentEditorSheet({
   draftVersion,
   voiceProfiles,
   integrations,
+  structuredFlows,
 }: AgentEditorProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(initialName)
@@ -489,51 +492,72 @@ export function AgentEditorSheet({
           {/* 5. Flows */}
           <div className="card-sub">
             <h4 style={{ marginBlockEnd: 'var(--s-3)' }}>المسارات المدعومة</h4>
-            <div className="field">
-              <label htmlFor="new-flow-input">إضافة مسار جديد</label>
-              <div className="row" style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)' }}>
-                <input
-                  id="new-flow-input"
-                  className="input"
-                  value={newFlow}
-                  onChange={(e) => setNewFlow(e.target.value)}
-                  placeholder="اسم المسار: حجز موعد، إلغاء، استفسار…"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addFlow()
-                    }
-                  }}
-                />
-                <Button size="sm" onClick={addFlow} type="button">
-                  <Plus size={14} />
-                </Button>
-              </div>
-            </div>
-            <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
-              {flows.map((f) => (
-                <span
-                  key={f}
-                  className="pill"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                >
-                  {f}
-                  <button
-                    type="button"
-                    onClick={() => removeFlow(f)}
-                    style={{
-                      color: 'var(--bad)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
+            {structuredFlows.length > 0 ? (
+              <>
+                <p className="field__hint" style={{ marginBlockEnd: 'var(--s-3)' }}>
+                  هذه المسارات الفعلية التي يستخدمها الموظف الصوتي — مصدرها قالب القطاع عند التهيئة،
+                  ولا يمكن تعديلها من هنا بعد.
+                </p>
+                <div className="stack" style={{ gap: 'var(--s-2)' }}>
+                  {structuredFlows.map((f) => (
+                    <div key={f.id} className="row" style={{ gap: 'var(--s-2)' }}>
+                      <Pill>{f.name}</Pill>
+                      <span className="muted" style={{ fontSize: 'var(--step--1)' }}>
+                        {f.goal}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="field">
+                  <label htmlFor="new-flow-input">إضافة مسار جديد</label>
+                  <div className="row" style={{ gap: 'var(--s-2)', marginBlockEnd: 'var(--s-2)' }}>
+                    <input
+                      id="new-flow-input"
+                      className="input"
+                      value={newFlow}
+                      onChange={(e) => setNewFlow(e.target.value)}
+                      placeholder="اسم المسار: حجز موعد، إلغاء، استفسار…"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addFlow()
+                        }
+                      }}
+                    />
+                    <Button size="sm" onClick={addFlow} type="button">
+                      <Plus size={14} />
+                    </Button>
+                  </div>
+                </div>
+                <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
+                  {flows.map((f) => (
+                    <span
+                      key={f}
+                      className="pill"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      {f}
+                      <button
+                        type="button"
+                        onClick={() => removeFlow(f)}
+                        style={{
+                          color: 'var(--bad)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* 6. Tools & Integrations */}
