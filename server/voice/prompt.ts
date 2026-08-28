@@ -168,6 +168,7 @@ export function compilePrompt(input: CompileInput): string {
   const branches = knowledge.filter((k) => k.category === 'branch')
   const staff = knowledge.filter((k) => k.category === 'staff')
   const policies = knowledge.filter((k) => k.category === 'policy')
+  const faqs = knowledge.filter((k) => k.category === 'faq')
 
   const layers: string[] = []
 
@@ -230,7 +231,14 @@ ${services
 
 ${branches.length ? `الفروع:\n${branches.map((b) => `- ${b.title}`).join('\n')}` : ''}
 ${staff.length ? `\nالفريق:\n${staff.map((s) => `- ${s.title}`).join('\n')}` : ''}
-${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: ${((p.content ?? {}) as { body?: string }).body ?? ''}`).join('\n')}` : ''}`,
+${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: ${((p.content ?? {}) as { body?: string }).body ?? ''}`).join('\n')}` : ''}
+${
+  faqs.length
+    ? `\nأسئلة متكررة — أجب بهذه الإجابة المعتمدة حرفيًا ولا تخترع غيرها:\n${faqs
+        .map((f) => `- س: ${f.title}\n  ج: ${((f.content ?? {}) as { body?: string }).body ?? ''}`)
+        .join('\n')}`
+    : ''
+}`,
     ),
   )
 
