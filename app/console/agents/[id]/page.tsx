@@ -81,6 +81,7 @@ export default async function AgentDetailPage({ params }: Props) {
                     (a.draft.routing as { afterHours?: string; escalation?: string } | null) ??
                     null,
                   flows: (a.draft.flows as string[] | null) ?? null,
+                  toolBindings: (a.draft.toolBindings as string[] | null) ?? null,
                 }}
                 voiceProfiles={a.allVoiceProfiles.map((p) => ({
                   id: p.id,
@@ -88,6 +89,7 @@ export default async function AgentDetailPage({ params }: Props) {
                   dialect: p.dialect,
                   style: p.style,
                 }))}
+                integrations={a.integrations}
               />
             ) : null}
             <AgentRowActions

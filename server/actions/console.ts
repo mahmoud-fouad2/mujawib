@@ -410,6 +410,7 @@ const updateDraftSchema = z.object({
     escalation: z.string().trim().optional(),
   }),
   flows: z.array(z.string().trim()).default([]),
+  toolBindings: z.array(z.string().trim().min(1)).default([]),
 })
 
 export async function updateAgentDraft(
@@ -423,8 +424,17 @@ export async function updateAgentDraft(
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات المسودة غير صالحة.' }
   }
 
-  const { agentId, versionId, agentName, voiceProfileId, identity, businessRules, routing, flows } =
-    parsed.data
+  const {
+    agentId,
+    versionId,
+    agentName,
+    voiceProfileId,
+    identity,
+    businessRules,
+    routing,
+    flows,
+    toolBindings,
+  } = parsed.data
   const actorId = await actor()
   const now = new Date()
 
@@ -471,6 +481,7 @@ export async function updateAgentDraft(
           businessRules,
           routing,
           flows,
+          toolBindings,
         },
         agentName,
         profile: prof ?? null,
@@ -490,6 +501,7 @@ export async function updateAgentDraft(
           businessRules,
           routing,
           flows,
+          toolBindings,
           compiledPrompt,
           updatedAt: now,
         })

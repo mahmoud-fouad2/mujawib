@@ -1,11 +1,19 @@
 'use client'
 
-import { Edit3, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Edit3, Plug, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/overlays'
+import { Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
 import { updateAgentDraft } from '@/server/actions/console'
+
+type IntegrationOption = {
+  id: string
+  provider: string
+  label: string
+  health: string
+}
 
 type VoiceProfileOption = {
   id: string
@@ -35,8 +43,10 @@ export type AgentEditorProps = {
       escalation?: string
     } | null
     flows: string[] | null
+    toolBindings: string[] | null
   }
   voiceProfiles: VoiceProfileOption[]
+  integrations: IntegrationOption[]
 }
 
 export function AgentEditorSheet({
@@ -44,6 +54,7 @@ export function AgentEditorSheet({
   agentName: initialName,
   draftVersion,
   voiceProfiles,
+  integrations,
 }: AgentEditorProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(initialName)
@@ -61,6 +72,7 @@ export function AgentEditorSheet({
       ? draftVersion.flows
       : ['حجز موعد', 'استفسار عن الخدمات', 'تحويل لموظف'],
   )
+  const [bindings, setBindings] = useState<Set<string>>(new Set(draftVersion.toolBindings ?? []))
 
   const [newGoal, setNewGoal] = useState('')
   const [newRestricted, setNewRestricted] = useState('')
@@ -90,9 +102,19 @@ export function AgentEditorSheet({
             escalation: transferTo,
           },
           flows: flows.filter(Boolean),
+          toolBindings: [...bindings],
         }),
       () => setOpen(false),
     )
+  }
+
+  const toggleBinding = (provider: string) => {
+    setBindings((prev) => {
+      const next = new Set(prev)
+      if (next.has(provider)) next.delete(provider)
+      else next.add(provider)
+      return next
+    })
   }
 
   const addGoal = () => {
@@ -201,7 +223,7 @@ export function AgentEditorSheet({
         open={open}
         onClose={() => setOpen(false)}
         title={`تعديل إعدادات الموظف الصوتي (مسودة v${draftVersion.versionNumber})`}
-        description="عدّل الهوية، الصوت، قواعد وساعات العمل، والمسارات. يتم بناء التوجيه الصوتي تلقائيًا من الطبقات التسع."
+        description="عدّل الهوية، الصوت، قواعد وساعات العمل، المسارات، والأدوات المرتبطة. يتم بناء التوجيه الصوتي تلقائيًا من الطبقات التسع."
         footer={
           <>
             <Button onClick={() => setOpen(false)} disabled={pending}>
@@ -512,6 +534,55 @@ export function AgentEditorSheet({
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* 6. Tools & Integrations */}
+          <div className="card-sub">
+            <h4 style={{ marginBlockEnd: 'var(--s-3)' }}>الأدوات والتكاملات</h4>
+            <p
+              className="muted"
+              style={{ fontSize: 'var(--step--1)', marginBlockEnd: 'var(--s-3)' }}
+            >
+              تحديد ربط هنا يمنح الموظف الصوتي الأداة المقابلة له فقط (حجز، إرسال تأكيد…). بلا ربط
+              مفعّل، لا يعد الموظف بأي إجراء لا يقدر ينفذه.
+            </p>
+            {integrations.length === 0 ? (
+              <p className="muted" style={{ fontSize: 'var(--step--1)' }}>
+                لا يوجد أي تكامل مُعدّ لهذا العميل بعد. أضِف واحدًا من صفحة{' '}
+                <strong>Integrations</strong> أولًا.
+              </p>
+            ) : (
+              <div className="stack" style={{ gap: 'var(--s-2)' }}>
+                {integrations.map((integration) => (
+                  <label
+                    key={integration.id}
+                    className="row"
+                    style={{
+                      gap: 'var(--s-2)',
+                      alignItems: 'center',
+                      padding: '8px 10px',
+                      background: 'var(--surface)',
+                      borderRadius: 'var(--r-sm)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bindings.has(integration.provider)}
+                      onChange={() => toggleBinding(integration.provider)}
+                    />
+                    <Plug size={14} style={{ color: 'var(--signal)' }} aria-hidden="true" />
+                    <span style={{ flex: 1, fontSize: 'var(--step--1)' }}>{integration.label}</span>
+                    <span className="muted mono" style={{ fontSize: 'var(--step--2)' }} dir="ltr">
+                      {integration.provider}
+                    </span>
+                    <Pill tone={integration.health === 'connected' ? 'good' : 'warn'}>
+                      {integration.health === 'connected' ? 'متصل' : 'غير متصل'}
+                    </Pill>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </Sheet>
