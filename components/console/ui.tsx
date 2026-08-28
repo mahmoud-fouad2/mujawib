@@ -140,7 +140,7 @@ export function VolumeBars({
           <div
             key={d.day}
             className="bars__col"
-            style={{ height: `${(d.total / max) * 100}%` }}
+            style={{ height: `${Math.max(2, (d.total / max) * 100)}%` }}
             title={`${d.day}: ${d.total}`}
           >
             <i style={{ height: `${d.total ? (d.resolved / d.total) * 100 : 0}%` }} />

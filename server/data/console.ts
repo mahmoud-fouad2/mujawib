@@ -1134,7 +1134,7 @@ export async function getClientOptions() {
 /* ─── Voice Lab ──────────────────────────────────────────────────────────── */
 
 export async function getVoiceLab() {
-  const [profiles, words, runs] = await Promise.all([
+  const [profiles, words, [wordTotals], runs] = await Promise.all([
     db.select().from(voiceProfile).orderBy(voiceProfile.name),
     db
       .select({
@@ -1151,6 +1151,17 @@ export async function getVoiceLab() {
       .leftJoin(workspace, eq(pronunciation.workspaceId, workspace.id))
       .orderBy(desc(pronunciation.updatedAt))
       .limit(30),
+    // The list above is capped to the 30 most-recently-updated entries, so a
+    // pending count derived from it silently ignores any older draft still
+    // waiting for approval. This is the true, unbounded count instead.
+    db
+      .select({
+        total: sql<number>`count(*)`.mapWith(Number),
+        pending: sql<number>`count(*) filter (where ${pronunciation.status} = 'draft')`.mapWith(
+          Number,
+        ),
+      })
+      .from(pronunciation),
     db
       .select({
         name: scenarioTest.name,
@@ -1177,6 +1188,7 @@ export async function getVoiceLab() {
   return {
     profiles,
     words,
+    wordTotals: wordTotals ?? { total: 0, pending: 0 },
     runs,
     passRate: runs.length ? Math.round((passed / runs.length) * 100) : 0,
     criticalFailed,

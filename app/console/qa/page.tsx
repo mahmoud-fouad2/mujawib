@@ -11,7 +11,6 @@ export const dynamic = 'force-dynamic'
 
 export default async function QaPage() {
   const { rows, totals, reasons } = await getQaQueue(60)
-  const open = rows.filter((r) => !r.reviewerId)
 
   return (
     <>
@@ -36,7 +35,7 @@ export default async function QaPage() {
       />
 
       <div className="split">
-        <Section title="طابور المراجعة" meta={`${num(open.length)} مفتوحة`} flush>
+        <Section title="طابور المراجعة" meta={`${num(totals.open)} مفتوحة`} flush>
           {rows.length === 0 ? (
             <EmptyState
               title="لا شيء ينتظر المراجعة"
@@ -109,9 +108,10 @@ export default async function QaPage() {
         <Section title="أسباب الدخول للطابور" meta="المفتوحة فقط" flush>
           <div className="queue">
             {reasons.length === 0 ? (
-              <div className="empty">
-                <p>لا أسباب مفتوحة حاليًا.</p>
-              </div>
+              <EmptyState
+                title="لا أسباب مفتوحة حاليًا"
+                body="ستظهر هنا أكثر أسباب المراجعة تكرارًا."
+              />
             ) : (
               reasons.map((r) => (
                 <div key={r.flag} className="queue__row">

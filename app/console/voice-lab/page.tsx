@@ -31,12 +31,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 export default async function VoiceLabPage() {
-  const [{ profiles, words, runs, passRate, criticalFailed }, clients] = await Promise.all([
-    getVoiceLab(),
-    getClientOptions(),
-  ])
-
-  const pendingWords = words.filter((w) => w.status === 'draft').length
+  const [{ profiles, words, wordTotals, runs, passRate, criticalFailed }, clients] =
+    await Promise.all([getVoiceLab(), getClientOptions()])
 
   return (
     <>
@@ -62,41 +58,54 @@ export default async function VoiceLabPage() {
                 },
               ]
             : []),
-          ...(pendingWords
-            ? [{ label: 'نطق بانتظار الاعتماد', value: num(pendingWords), tone: 'warn' as const }]
+          ...(wordTotals.pending
+            ? [
+                {
+                  label: 'نطق بانتظار الاعتماد',
+                  value: num(wordTotals.pending),
+                  tone: 'warn' as const,
+                },
+              ]
             : []),
         ]}
       />
 
       <div className="split">
         <Section title="ملفات اللهجات" flush>
-          <div className="table-scroll">
-            <table className="table table--rows">
-              <thead>
-                <tr>
-                  <th>الملف</th>
-                  <th>اللهجة</th>
-                  <th>الأسلوب</th>
-                  <th>سياسة اللغة</th>
-                  <th>النطاق</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((p) => {
-                  const policy = (p.languagePolicy ?? {}) as { primary?: string }
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 500 }}>{p.name}</td>
-                      <td className="mono">{p.dialect}</td>
-                      <td className="muted">{STYLE_LABEL[p.style] ?? p.style}</td>
-                      <td className="mono">{policy.primary ?? '—'}</td>
-                      <td>{p.isGlobal ? <Pill tone="signal">عام</Pill> : <Pill>خاص</Pill>}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {profiles.length === 0 ? (
+            <EmptyState
+              title="لا ملفات لهجة بعد"
+              body="ملف اللهجة يحدد أسلوب الصوت وسياسة اللغة لكل عميل أو للنطاق العام."
+            />
+          ) : (
+            <div className="table-scroll">
+              <table className="table table--rows">
+                <thead>
+                  <tr>
+                    <th>الملف</th>
+                    <th>اللهجة</th>
+                    <th>الأسلوب</th>
+                    <th>سياسة اللغة</th>
+                    <th>النطاق</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profiles.map((p) => {
+                    const policy = (p.languagePolicy ?? {}) as { primary?: string }
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                        <td className="mono">{p.dialect}</td>
+                        <td className="muted">{STYLE_LABEL[p.style] ?? p.style}</td>
+                        <td className="mono">{policy.primary ?? '—'}</td>
+                        <td>{p.isGlobal ? <Pill tone="signal">عام</Pill> : <Pill>خاص</Pill>}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Section>
 
         <Section title="نتائج الاختبار" meta="آخر تشغيل لكل سيناريو" flush>
@@ -130,7 +139,7 @@ export default async function VoiceLabPage() {
 
       <Section
         title="قاموس النطق"
-        meta={`${num(words.length)} مدخل`}
+        meta={`${num(wordTotals.total)} مدخل`}
         action={<AddPronunciation workspaces={clients} />}
         flush
       >

@@ -1,9 +1,10 @@
 'use client'
 
-import { BookOpen, Edit2, Plus, Tag, Trash2 } from 'lucide-react'
+import { Edit2, Plus, Tag, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
+import { EmptyState, Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
 import {
   createKnowledgeItem,
@@ -151,11 +152,10 @@ export function KnowledgeManager({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty" style={{ marginBlock: 'var(--s-4)' }}>
-          <BookOpen size={20} className="muted" />
-          <h3>لا توجد عناصر في هذا القسم</h3>
-          <p>أضف خدمات، فروع، أو سياسات ليبني الموظف الصوتي ردوده منها حرفيًا.</p>
-        </div>
+        <EmptyState
+          title="لا توجد عناصر في هذا القسم"
+          body="أضف خدمات، فروع، أو سياسات ليبني الموظف الصوتي ردوده منها حرفيًا."
+        />
       ) : (
         <div className="queue">
           {filtered.map((item) => {
@@ -165,14 +165,12 @@ export function KnowledgeManager({
                 <div style={{ flex: 1 }}>
                   <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
                     <span className="queue__title">{item.title}</span>
-                    <span className="pill" style={{ fontSize: '0.7rem' }}>
+                    <Pill>
                       <Tag size={10} style={{ marginInlineEnd: '4px' }} />
                       {CATEGORIES.find((cat) => cat.id === item.category)?.label ?? item.category}
-                    </span>
+                    </Pill>
                     {typeof c.price === 'string' && c.price ? (
-                      <span className="pill pill--good" style={{ fontSize: '0.7rem' }}>
-                        {c.price}
-                      </span>
+                      <Pill tone="good">{c.price}</Pill>
                     ) : null}
                     {typeof c.duration === 'string' && c.duration ? (
                       <span className="muted" style={{ fontSize: '0.75rem' }}>

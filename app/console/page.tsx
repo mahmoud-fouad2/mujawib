@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { DailyBars, Ratio, ShareBars, Sparkline } from '@/components/console/charts'
 import { PageHead, Section, StatusStrip } from '@/components/console/ui'
 import { Equaliser } from '@/components/ui/motion'
-import { Pill } from '@/components/ui/primitives'
+import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
   CALL_STATUS_LABEL,
@@ -129,10 +129,7 @@ export default async function ConsoleHomePage() {
           flush
         >
           {attention.length === 0 ? (
-            <div className="empty">
-              <h3>لا شيء ينتظر المراجعة</h3>
-              <p>كل المكالمات المُعلَّمة تمت مراجعتها.</p>
-            </div>
+            <EmptyState title="لا شيء ينتظر المراجعة" body="كل المكالمات المُعلَّمة تمت مراجعتها." />
           ) : (
             <div className="queue">
               {attention.map((a) => (
@@ -220,9 +217,10 @@ export default async function ConsoleHomePage() {
           flush
         >
           {live.length === 0 ? (
-            <div className="empty">
-              <p>لا مكالمات جارية في هذه اللحظة.</p>
-            </div>
+            <EmptyState
+              title="لا مكالمات جارية"
+              body="ستظهر هنا كل مكالمة يستقبلها المُجاوِب في هذه اللحظة."
+            />
           ) : (
             <div className="table-scroll">
               <table className="table table--rows">
@@ -268,9 +266,10 @@ export default async function ConsoleHomePage() {
 
         <Section title="عملاء يحتاجون متابعة" meta="آخر 7 أيام" flush>
           {risk.length === 0 ? (
-            <div className="empty">
-              <p>لا مؤشرات خطر هذا الأسبوع.</p>
-            </div>
+            <EmptyState
+              title="لا مؤشرات خطر"
+              body="لا عميل يظهر تحويلاً أو نتائج غير محلولة أعلى من المعتاد هذا الأسبوع."
+            />
           ) : (
             <ShareBars
               tone="warn"
@@ -285,25 +284,29 @@ export default async function ConsoleHomePage() {
       </div>
 
       <Section title="آخر ما جرى" meta="سجل التدقيق" flush>
-        <div className="queue">
-          {activity.map((a) => (
-            <div key={a.id} className="queue__row">
-              <div>
-                <div className="queue__title">
-                  {(a.metadata as { note?: string })?.note ?? a.action}
+        {activity.length === 0 ? (
+          <EmptyState title="لا نشاط بعد" body="سيظهر هنا كل تغيير مؤثر على الإنتاج فور حدوثه." />
+        ) : (
+          <div className="queue">
+            {activity.map((a) => (
+              <div key={a.id} className="queue__row">
+                <div>
+                  <div className="queue__title">
+                    {(a.metadata as { note?: string })?.note ?? a.action}
+                  </div>
+                  <div className="queue__meta">
+                    <span className="mono">{a.action}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{a.workspaceName ?? 'المنصة'}</span>
+                  </div>
                 </div>
-                <div className="queue__meta">
-                  <span className="mono">{a.action}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{a.workspaceName ?? 'المنصة'}</span>
-                </div>
+                <span className="muted" style={{ fontSize: '0.75rem' }}>
+                  {relative(a.createdAt)}
+                </span>
               </div>
-              <span className="muted" style={{ fontSize: '0.75rem' }}>
-                {relative(a.createdAt)}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Section>
     </>
   )

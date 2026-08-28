@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ClientRowActions } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
-import { Pill } from '@/components/ui/primitives'
+import { EmptyState, Pill } from '@/components/ui/primitives'
 import { type ClientBusinessInfo, clientEditable } from '@/lib/client-editable'
 import { num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
@@ -57,59 +57,66 @@ export default async function ClientsPage() {
       />
 
       <Section title="كل العملاء" flush>
-        <div className="table-scroll">
-          <table className="table table--rows">
-            <thead>
-              <tr>
-                <th>الشركة</th>
-                <th>الحالة</th>
-                <th>القطاع</th>
-                <th>المدينة</th>
-                <th>مكالمات 30 يومًا</th>
-                <th>حجوزات</th>
-                <th>موظفون</th>
-                <th>الربط</th>
-                <th>منذ</th>
-                <th aria-label="إجراءات" />
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map((c) => {
-                const info = (c.businessInfo ?? {}) as ClientBusinessInfo
-                return (
-                  <tr key={c.id}>
-                    <td style={{ fontWeight: 500 }}>
-                      <Link href={`/console/clients/${c.slug}`}>{c.name}</Link>
-                    </td>
-                    <td>
-                      <Pill tone={workspaceTone(c.status)}>
-                        {WORKSPACE_STATUS_LABEL[c.status] ?? c.status}
-                      </Pill>
-                    </td>
-                    <td className="muted">
-                      {c.industryPack ? (PACK_LABEL[c.industryPack] ?? c.industryPack) : '—'}
-                    </td>
-                    <td className="muted">{info.city ?? '—'}</td>
-                    <td className="mono">{num(c.calls30d)}</td>
-                    <td className="mono">{num(c.bookings30d)}</td>
-                    <td className="mono">{num(c.agents)}</td>
-                    <td>
-                      {c.unhealthy > 0 ? (
-                        <Pill tone="bad">{num(c.unhealthy)} متعثر</Pill>
-                      ) : (
-                        <Pill tone="good">سليم</Pill>
-                      )}
-                    </td>
-                    <td className="muted">{relative(c.createdAt)}</td>
-                    <td>
-                      <ClientRowActions client={clientEditable(c, info)} canDelete={canDelete} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        {clients.length === 0 ? (
+          <EmptyState
+            title="لا عملاء بعد"
+            body="أضف أول عميل من زر «عميل جديد» أعلاه ليبدأ إعداد الموظف الصوتي له."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="table table--rows">
+              <thead>
+                <tr>
+                  <th>الشركة</th>
+                  <th>الحالة</th>
+                  <th>القطاع</th>
+                  <th>المدينة</th>
+                  <th>مكالمات 30 يومًا</th>
+                  <th>حجوزات</th>
+                  <th>موظفون</th>
+                  <th>الربط</th>
+                  <th>منذ</th>
+                  <th aria-label="إجراءات" />
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((c) => {
+                  const info = (c.businessInfo ?? {}) as ClientBusinessInfo
+                  return (
+                    <tr key={c.id}>
+                      <td style={{ fontWeight: 500 }}>
+                        <Link href={`/console/clients/${c.slug}`}>{c.name}</Link>
+                      </td>
+                      <td>
+                        <Pill tone={workspaceTone(c.status)}>
+                          {WORKSPACE_STATUS_LABEL[c.status] ?? c.status}
+                        </Pill>
+                      </td>
+                      <td className="muted">
+                        {c.industryPack ? (PACK_LABEL[c.industryPack] ?? c.industryPack) : '—'}
+                      </td>
+                      <td className="muted">{info.city ?? '—'}</td>
+                      <td className="mono">{num(c.calls30d)}</td>
+                      <td className="mono">{num(c.bookings30d)}</td>
+                      <td className="mono">{num(c.agents)}</td>
+                      <td>
+                        {c.unhealthy > 0 ? (
+                          <Pill tone="bad">{num(c.unhealthy)} متعثر</Pill>
+                        ) : (
+                          <Pill tone="good">سليم</Pill>
+                        )}
+                      </td>
+                      <td className="muted">{relative(c.createdAt)}</td>
+                      <td>
+                        <ClientRowActions client={clientEditable(c, info)} canDelete={canDelete} />
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
     </>
   )

@@ -49,12 +49,12 @@ export function TestLabToolbar({
   const [maxWords, setMaxWords] = useState('35')
   const { run, pending } = useAction()
 
+  // language/maxWords are always present (a <select> and a defaulted input,
+  // neither can go empty the way the three checks below can) — including
+  // them here made this true unconditionally, silently defeating the "must
+  // specify at least one real assertion" rule the disabled state below relies on.
   const hasExpectation = Boolean(
-    lines(mustIncludeAny).length ||
-      lines(mustNotInclude).length ||
-      expectedTool ||
-      language ||
-      maxWords,
+    lines(mustIncludeAny).length || lines(mustNotInclude).length || expectedTool,
   )
 
   function reset() {

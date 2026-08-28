@@ -2,6 +2,7 @@ import { CircleAlert, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import { PlatformContactSettings } from '@/components/console/platform-contact-form'
 import { MetricStrip, PageHead, Section } from '@/components/console/ui'
+import { EmptyState } from '@/components/ui/primitives'
 import { clock, fullDate, num, relative } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getSystemOverview } from '@/server/data/console'
@@ -90,32 +91,42 @@ export default async function SystemPage() {
 
       <div className="split">
         <Section title="سجل التدقيق" meta="كل تغيير على الإنتاج" flush>
-          <div className="table-scroll">
-            <table className="table table--rows">
-              <thead>
-                <tr>
-                  <th>الإجراء</th>
-                  <th>التفصيل</th>
-                  <th>العميل</th>
-                  <th>المنفّذ</th>
-                  <th>التاريخ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.map((a) => (
-                  <tr key={a.id}>
-                    <td style={{ fontWeight: 500 }}>{ACTION_LABEL[a.action] ?? a.action}</td>
-                    <td className="muted">{(a.metadata as { note?: string })?.note ?? '—'}</td>
-                    <td className="muted">{a.workspaceName ?? 'المنصة'}</td>
-                    <td className="mono muted">{a.actorId ?? '—'}</td>
-                    <td className="muted" title={`${fullDate(a.createdAt)} ${clock(a.createdAt)}`}>
-                      {relative(a.createdAt)}
-                    </td>
+          {audit.length === 0 ? (
+            <EmptyState
+              title="لا تغييرات مسجّلة بعد"
+              body="سيظهر هنا كل تغيير مؤثر على الإنتاج — نشر نسخة، ربط تكامل، تغيير مسار رقم."
+            />
+          ) : (
+            <div className="table-scroll">
+              <table className="table table--rows">
+                <thead>
+                  <tr>
+                    <th>الإجراء</th>
+                    <th>التفصيل</th>
+                    <th>العميل</th>
+                    <th>المنفّذ</th>
+                    <th>التاريخ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {audit.map((a) => (
+                    <tr key={a.id}>
+                      <td style={{ fontWeight: 500 }}>{ACTION_LABEL[a.action] ?? a.action}</td>
+                      <td className="muted">{(a.metadata as { note?: string })?.note ?? '—'}</td>
+                      <td className="muted">{a.workspaceName ?? 'المنصة'}</td>
+                      <td className="mono muted">{a.actorId ?? '—'}</td>
+                      <td
+                        className="muted"
+                        title={`${fullDate(a.createdAt)} ${clock(a.createdAt)}`}
+                      >
+                        {relative(a.createdAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Section>
 
         <Section title="حجم البيانات" flush>
