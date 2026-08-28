@@ -7,6 +7,7 @@ import {
   capabilitiesForProvider,
   integrationSetupState,
   normalizeIntegrationConfig,
+  optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
 import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
 import { db } from '@/server/db'
@@ -1212,6 +1213,7 @@ export async function getIntegrations(options: { workspaceId?: string } = {}) {
       ...row,
       config,
       capabilities: capabilitiesForProvider(row.provider),
+      optionalCapabilities: optionalCapabilitiesForProvider(row.provider),
       setup: integrationSetupState({
         provider: row.provider,
         config,

@@ -26,6 +26,8 @@ const availabilityResponse = z.object({
 
 const bookingResponse = z.object({ bookingId: z.string().min(1).max(200) })
 
+const cancellationResponse = z.object({ cancelled: z.literal(true) })
+
 const messageResponse = z.union([
   z.object({ messageId: z.string().min(1).max(200) }),
   z.object({ sent: z.literal(true) }),
@@ -89,14 +91,17 @@ async function persistHealth(connection: Connection, result: IntegrationResult<u
   }
 }
 
+const RESPONSE_SCHEMA: Partial<Record<IntegrationAction, z.ZodType>> = {
+  availability: availabilityResponse,
+  booking: bookingResponse,
+  cancellation: cancellationResponse,
+  message: messageResponse,
+}
+
 function validateResponse(action: IntegrationAction, value: unknown): unknown | null {
   if (action === 'health') return value
-  const schema =
-    action === 'availability'
-      ? availabilityResponse
-      : action === 'booking'
-        ? bookingResponse
-        : messageResponse
+  const schema = RESPONSE_SCHEMA[action]
+  if (!schema) return null
   const parsed = schema.safeParse(value)
   return parsed.success ? parsed.data : null
 }
@@ -147,4 +152,31 @@ export async function invokeIntegration<T = Record<string, unknown>>(input: {
   }
   await persistHealth(input.connection, result)
   return result
+}
+
+/** Prefers a configured native connection, then the client's generic API adapter. */
+export async function findIntegration(
+  workspaceId: string,
+  providers: string[],
+  action: IntegrationAction,
+) {
+  const rows = await db
+    .select()
+    .from(integrationConnection)
+    .where(eq(integrationConnection.workspaceId, workspaceId))
+
+  const providerOrder = [...providers, 'rest_api', 'generic_api']
+  return (
+    rows
+      .filter(
+        (row) =>
+          providerOrder.includes(row.provider) &&
+          (row.health === 'connected' || row.health === 'degraded') &&
+          Boolean(normalizeIntegrationConfig(row.config).endpoints[action]),
+      )
+      .sort((a, b) => {
+        const health = Number(b.health === 'connected') - Number(a.health === 'connected')
+        return health || providerOrder.indexOf(a.provider) - providerOrder.indexOf(b.provider)
+      })[0] ?? null
+  )
 }

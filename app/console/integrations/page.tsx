@@ -93,6 +93,7 @@ export default async function IntegrationsPage({
                       id={r.id}
                       label={r.label}
                       capabilities={r.capabilities}
+                      optionalCapabilities={r.optionalCapabilities}
                       endpoints={r.config.endpoints}
                       credentialsRef={r.credentialsRef}
                     />

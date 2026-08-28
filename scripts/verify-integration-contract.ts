@@ -1,8 +1,10 @@
 import {
+  capabilitiesForProvider,
   credentialReference,
   inspectOutboundUrl,
   integrationSetupState,
   normalizeIntegrationConfig,
+  optionalCapabilitiesForProvider,
 } from '../lib/integrations.ts'
 
 let failures = 0
@@ -108,6 +110,34 @@ check(
     credentialsRef: 'env:CLIENT_CALENDAR_TOKEN',
   }).ready,
   true,
+)
+check(
+  // Cancellation must stay opt-in for calendars: every connection made
+  // before this endpoint existed has no way to have configured one, and
+  // must not regress to "not ready" because of it.
+  'calendar without a cancellation endpoint is still ready',
+  integrationSetupState({
+    provider: 'google_calendar',
+    config: normalizeIntegrationConfig({
+      version: 1,
+      endpoints: {
+        availability: 'https://api.example.com/availability',
+        booking: 'https://api.example.com/bookings',
+      },
+    }),
+    credentialsRef: 'env:CLIENT_CALENDAR_TOKEN',
+  }).ready,
+  true,
+)
+check(
+  'cancellation is an optional, not a required, calendar capability',
+  capabilitiesForProvider('google_calendar').includes('cancellation'),
+  false,
+)
+check(
+  'cancellation is offered as an optional calendar capability',
+  optionalCapabilitiesForProvider('google_calendar'),
+  ['cancellation'],
 )
 
 if (failures > 0) {

@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
+import type { IntegrationAction } from '@/lib/integrations'
 import {
   createPhoneNumber,
   getReassignTargets,
@@ -28,8 +29,6 @@ import {
 
 /* ─── integrations ───────────────────────────────────────────────────────── */
 
-type IntegrationAction = 'health' | 'availability' | 'booking' | 'message'
-
 const INTEGRATION_FIELD: Record<IntegrationAction, { label: string; hint: string }> = {
   health: {
     label: 'عنوان فحص الاتصال',
@@ -43,6 +42,10 @@ const INTEGRATION_FIELD: Record<IntegrationAction, { label: string; hint: string
     label: 'عنوان تثبيت الحجز',
     hint: 'يعيد JSON يحتوي bookingId بعد نجاح الحجز الفعلي.',
   },
+  cancellation: {
+    label: 'عنوان إلغاء الحجز (اختياري)',
+    hint: 'يُستخدم فور توفره عند إلغاء العميل حجزًا من البوابة. تركه فارغًا لا يؤثر على جاهزية الاتصال.',
+  },
   message: {
     label: 'عنوان إرسال التأكيد',
     hint: 'يعيد messageId أو sent: true بعد الإرسال الفعلي.',
@@ -53,12 +56,14 @@ export function IntegrationRowActions({
   id,
   label,
   capabilities,
+  optionalCapabilities = [],
   endpoints,
   credentialsRef,
 }: {
   id: string
   label: string
   capabilities: IntegrationAction[]
+  optionalCapabilities?: IntegrationAction[]
   endpoints: Partial<Record<IntegrationAction, string | undefined>>
   credentialsRef: string | null
 }) {
@@ -113,7 +118,7 @@ export function IntegrationRowActions({
         }
       >
         <div className="stack" style={{ gap: 'var(--s-5)' }}>
-          {capabilities.map((action) => (
+          {[...capabilities, ...optionalCapabilities].map((action) => (
             <div className="field" key={action}>
               <label htmlFor={`${action}-${id}`}>{INTEGRATION_FIELD[action].label}</label>
               <input

@@ -1,7 +1,13 @@
 import { isIP } from 'node:net'
 import { z } from 'zod'
 
-const INTEGRATION_ACTIONS = ['health', 'availability', 'booking', 'message'] as const
+const INTEGRATION_ACTIONS = [
+  'health',
+  'availability',
+  'booking',
+  'cancellation',
+  'message',
+] as const
 
 export type IntegrationAction = (typeof INTEGRATION_ACTIONS)[number]
 
@@ -9,9 +15,18 @@ export const INTEGRATION_ACTION_LABEL: Record<IntegrationAction, string> = {
   health: 'فحص الاتصال',
   availability: 'قراءة المواعيد',
   booking: 'تثبيت الحجز',
+  cancellation: 'إلغاء الحجز',
   message: 'إرسال التأكيد',
 }
 
+/**
+ * `cancellation` is deliberately absent from google_calendar/microsoft_365
+ * here even though they support it — this list feeds integrationSetupState's
+ * "expected" set below, and every calendar connected before this endpoint
+ * existed would suddenly show as missing a required endpoint and flip to
+ * not-ready. It stays an opt-in extra: configure it and cancelBooking uses
+ * it, don't and nothing regresses.
+ */
 const PROVIDER_CAPABILITIES: Record<string, IntegrationAction[]> = {
   google_calendar: ['health', 'availability', 'booking'],
   microsoft_365: ['health', 'availability', 'booking'],
@@ -28,6 +43,20 @@ export function capabilitiesForProvider(provider: string): IntegrationAction[] {
   return PROVIDER_CAPABILITIES[provider] ?? ['health']
 }
 
+/**
+ * Extra actions a provider can support without being required for it — the
+ * connection is still `ready` without one configured. Kept separate from
+ * PROVIDER_CAPABILITIES for exactly that reason.
+ */
+const OPTIONAL_PROVIDER_CAPABILITIES: Record<string, IntegrationAction[]> = {
+  google_calendar: ['cancellation'],
+  microsoft_365: ['cancellation'],
+}
+
+export function optionalCapabilitiesForProvider(provider: string): IntegrationAction[] {
+  return OPTIONAL_PROVIDER_CAPABILITIES[provider] ?? []
+}
+
 const endpointSchema = z.string().trim().url().max(2_048)
 
 const integrationConfigSchema = z.object({
@@ -37,6 +66,7 @@ const integrationConfigSchema = z.object({
       health: endpointSchema.optional(),
       availability: endpointSchema.optional(),
       booking: endpointSchema.optional(),
+      cancellation: endpointSchema.optional(),
       message: endpointSchema.optional(),
     })
     .default({}),

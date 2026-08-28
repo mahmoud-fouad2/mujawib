@@ -3,18 +3,14 @@ import 'server-only'
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { type IntegrationAction, normalizeIntegrationConfig } from '@/lib/integrations'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
 import { db } from '@/server/db'
+import { booking, call, changeRequest, knowledgeItem, toolExecution } from '@/server/db/schema'
 import {
-  booking,
-  call,
-  changeRequest,
-  integrationConnection,
-  knowledgeItem,
-  toolExecution,
-} from '@/server/db/schema'
-import { type IntegrationFailureCode, invokeIntegration } from '@/server/integrations/runtime'
+  findIntegration,
+  type IntegrationFailureCode,
+  invokeIntegration,
+} from '@/server/integrations/runtime'
 import { protectJson, protectString, revealJson } from '@/server/security/protected-data'
 import type { ToolName, ToolResult } from '@/server/voice/tools'
 
@@ -48,33 +44,6 @@ export type ToolContext = {
 export type ToolExecutionOptions = {
   /** Stable OpenAI function-call id, converted to a deterministic DB id upstream. */
   executionId?: string
-}
-
-/** Prefers a configured native connection, then the client's generic API adapter. */
-async function findIntegration(
-  workspaceId: string,
-  providers: string[],
-  action: IntegrationAction,
-) {
-  const rows = await db
-    .select()
-    .from(integrationConnection)
-    .where(eq(integrationConnection.workspaceId, workspaceId))
-
-  const providerOrder = [...providers, 'rest_api', 'generic_api']
-  return (
-    rows
-      .filter(
-        (row) =>
-          providerOrder.includes(row.provider) &&
-          (row.health === 'connected' || row.health === 'degraded') &&
-          Boolean(normalizeIntegrationConfig(row.config).endpoints[action]),
-      )
-      .sort((a, b) => {
-        const health = Number(b.health === 'connected') - Number(a.health === 'connected')
-        return health || providerOrder.indexOf(a.provider) - providerOrder.indexOf(b.provider)
-      })[0] ?? null
-  )
 }
 
 function integrationError(code: IntegrationFailureCode, subject: string): string {

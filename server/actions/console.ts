@@ -10,6 +10,7 @@ import {
   credentialReference,
   type IntegrationAction,
   inspectOutboundUrl,
+  optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
 import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
@@ -827,7 +828,10 @@ export async function updateIntegrationConnection(
     .limit(1)
   if (!row) return { ok: false, error: 'الاتصال غير موجود.' }
 
-  const allowed = new Set(capabilitiesForProvider(row.provider))
+  const allowed = new Set([
+    ...capabilitiesForProvider(row.provider),
+    ...optionalCapabilitiesForProvider(row.provider),
+  ])
   const endpoints: Partial<Record<IntegrationAction, string>> = {}
   for (const [action, rawValue] of Object.entries(parsed.data.endpoints) as [
     IntegrationAction,

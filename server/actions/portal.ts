@@ -12,6 +12,7 @@ import {
 } from '@/server/auth/access'
 import { db } from '@/server/db'
 import { auditLog, booking, changeRequest, knowledgeItem, workspace } from '@/server/db/schema'
+import { findIntegration, invokeIntegration } from '@/server/integrations/runtime'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string }
@@ -302,6 +303,27 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
 
   await db.update(booking).set({ status: 'cancelled' }).where(eq(booking.id, bookingId))
 
+  // Best-effort: the local cancellation above already stands regardless of
+  // this outcome. Most connections have never configured a cancellation
+  // endpoint (it's optional — see lib/integrations.ts), so "not attempted"
+  // is the common, expected case, not a failure to report.
+  let externalSynced = false
+  if (row.externalId) {
+    const integration = await findIntegration(
+      row.workspaceId,
+      ['google_calendar', 'microsoft_365'],
+      'cancellation',
+    )
+    if (integration) {
+      const result = await invokeIntegration({
+        connection: integration,
+        action: 'cancellation',
+        payload: { externalId: row.externalId },
+      })
+      externalSynced = result.ok
+    }
+  }
+
   await db.insert(auditLog).values({
     id: id('audit'),
     workspaceId: row.workspaceId,
@@ -309,11 +331,14 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
     action: 'client.booking_cancel',
     resourceType: 'booking',
     resourceId: row.id,
-    metadata: { note: row.customerName ?? row.customerPhone ?? row.id },
+    metadata: { note: row.customerName ?? row.customerPhone ?? row.id, externalSynced },
     createdAt: new Date(),
   })
 
   revalidatePath('/portal/bookings')
   revalidatePath('/portal')
-  return { ok: true, message: 'أُلغي الحجز.' }
+  return {
+    ok: true,
+    message: externalSynced ? 'أُلغي الحجز، وأُزيل الموعد من التقويم الخارجي.' : 'أُلغي الحجز.',
+  }
 }
