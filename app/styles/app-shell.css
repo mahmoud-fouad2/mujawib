@@ -832,12 +832,22 @@
   min-block-size: 620px;
 }
 
+/* Hidden whenever the inspector column itself is visible (desktop, >1400px) — see the paired rule below that reveals it exactly where that column disappears. */
+.workbench__inspector-trigger {
+  display: none;
+}
+
 @media (max-width: 1400px) {
   .workbench {
     grid-template-columns: 300px minmax(0, 1fr);
   }
   .workbench__inspector {
     display: none;
+  }
+  /* The inspector column is gone at this width, so this is the only way to
+     reach outcome/QA/tooling detail — opens the same content in a Sheet. */
+  .workbench__inspector-trigger {
+    display: inline-flex;
   }
 }
 

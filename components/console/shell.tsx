@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  AudioLines,
   FlaskConical,
   FolderTree,
   Home,
@@ -44,7 +45,7 @@ const ICONS: Record<NavIconKey, typeof Home> = {
   inquiries: UserPlus,
   agents: LayoutGrid,
   templates: FolderTree,
-  voice: Settings,
+  voice: AudioLines,
   test: FlaskConical,
   integrations: Plug,
   phone: Phone,

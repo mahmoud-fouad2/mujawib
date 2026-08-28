@@ -1,7 +1,12 @@
-import { Check, MessageSquareText, UserRound, X } from 'lucide-react'
+'use client'
+
+import { Check, MessageSquareText, PanelRightOpen, UserRound, X } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
 import { RecordingPlayer } from '@/components/calls/recording-player'
 import { CallIntelligenceStatus } from '@/components/console/call-intelligence-status'
+import { QuickPronunciationFix } from '@/components/console/quick-pronunciation'
+import { Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
@@ -138,6 +143,7 @@ function NoSelection() {
 
 function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetrySummary: boolean }) {
   const start = new Date(call.startedAt).getTime()
+  const [inspectorOpen, setInspectorOpen] = useState(false)
 
   return (
     <>
@@ -157,6 +163,18 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
               ? (CALL_OUTCOME_LABEL[call.outcome] ?? call.outcome)
               : (CALL_STATUS_LABEL[call.status] ?? call.status)}
           </Pill>
+          {/* Below ~1400px the inspector column (.workbench__inspector) is
+              CSS-hidden — this is the only way to reach outcome/QA/tooling
+              detail on a laptop screen or phone. CSS shows it only there. */}
+          <button
+            type="button"
+            className="icon-btn workbench__inspector-trigger"
+            onClick={() => setInspectorOpen(true)}
+            aria-label="تفاصيل المكالمة: النتيجة والجودة والتشغيل"
+            title="تفاصيل المكالمة"
+          >
+            <PanelRightOpen size={16} aria-hidden="true" />
+          </button>
         </span>
       </header>
 
@@ -235,7 +253,13 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
       <RecordingPlayer callId={call.id} status={call.recordingStatus} />
 
       <section>
-        <div className="detail-section-label">الحوار</div>
+        <div className="detail-section-label row" style={{ justifyContent: 'space-between' }}>
+          <span>الحوار</span>
+          <QuickPronunciationFix
+            workspaceId={call.workspaceId}
+            workspaceName={call.workspaceName}
+          />
+        </div>
         <div className="transcript">
           {call.transcript.length === 0 ? (
             <p className="muted">
@@ -310,6 +334,17 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
           })}
         </div>
       </section>
+
+      <Sheet
+        open={inspectorOpen}
+        onClose={() => setInspectorOpen(false)}
+        title="تفاصيل المكالمة"
+        description="النتيجة، الجودة، والتشغيل — نفس ما يظهر في اللوحة الجانبية على الشاشات الواسعة."
+      >
+        <div className="stack" style={{ gap: 'var(--s-5)' }}>
+          <CallInspector call={call} />
+        </div>
+      </Sheet>
     </>
   )
 }
