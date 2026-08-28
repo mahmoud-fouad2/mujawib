@@ -1,9 +1,12 @@
 'use client'
 
-import { Download, MessageSquare, Phone, Search } from 'lucide-react'
+import { CalendarX, Download, MessageSquare, Phone, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Confirm } from '@/components/ui/overlays'
 import { EmptyState, Pill } from '@/components/ui/primitives'
+import { useAction } from '@/components/ui/row-actions'
 import { clock, fullDate, maskPhone } from '@/lib/format'
+import { cancelBooking } from '@/server/actions/portal'
 import type { getPortalBookings } from '@/server/data/portal'
 
 type BookingRow = Awaited<ReturnType<typeof getPortalBookings>>[number]
@@ -186,6 +189,9 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
                         ) : (
                           '—'
                         )}
+                        {b.status === 'confirmed' ? (
+                          <BookingCancelButton id={b.id} customerName={b.customerName} />
+                        ) : null}
                       </span>
                     </td>
                   </tr>
@@ -196,5 +202,40 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
         </div>
       )}
     </div>
+  )
+}
+
+function BookingCancelButton({ id, customerName }: { id: string; customerName: string | null }) {
+  const [confirm, setConfirm] = useState(false)
+  const { run, pending } = useAction()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirm(true)}
+        className="btn btn--quiet btn--sm"
+        title="إلغاء الحجز"
+        aria-label="إلغاء الحجز"
+      >
+        <CalendarX size={14} aria-hidden="true" />
+      </button>
+
+      <Confirm
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        onConfirm={() =>
+          run(
+            () => cancelBooking(id),
+            () => setConfirm(false),
+          )
+        }
+        title={`إلغاء حجز ${customerName ?? 'هذا العميل'}؟`}
+        body="سيُنقل الحجز إلى قائمة الحجوزات الملغاة. هذا الإجراء لا يُلغي الموعد في تقويمك الخارجي تلقائيًا — تأكد من ذلك يدويًا إذا لزم."
+        confirmLabel="ألغِ الحجز"
+        tone="danger"
+        pending={pending}
+      />
+    </>
   )
 }

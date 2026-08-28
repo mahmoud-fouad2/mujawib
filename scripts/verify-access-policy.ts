@@ -38,6 +38,8 @@ check(
   false,
 )
 check('read-only cannot submit requests', canClient('client_read_only', 'request.create'), false)
+check('client manager may cancel bookings', canClient('client_manager', 'booking.manage'), true)
+check('reviewer cannot cancel bookings', canClient('client_reviewer', 'booking.manage'), false)
 check('operator role cannot enter client portal', canClient('owner', 'portal.view'), false)
 
 if (failures > 0) {

@@ -165,10 +165,12 @@ export default async function PortalBusinessInfoPage() {
                 const content = (item.content ?? {}) as Record<string, string>
                 return (
                   <div key={item.id} className="queue__row">
-                    <div className="queue__title">{item.title}</div>
-                    <span className="muted" style={{ fontSize: '0.8125rem' }}>
-                      {Object.values(content).filter(Boolean).join(' · ') || '—'}
-                    </span>
+                    <div>
+                      <div className="queue__title">{item.title}</div>
+                      <div className="queue__meta">
+                        {Object.values(content).filter(Boolean).join(' · ') || '—'}
+                      </div>
+                    </div>
                   </div>
                 )
               })}

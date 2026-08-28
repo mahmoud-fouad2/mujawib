@@ -3,7 +3,7 @@
 import { Download, MessageSquare, Phone, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState, Pill } from '@/components/ui/primitives'
-import { maskPhone, num, relative } from '@/lib/format'
+import { clock, fullDate, maskPhone, num, relative } from '@/lib/format'
 import type { getPortalCustomers } from '@/server/data/portal'
 
 type CustomerRow = Awaited<ReturnType<typeof getPortalCustomers>>[number]
@@ -30,7 +30,7 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
       c.calls,
       c.bookings,
       `"${(c.tags ?? []).join('، ').replace(/"/g, '""')}"`,
-      relative(c.lastCallAt),
+      c.lastCallAt ? `${fullDate(c.lastCallAt)} ${clock(c.lastCallAt)}` : '—',
     ])
     const csvContent = `\uFEFF${[headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')}`
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })

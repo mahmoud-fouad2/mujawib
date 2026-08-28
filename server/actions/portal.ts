@@ -11,7 +11,7 @@ import {
   PORTAL_WORKSPACE_COOKIE,
 } from '@/server/auth/access'
 import { db } from '@/server/db'
-import { auditLog, changeRequest, knowledgeItem, workspace } from '@/server/db/schema'
+import { auditLog, booking, changeRequest, knowledgeItem, workspace } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string }
@@ -283,4 +283,37 @@ export async function removeService(itemId: string): Promise<ActionResult> {
 
   revalidatePath('/portal/business-info')
   return { ok: true, message: `حُذفت «${row.title}».` }
+}
+
+/* ─── Bookings ────────────────────────────────────────────────────────────── */
+
+/**
+ * A booking is the client's own operational data, not agent behaviour — same
+ * class as opening hours, so it cancels directly rather than through a
+ * change request. No operator notification: every clinic cancelling a
+ * routine appointment doesn't need MUJAWIB ops in the loop.
+ */
+export async function cancelBooking(bookingId: string): Promise<ActionResult> {
+  const [row] = await db.select().from(booking).where(eq(booking.id, bookingId)).limit(1)
+  if (!row) return { ok: false, error: 'الحجز غير موجود.' }
+  const access = await authorizeClientWorkspace(row.workspaceId, 'booking.manage')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية إلغاء هذا الحجز.' }
+  if (row.status === 'cancelled') return { ok: false, error: 'الحجز ملغى بالفعل.' }
+
+  await db.update(booking).set({ status: 'cancelled' }).where(eq(booking.id, bookingId))
+
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: row.workspaceId,
+    actorId: access.email,
+    action: 'client.booking_cancel',
+    resourceType: 'booking',
+    resourceId: row.id,
+    metadata: { note: row.customerName ?? row.customerPhone ?? row.id },
+    createdAt: new Date(),
+  })
+
+  revalidatePath('/portal/bookings')
+  revalidatePath('/portal')
+  return { ok: true, message: 'أُلغي الحجز.' }
 }

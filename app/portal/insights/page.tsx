@@ -14,12 +14,31 @@ import {
 export const metadata: Metadata = { title: 'الرؤى' }
 export const dynamic = 'force-dynamic'
 
-const WORK_START = 9
-const WORK_END = 19
+const DEFAULT_WORK_START = 9
+const DEFAULT_WORK_END = 21
+
+/**
+ * Opening hours are free text (Bible §21 — clients can publish anything up
+ * to 40 chars, so most don't match this shape). Only the common
+ * "09:00–21:00" form is read; anything else keeps the default rather than
+ * risk shading the chart by a wrong, silently-misparsed guess.
+ */
+function parseWorkHours(raw: string | undefined): { start: number; end: number } {
+  const match = raw?.match(/(\d{1,2}):\d{2}\s*[-–]\s*(\d{1,2}):\d{2}/)
+  if (!match) return { start: DEFAULT_WORK_START, end: DEFAULT_WORK_END }
+  const start = Number(match[1])
+  const end = Number(match[2])
+  const valid =
+    Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start && end <= 24
+  return valid ? { start, end } : { start: DEFAULT_WORK_START, end: DEFAULT_WORK_END }
+}
 
 export default async function PortalInsightsPage() {
   const workspace = await getPortalWorkspace()
   if (!workspace) notFound()
+
+  const businessInfo = (workspace.businessInfo ?? {}) as { hours?: Record<string, string> }
+  const { start: WORK_START, end: WORK_END } = parseWorkHours(businessInfo.hours?.sun_thu)
 
   const [summary, insights, reasons, trend, hourly] = await Promise.all([
     getPortalSummary(workspace.id),
@@ -55,13 +74,19 @@ export default async function PortalInsightsPage() {
         </Section>
 
         <Section title="ما الذي تغيّر؟" flush>
-          <ul className="insight-list">
-            {insights.map((i) => (
-              <li key={i.text} data-tone={i.tone}>
-                {i.text}
-              </li>
-            ))}
-          </ul>
+          {insights.length === 0 ? (
+            <div className="empty">
+              <p>لا تغيّرات جوهرية هذا الشهر.</p>
+            </div>
+          ) : (
+            <ul className="insight-list">
+              {insights.map((i) => (
+                <li key={i.text} data-tone={i.tone}>
+                  {i.text}
+                </li>
+              ))}
+            </ul>
+          )}
         </Section>
       </div>
 

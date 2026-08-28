@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   Eye,
   FileText,
+  Hash,
   Home,
   Menu,
   MessageSquare,
@@ -35,6 +36,7 @@ const NAV = [
   { href: '/portal/insights', label: 'الرؤى', Icon: TrendingUp },
   { href: '/portal/business-info', label: 'بيانات النشاط', Icon: FileText },
   { href: '/portal/integrations', label: 'الربط', Icon: Plug },
+  { href: '/portal/phone', label: 'الأرقام', Icon: Hash },
   { href: '/portal/requests', label: 'طلبات التعديل', Icon: MessageSquare },
 ]
 

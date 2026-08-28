@@ -5,7 +5,7 @@ import {
   Check,
   Copy,
   Download,
-  MessageCircle,
+  MessageSquare,
   MessageSquareText,
   Phone,
   PhoneCall,
@@ -155,7 +155,10 @@ export function PortalCallsExperience({
         >
           <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
             <span>المكالمات</span>
-            <span className="mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <span
+              className="mono"
+              style={{ fontSize: 'var(--step--1)', color: 'var(--text-muted)' }}
+            >
               ({filteredRows.length})
             </span>
           </div>
@@ -163,7 +166,7 @@ export function PortalCallsExperience({
             type="button"
             onClick={handleExportCsv}
             className="btn btn--quiet btn--sm"
-            style={{ fontSize: '0.75rem', padding: '2px 8px', gap: '4px' }}
+            style={{ padding: '2px 8px', gap: '4px' }}
             title="تصدير المكالمات إلى ملف Excel / CSV"
           >
             <Download size={13} aria-hidden="true" />
@@ -172,8 +175,11 @@ export function PortalCallsExperience({
         </div>
 
         {filteredRows.length === 0 ? (
-          <div className="empty" style={{ padding: 'var(--s-4)' }}>
-            <p style={{ fontSize: 'var(--step--1)' }}>لا توجد مكالمات تطابق البحث.</p>
+          <div className="empty-box">
+            <p className="empty-box__title">لا توجد نتائج مطابقة</p>
+            <p className="empty-box__desc">
+              لم يتم العثور على أي مكالمات تطابق عبارة البحث أو الفلتر المختار.
+            </p>
           </div>
         ) : (
           filteredRows.map((call) => (
@@ -259,29 +265,12 @@ function PortalCallDetail({ call }: { call: CallDetail }) {
       >
         <span style={{ fontSize: 'var(--step--1)', fontWeight: 500 }}>إجراء سريع مع المتصل:</span>
         <div className="row" style={{ gap: 'var(--s-2)' }}>
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn--sm"
-            style={{
-              background: '#25D366',
-              color: '#fff',
-              border: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <MessageCircle size={14} />
+          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn--sm">
+            <MessageSquare size={14} aria-hidden="true" />
             مراسلة عبر واتساب
           </a>
-          <a
-            href={`tel:${rawPhone}`}
-            className="btn btn--sm btn--primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Phone size={14} />
+          <a href={`tel:${rawPhone}`} className="btn btn--sm btn--primary">
+            <Phone size={14} aria-hidden="true" />
             معاودة الاتصال
           </a>
         </div>

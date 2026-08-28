@@ -53,7 +53,7 @@ export default async function PortalIntegrationsPage() {
               تعارض.
             </p>
             <div className="integration-card__footer">
-              <span className="pill pill--good">مدعوم وجاهز</span>
+              <Pill tone="good">مدعوم وجاهز</Pill>
             </div>
           </div>
 
@@ -69,7 +69,7 @@ export default async function PortalIntegrationsPage() {
               إغلاق الخط.
             </p>
             <div className="integration-card__footer">
-              <span className="pill pill--good">مدعوم وجاهز</span>
+              <Pill tone="good">مدعوم وجاهز</Pill>
             </div>
           </div>
 
@@ -85,7 +85,7 @@ export default async function PortalIntegrationsPage() {
               الداخلي.
             </p>
             <div className="integration-card__footer">
-              <span className="pill pill--good">مدعوم وجاهز</span>
+              <Pill tone="good">مدعوم وجاهز</Pill>
             </div>
           </div>
         </div>

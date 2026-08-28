@@ -16,7 +16,8 @@ export default async function PortalBookingsPage() {
   const confirmed = bookings.filter((b) => b.status === 'confirmed').length
   const cancelled = bookings.filter((b) => b.status === 'cancelled').length
   const upcoming = bookings.filter(
-    (b) => b.scheduledAt && new Date(b.scheduledAt).getTime() > Date.now(),
+    (b) =>
+      b.status === 'confirmed' && b.scheduledAt && new Date(b.scheduledAt).getTime() > Date.now(),
   ).length
 
   return (
