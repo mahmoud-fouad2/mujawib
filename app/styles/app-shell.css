@@ -2386,6 +2386,26 @@
   flex-wrap: wrap;
 }
 
+/* CRM table toolbar (components/portal/crm-table.tsx) — a flatter row than
+   .portal-toolbar above, so it gets its own minimal rule rather than reusing
+   that BEM structure's __row/__search nesting. */
+.crm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding-block: var(--s-3);
+}
+
+.crm-toolbar input[type="search"] {
+  flex: 1;
+  min-inline-size: 220px;
+}
+
+.crm-toolbar select.input {
+  min-inline-size: 160px;
+}
+
 .welcome-hero {
   position: relative;
   overflow: hidden;

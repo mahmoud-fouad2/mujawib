@@ -16,8 +16,7 @@ export default async function CallsPage({
 }: {
   searchParams: Promise<{ filter?: string; q?: string; call?: string; client?: string }>
 }) {
-  const params = await searchParams
-  const access = await requireOperatorPage('/console/calls')
+  const [params, access] = await Promise.all([searchParams, requireOperatorPage('/console/calls')])
   const filter = (VALID.includes(params.filter as CallFilter) ? params.filter : 'all') as CallFilter
   const search = params.q?.trim() || undefined
   const client = params.client ? await getClientBySlug(params.client) : null

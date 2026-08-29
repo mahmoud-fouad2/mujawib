@@ -3,23 +3,21 @@
 ## Current Runtime Baseline
 
 - Node.js: `24.16.0`
-- pnpm: `11.19.0`
+- pnpm: `11.22.0`
 - TypeScript strict mode is enabled with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`.
 - Biome is the formatter/linter authority for repository code style.
-- `pnpm check` runs the current safe gate: typecheck plus UX smoke.
+- `pnpm check` runs the full safe gate: lint, typecheck, unit tests, contract tests, and a production build.
 
 ## Safe Update Policy
 
-Patch/minor upgrades can be applied when `pnpm typecheck` and `pnpm ux:smoke` remain green.
+Patch/minor upgrades can be applied when `pnpm check` remains green.
 
-Major upgrades are separate migration phases:
+Major upgrades are separate migration phases, deliberately deferred (not neglected — see the dependency audit):
 
 - Next `15 -> 16`
-- MUI `6 -> 9`
 - TypeScript `5 -> 7`
-- Node types `22 -> 26`
 
-These require route-by-route visual QA because the project has a large RTL surface, Primer, MUI, styled-components, and custom design-system CSS.
+These require route-by-route visual QA because the project has a large RTL surface and a custom design-system CSS layer — there is no MUI, Primer, or styled-components in this codebase; layout and theming are hand-written CSS with design tokens.
 
 ## Product Bible Structure Direction
 
@@ -32,4 +30,4 @@ These require route-by-route visual QA because the project has a large RTL surfa
 1. Move repeated marketing and portal content into typed content records.
 2. Add persistence behind the content records when the admin model is ready.
 3. Split large CSS files into feature layers only after visual parity is stable.
-4. Run a dedicated major-upgrade branch for Next/MUI/TypeScript.
+4. Run a dedicated major-upgrade branch for Next and TypeScript.

@@ -57,9 +57,9 @@ export default async function PortalOverviewPage() {
             الخدمة على رقمكم.
           </p>
           <div className="welcome-hero__pills">
-            <span className="pill pill--good">✓ تم تجهيز مساحة العمل</span>
-            <span className="pill pill--good">✓ تخصيص الهوية واللهجة</span>
-            <span className="pill pill--signal">جاهزية استقبال المكالمات</span>
+            <Pill tone="good">✓ تم تجهيز مساحة العمل</Pill>
+            <Pill tone="good">✓ تخصيص الهوية واللهجة</Pill>
+            <Pill tone="signal">جاهزية استقبال المكالمات</Pill>
           </div>
           <div className="welcome-hero__actions">
             <Link href="/portal/business-info" className="btn btn--sm btn--primary">

@@ -2,14 +2,17 @@ import { createRequire } from 'node:module'
 import AxeBuilder from '@axe-core/playwright'
 
 const require = createRequire(import.meta.url)
-const runtimeNodeModules =
-  process.env.CODEX_NODE_MODULES ??
-  'C:/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'
 
+// `playwright` is a normal devDependency — this resolves from a standard
+// `pnpm install` everywhere. CODEX_NODE_MODULES is an escape hatch for a
+// sandboxed runtime whose node_modules lives elsewhere; unset by default,
+// not pinned to any one contributor's machine.
 function loadPlaywright() {
+  const runtimeNodeModules = process.env.CODEX_NODE_MODULES
   try {
     return require('playwright')
-  } catch {
+  } catch (error) {
+    if (!runtimeNodeModules) throw error
     return require(`${runtimeNodeModules}/playwright`)
   }
 }

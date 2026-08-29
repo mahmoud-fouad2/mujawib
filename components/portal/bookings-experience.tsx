@@ -98,7 +98,7 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
             type="button"
             onClick={handleExportCsv}
             className="btn btn--quiet btn--sm"
-            style={{ height: '38px', gap: '6px' }}
+            style={{ height: '38px' }}
             title="تصدير الحجوزات إلى ملف Excel / CSV"
           >
             <Download size={14} aria-hidden="true" />

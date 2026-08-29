@@ -560,11 +560,7 @@ export function AgentEditorSheet({
                 </div>
                 <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
                   {flows.map((f) => (
-                    <span
-                      key={f}
-                      className="pill"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    >
+                    <Pill key={f}>
                       {f}
                       <button
                         type="button"
@@ -579,7 +575,7 @@ export function AgentEditorSheet({
                       >
                         <Trash2 size={12} />
                       </button>
-                    </span>
+                    </Pill>
                   ))}
                 </div>
               </>

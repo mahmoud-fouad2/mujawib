@@ -70,7 +70,7 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
             type="button"
             onClick={handleExportCsv}
             className="btn btn--quiet btn--sm"
-            style={{ height: '38px', gap: '6px' }}
+            style={{ height: '38px' }}
             title="تصدير قائمة المتصلين إلى ملف Excel / CSV"
           >
             <Download size={14} aria-hidden="true" />
