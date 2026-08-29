@@ -15,7 +15,8 @@ export default async function AccountSecurityPage({
   searchParams: Promise<{ required?: string }>
 }) {
   const session = await requireSession('/account/security')
-  const required = (await searchParams).required === 'operator'
+  const requiredArea = (await searchParams).required
+  const required = requiredArea === 'operator' || requiredArea === 'portal'
   const [operator, portal] = await Promise.all([getOperatorAccess(), getPortalAccess()])
   const returnTo = operator ? '/console' : portal ? '/portal' : '/'
   const enabled = Boolean((session.user as { twoFactorEnabled?: boolean }).twoFactorEnabled)
@@ -36,7 +37,9 @@ export default async function AccountSecurityPage({
           <p>{session.user.email}</p>
           {required && !enabled ? (
             <div className="account-page__notice">
-              حسابات فريق التشغيل تتطلب تحققًا بخطوتين قبل فتح لوحة التحكم.
+              {requiredArea === 'operator'
+                ? 'حسابات فريق التشغيل تتطلب تحققًا بخطوتين قبل فتح لوحة التحكم.'
+                : 'حسابات بوابة العميل تتطلب تحققًا بخطوتين قبل فتح لوحة المتابعة.'}
             </div>
           ) : null}
         </div>
