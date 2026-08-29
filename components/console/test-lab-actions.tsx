@@ -1,7 +1,7 @@
 'use client'
 
 import { FlaskConical, Play, Plus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { useAction } from '@/components/ui/row-actions'
@@ -48,6 +48,22 @@ export function TestLabToolbar({
   const [language, setLanguage] = useState<'ar' | 'en'>('ar')
   const [maxWords, setMaxWords] = useState('35')
   const { run, pending } = useAction()
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  // A suite run is 12 scenarios at 2-way concurrency, each a real Realtime
+  // call — well past a minute isn't unusual. The only feedback used to be a
+  // static "جارٍ التشغيل…" the whole time, no different from a stuck button.
+  useEffect(() => {
+    if (!pending) {
+      setElapsedSeconds(0)
+      return
+    }
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.round((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [pending])
 
   // language/maxWords are always present (a <select> and a defaulted input,
   // neither can go empty the way the three checks below can) — including
@@ -86,7 +102,7 @@ export function TestLabToolbar({
           }
           onClick={() => run(() => runVersionTestSuite(versionId))}
         >
-          {pending ? 'جارٍ التشغيل…' : 'شغّل الحزمة'}
+          {pending ? `جارٍ التشغيل… ${elapsedSeconds} ث` : 'شغّل الحزمة'}
         </Button>
       </div>
 
