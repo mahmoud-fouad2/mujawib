@@ -325,6 +325,7 @@ export function PhoneRowActions({
 
 export function PhoneLifecycleActions({ id, status }: { id: string; status: string | null }) {
   const { run, pending } = useAction()
+  const [confirming, setConfirming] = useState(false)
 
   return (
     <div className="cluster">
@@ -345,11 +346,26 @@ export function PhoneLifecycleActions({ id, status }: { id: string; status: stri
           size="sm"
           leading={<Power size={15} />}
           disabled={pending}
-          onClick={() => run(() => updatePhoneState({ phoneId: id, action: 'disable' }))}
+          onClick={() => setConfirming(true)}
         >
           تعطيل
         </Button>
       ) : null}
+
+      <Confirm
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() =>
+          run(
+            () => updatePhoneState({ phoneId: id, action: 'disable' }),
+            () => setConfirming(false),
+          )
+        }
+        title="تعطيل هذا المسار؟"
+        body="سيتوقف هذا الرقم عن الرد على المكالمات فورًا حتى تُعاد تفعيله."
+        confirmLabel="عطّل المسار"
+        pending={pending}
+      />
     </div>
   )
 }

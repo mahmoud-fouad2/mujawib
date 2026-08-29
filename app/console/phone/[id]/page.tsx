@@ -18,7 +18,7 @@ import { getPhoneNumberDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ id: string }> }
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ client?: string }> }
 type RoutingRules = {
   connectionType?: string
   providerNote?: string
@@ -53,9 +53,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: phone?.e164 ?? 'تفاصيل الرقم' }
 }
 
-export default async function PhoneDetailPage({ params }: Props) {
+export default async function PhoneDetailPage({ params, searchParams }: Props) {
   const phone = await getPhoneNumberDetail((await params).id)
   if (!phone) notFound()
+  const client = (await searchParams).client
 
   const rules = (phone.routingRules ?? {}) as RoutingRules
   const status = PHONE_STATUS[phone.sipStatus ?? 'pending'] ?? PHONE_STATUS.pending!
@@ -116,9 +117,12 @@ export default async function PhoneDetailPage({ params }: Props) {
   return (
     <>
       <div className="detail-back">
-        <Link href="/console/phone" className="btn btn--quiet btn--sm">
+        <Link
+          href={client ? `/console/clients/${client}` : '/console/phone'}
+          className="btn btn--quiet btn--sm"
+        >
           <ArrowLeft size={14} className="arrow" aria-hidden="true" />
-          كل الأرقام
+          {client ? 'رجوع للعميل' : 'كل الأرقام'}
         </Link>
       </div>
 

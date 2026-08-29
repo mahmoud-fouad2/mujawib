@@ -219,7 +219,11 @@ export default async function ClientDetailPage({ params }: Props) {
           ) : (
             <div className="queue">
               {agents.map((a) => (
-                <Link key={a.id} href={`/console/agents/${a.id}`} className="queue__row">
+                <Link
+                  key={a.id}
+                  href={`/console/agents/${a.id}?client=${ws.slug}`}
+                  className="queue__row"
+                >
                   <div>
                     <div className="queue__title">{a.name}</div>
                     <div className="queue__meta">
@@ -245,7 +249,11 @@ export default async function ClientDetailPage({ params }: Props) {
               {numbers.map((n) => {
                 const state = PHONE_STATUS[n.sipStatus ?? 'pending'] ?? PHONE_STATUS.pending!
                 return (
-                  <Link key={n.id} href={`/console/phone/${n.id}`} className="queue__row">
+                  <Link
+                    key={n.id}
+                    href={`/console/phone/${n.id}?client=${ws.slug}`}
+                    className="queue__row"
+                  >
                     <div>
                       <div className="queue__title mono">{n.e164}</div>
                       <div className="queue__meta">

@@ -101,8 +101,20 @@ export function RowActions({
     }
   }, [open])
 
+  // The panel is a document.body portal, so it sits after every row in DOM
+  // order — Tab from the trigger would otherwise skip straight past it to
+  // whatever follows the row, leaving a keyboard user unable to reach a menu
+  // that is still visibly open. This traps Tab inside it and hands focus
+  // back to the trigger on every close path, not just Escape, matching the
+  // same contract Sheet/Confirm already give their own focus trap.
   useEffect(() => {
     if (!open) return
+    // Menu items render after this effect's first run, so focus lands on the
+    // frame after paint rather than racing the portal's own mount.
+    const focusFirst = requestAnimationFrame(() => {
+      panel.current?.querySelector<HTMLElement>('.row-actions__item:not([disabled])')?.focus()
+    })
+
     const onDown = (e: MouseEvent) => {
       const target = e.target as Node
       if (trigger.current?.contains(target) || panel.current?.contains(target)) return
@@ -111,14 +123,30 @@ export function RowActions({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpen(false)
-        trigger.current?.focus()
+        return
+      }
+      if (e.key !== 'Tab' || !panel.current) return
+      const focusable = panel.current.querySelectorAll<HTMLElement>(
+        '.row-actions__item:not([disabled])',
+      )
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) return
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
       }
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
+      cancelAnimationFrame(focusFirst)
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
+      trigger.current?.focus()
     }
   }, [open])
 

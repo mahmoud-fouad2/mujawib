@@ -13,7 +13,7 @@ import { getAgentDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ id: string }> }
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ client?: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const detail = await getAgentDetail((await params).id)
@@ -27,9 +27,10 @@ const STYLE_LABEL: Record<string, string> = {
   premium: 'راقٍ',
 }
 
-export default async function AgentDetailPage({ params }: Props) {
+export default async function AgentDetailPage({ params, searchParams }: Props) {
   const a = await getAgentDetail((await params).id)
   if (!a) notFound()
+  const client = (await searchParams).client
 
   const blockers = a.draftTestGate?.blockers ?? []
   const criticalFailed = a.runs.filter((r) => !r.passed && r.isCritical)
@@ -46,9 +47,12 @@ export default async function AgentDetailPage({ params }: Props) {
   return (
     <>
       <div className="detail-back">
-        <Link href="/console/agents" className="btn btn--quiet btn--sm">
+        <Link
+          href={client ? `/console/clients/${client}` : '/console/agents'}
+          className="btn btn--quiet btn--sm"
+        >
           <ArrowLeft size={14} className="arrow" aria-hidden="true" />
-          كل الموظفين
+          {client ? 'رجوع للعميل' : 'كل الموظفين'}
         </Link>
       </div>
 
