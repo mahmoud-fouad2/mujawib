@@ -122,21 +122,32 @@ export async function getPortalSummary(workspaceId: string): Promise<PortalSumma
 
 /** Bible §20 "Top reasons for calling". */
 export async function getTopReasons(workspaceId: string) {
-  const rows = await db
-    .select({ intent: call.intent, n: sql<number>`count(*)`.mapWith(Number) })
-    .from(call)
-    .where(
-      and(
-        eq(call.workspaceId, workspaceId),
-        eq(call.origin, 'live'),
-        gte(call.startedAt, daysBack(30)),
-      ),
-    )
-    .groupBy(call.intent)
-    .orderBy(desc(sql`count(*)`))
-    .limit(6)
+  const since = daysBack(30)
+  const scope = and(
+    eq(call.workspaceId, workspaceId),
+    eq(call.origin, 'live'),
+    gte(call.startedAt, since),
+  )
 
-  const total = rows.reduce((sum, r) => sum + r.n, 0)
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({ intent: call.intent, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(scope)
+      .groupBy(call.intent)
+      .orderBy(desc(sql`count(*)`))
+      .limit(6),
+    // The true denominator for `share` — every call in the window, not just
+    // the ones that made the top-6 cut. Six reasons displayed against a
+    // total of only those six silently inflates each share once a workspace
+    // has more than six distinct intents.
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(scope),
+  ])
+
+  const total = totalRow?.n ?? 0
   return rows.map((r) => ({
     reason: r.intent ?? 'غير محدد',
     n: r.n,
@@ -313,6 +324,39 @@ export async function getPortalBookings(workspaceId: string, limit = 40) {
 }
 
 /**
+ * True counts for the bookings page's summary strip. `getPortalBookings`
+ * caps its result at a display limit, so deriving "confirmed"/"upcoming"/
+ * "cancelled" from that same capped list would silently undercount them
+ * exactly like the raw total once a workspace passes the cap — this queries
+ * the real totals directly instead.
+ */
+export async function getPortalBookingsStats(workspaceId: string) {
+  const scope = and(eq(booking.workspaceId, workspaceId), eq(call.origin, 'live'))
+
+  const [byStatus, [upcomingRow]] = await Promise.all([
+    db
+      .select({ status: booking.status, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(booking)
+      .innerJoin(call, eq(booking.callId, call.id))
+      .where(scope)
+      .groupBy(booking.status),
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(booking)
+      .innerJoin(call, eq(booking.callId, call.id))
+      .where(and(scope, eq(booking.status, 'confirmed'), sql`${booking.scheduledAt} > now()`)),
+  ])
+
+  const countOf = (status: string) => byStatus.find((r) => r.status === status)?.n ?? 0
+  return {
+    total: byStatus.reduce((sum, r) => sum + r.n, 0),
+    confirmed: countOf('confirmed'),
+    cancelled: countOf('cancelled'),
+    upcoming: upcomingRow?.n ?? 0,
+  }
+}
+
+/**
  * The default, always-on "who called you" list (the CRM upgrade replaces it
  * with `getCrmCustomers`). `call.callerNumber` is masked at write time, so it
  * can no longer be matched against `customer.phone` with a plain equality —
@@ -320,6 +364,9 @@ export async function getPortalBookings(workspaceId: string, limit = 40) {
  * a single query: which customers even qualify (had a live call at all) can
  * only be known after that hash-or-legacy-plaintext correlation runs.
  */
+// Defensive ceiling on the pre-filter scan below — see the function comment.
+const CUSTOMER_SCAN_LIMIT = 5000
+
 export async function getPortalCustomers(workspaceId: string, limit = 40) {
   const candidates = await db
     .select({
@@ -332,16 +379,20 @@ export async function getPortalCustomers(workspaceId: string, limit = 40) {
     .from(customer)
     .where(eq(customer.workspaceId, workspaceId))
     .orderBy(desc(customer.lastCallAt))
+    .limit(CUSTOMER_SCAN_LIMIT)
 
-  if (candidates.length === 0) return []
+  if (candidates.length === 0) return { rows: [], total: 0 }
 
   const callCounts = await liveCallCountsByPhone(
     workspaceId,
     candidates.map((c) => c.phone),
   )
-  const withCalls = candidates.filter((c) => (callCounts.get(c.phone) ?? 0) > 0).slice(0, limit)
+  // Unsliced first: its length is the true "callers" count this page shows
+  // as a total, before the display cap below throws the rest away.
+  const withCalls = candidates.filter((c) => (callCounts.get(c.phone) ?? 0) > 0)
+  const shown = withCalls.slice(0, limit)
 
-  if (withCalls.length === 0) return []
+  if (shown.length === 0) return { rows: [], total: withCalls.length }
 
   const bookingRows = await db
     .select({ phone: booking.customerPhone, count: sql<number>`count(*)`.mapWith(Number) })
@@ -353,19 +404,22 @@ export async function getPortalCustomers(workspaceId: string, limit = 40) {
         eq(call.origin, 'live'),
         inArray(
           booking.customerPhone,
-          withCalls.map((c) => c.phone),
+          shown.map((c) => c.phone),
         ),
       ),
     )
     .groupBy(booking.customerPhone)
   const bookingsByPhone = new Map(bookingRows.map((b) => [b.phone, b.count]))
 
-  return withCalls.map((c) => ({
-    ...c,
-    tags: c.tags ?? [],
-    calls: callCounts.get(c.phone) ?? 0,
-    bookings: bookingsByPhone.get(c.phone) ?? 0,
-  }))
+  return {
+    total: withCalls.length,
+    rows: shown.map((c) => ({
+      ...c,
+      tags: c.tags ?? [],
+      calls: callCounts.get(c.phone) ?? 0,
+      bookings: bookingsByPhone.get(c.phone) ?? 0,
+    })),
+  }
 }
 
 /** Daily volume + outcome mix for the insights page. */

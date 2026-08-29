@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { PortalBookingsExperience } from '@/components/portal/bookings-experience'
 import { num } from '@/lib/format'
-import { getPortalBookings, getPortalWorkspace } from '@/server/data/portal'
+import { getPortalBookings, getPortalBookingsStats, getPortalWorkspace } from '@/server/data/portal'
 
 export const metadata: Metadata = { title: 'الحجوزات' }
 export const dynamic = 'force-dynamic'
@@ -12,13 +12,14 @@ export default async function PortalBookingsPage() {
   const workspace = await getPortalWorkspace()
   if (!workspace) notFound()
 
-  const bookings = await getPortalBookings(workspace.id, 60)
-  const confirmed = bookings.filter((b) => b.status === 'confirmed').length
-  const cancelled = bookings.filter((b) => b.status === 'cancelled').length
-  const upcoming = bookings.filter(
-    (b) =>
-      b.status === 'confirmed' && b.scheduledAt && new Date(b.scheduledAt).getTime() > Date.now(),
-  ).length
+  const [bookings, stats] = await Promise.all([
+    getPortalBookings(workspace.id, 60),
+    getPortalBookingsStats(workspace.id),
+  ])
+  const meta =
+    stats.total > bookings.length
+      ? `${num(bookings.length)} من ${num(stats.total)} حجز`
+      : `${num(stats.total)} حجز`
 
   return (
     <>
@@ -26,14 +27,16 @@ export default async function PortalBookingsPage() {
 
       <SummaryBar
         items={[
-          { label: 'حجز', value: num(bookings.length) },
-          { label: 'مؤكد', value: num(confirmed), tone: 'good' },
-          { label: 'قادم', value: num(upcoming) },
-          ...(cancelled ? [{ label: 'ملغى', value: num(cancelled), tone: 'bad' as const }] : []),
+          { label: 'حجز', value: num(stats.total) },
+          { label: 'مؤكد', value: num(stats.confirmed), tone: 'good' },
+          { label: 'قادم', value: num(stats.upcoming) },
+          ...(stats.cancelled
+            ? [{ label: 'ملغى', value: num(stats.cancelled), tone: 'bad' as const }]
+            : []),
         ]}
       />
 
-      <Section title="إدارة وسجل الحجوزات" meta={`${num(bookings.length)} حجز`} flush>
+      <Section title="إدارة وسجل الحجوزات" meta={meta} flush>
         <PortalBookingsExperience rows={bookings} />
       </Section>
     </>

@@ -30,11 +30,15 @@ export default async function PortalCustomersPage({
   // else keeps the read-only caller list that already worked — enabling CRM
   // for one client must never take the customers page away from another.
   if (!workspace.crmEnabled) {
-    const customers = await getPortalCustomers(workspace.id, 60)
+    const { rows: customers, total } = await getPortalCustomers(workspace.id, 60)
+    const meta =
+      total > customers.length
+        ? `${num(customers.length)} من ${num(total)} متصل`
+        : `${num(total)} متصل`
     return (
       <>
         <PageHead title="المتصلون" sub="من اتصل بك، وكم مرة، وما الذي أنجزه في كل مرة" />
-        <Section title="سجل وقائمة المتصلين" meta={`${num(customers.length)} متصل`} flush>
+        <Section title="سجل وقائمة المتصلين" meta={meta} flush>
           <PortalCustomersExperience rows={customers} />
         </Section>
       </>

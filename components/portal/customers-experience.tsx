@@ -6,7 +6,7 @@ import { EmptyState, Pill } from '@/components/ui/primitives'
 import { clock, fullDate, maskPhone, num, relative } from '@/lib/format'
 import type { getPortalCustomers } from '@/server/data/portal'
 
-type CustomerRow = Awaited<ReturnType<typeof getPortalCustomers>>[number]
+type CustomerRow = Awaited<ReturnType<typeof getPortalCustomers>>['rows'][number]
 
 export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
   const [search, setSearch] = useState('')
