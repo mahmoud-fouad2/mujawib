@@ -16,11 +16,12 @@ export default async function AgentsPage({
 }) {
   const params = await searchParams
   const client = params.client ? await getClientBySlug(params.client) : null
-  const agents = await getAgents(client ? { workspaceId: client.id } : {})
+  const { rows: agents, total } = await getAgents(client ? { workspaceId: client.id } : {})
 
   const published = agents.filter((a) => a.live?.status === 'published').length
   const blocked = agents.filter((a) => a.draft && !a.draftTestGate?.canPublish).length
   const readyToPublish = agents.filter((a) => a.draft && a.draftTestGate?.canPublish).length
+  const truncated = total > agents.length
 
   return (
     <>
@@ -35,7 +36,7 @@ export default async function AgentsPage({
 
       <SummaryBar
         items={[
-          { label: 'موظف صوتي', value: num(agents.length) },
+          { label: 'موظف صوتي', value: num(total) },
           { label: 'نسخة منشورة', value: num(published), tone: 'good' },
           {
             label: 'جاهزة للنشر',
@@ -46,7 +47,11 @@ export default async function AgentsPage({
         ]}
       />
 
-      <Section title="كل الموظفين" flush>
+      <Section
+        title="كل الموظفين"
+        meta={truncated ? `تعرض أول ${num(agents.length)} من ${num(total)} موظف` : undefined}
+        flush
+      >
         <div className="table-scroll">
           <table className="table table--rows">
             <thead>

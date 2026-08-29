@@ -20,7 +20,7 @@ const PACK_LABEL: Record<string, string> = {
 }
 
 export default async function ClientsPage() {
-  const [clients, access] = await Promise.all([
+  const [{ rows: clients, total }, access] = await Promise.all([
     getClients(),
     requireOperatorPage('/console/clients'),
   ])
@@ -31,6 +31,7 @@ export default async function ClientsPage() {
   const calls30d = clients.reduce((s, c) => s + c.calls30d, 0)
   const bookings30d = clients.reduce((s, c) => s + c.bookings30d, 0)
   const unhealthy = clients.filter((c) => c.unhealthy > 0).length
+  const truncated = total > clients.length
 
   return (
     <>
@@ -47,7 +48,7 @@ export default async function ClientsPage() {
 
       <SummaryBar
         items={[
-          { label: `عميل نشط من ${num(clients.length)}`, value: num(live), tone: 'good' },
+          { label: `عميل نشط من ${num(total)}`, value: num(live), tone: 'good' },
           { label: 'مكالمة خلال 30 يومًا', value: num(calls30d) },
           { label: 'حجز خلال 30 يومًا', value: num(bookings30d) },
           ...(unhealthy
@@ -56,7 +57,11 @@ export default async function ClientsPage() {
         ]}
       />
 
-      <Section title="كل العملاء" flush>
+      <Section
+        title="كل العملاء"
+        meta={truncated ? `تعرض أول ${num(clients.length)} من ${num(total)} عميل` : undefined}
+        flush
+      >
         {clients.length === 0 ? (
           <EmptyState
             title="لا عملاء بعد"

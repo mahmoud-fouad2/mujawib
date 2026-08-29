@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { and, desc, eq, gte, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { unstable_cache } from 'next/cache'
 import { canOperator } from '@/lib/access'
 import { readCallIntelligenceState } from '@/lib/call-intelligence'
 import {
@@ -529,7 +530,7 @@ export async function getMetricTrends() {
 
 export async function getClients() {
   const since = daysBack(30)
-  const [clients, calls, bookings, agents, unhealthy] = await Promise.all([
+  const [clients, total, calls, bookings, agents, unhealthy] = await Promise.all([
     db
       .select({
         id: workspace.id,
@@ -544,6 +545,13 @@ export async function getClients() {
       .where(eq(workspace.type, 'client'))
       .orderBy(workspace.name)
       .limit(100),
+    // True count, independent of the display cap above — the list silently
+    // truncates past 100 clients, but "X of Y" must never lie about Y.
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(workspace)
+      .where(eq(workspace.type, 'client'))
+      .then((rows) => rows[0]?.n ?? 0),
     db
       .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
       .from(call)
@@ -576,15 +584,18 @@ export async function getClients() {
   const agentsByWorkspace = countByWorkspace(agents)
   const unhealthyByWorkspace = countByWorkspace(unhealthy)
 
-  return clients
-    .map((client) => ({
-      ...client,
-      calls30d: callsByWorkspace.get(client.id) ?? 0,
-      bookings30d: bookingsByWorkspace.get(client.id) ?? 0,
-      agents: agentsByWorkspace.get(client.id) ?? 0,
-      unhealthy: unhealthyByWorkspace.get(client.id) ?? 0,
-    }))
-    .sort((a, b) => b.calls30d - a.calls30d)
+  return {
+    total,
+    rows: clients
+      .map((client) => ({
+        ...client,
+        calls30d: callsByWorkspace.get(client.id) ?? 0,
+        bookings30d: bookingsByWorkspace.get(client.id) ?? 0,
+        agents: agentsByWorkspace.get(client.id) ?? 0,
+        unhealthy: unhealthyByWorkspace.get(client.id) ?? 0,
+      }))
+      .sort((a, b) => b.calls30d - a.calls30d),
+  }
 }
 
 export async function getClientBySlug(slug: string) {
@@ -844,21 +855,32 @@ export async function getAgentDetail(agentId: string) {
 /* ─── Agents ─────────────────────────────────────────────────────────────── */
 
 export async function getAgents(options: { workspaceId?: string } = {}) {
-  const rows = await db
-    .select({
-      id: agent.id,
-      name: agent.name,
-      workspaceName: workspace.name,
-      workspaceSlug: workspace.slug,
-      templateId: agent.templateId,
-      liveVersionId: agent.liveVersionId,
-      updatedAt: agent.updatedAt,
-    })
-    .from(agent)
-    .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
-    .where(options.workspaceId ? eq(agent.workspaceId, options.workspaceId) : undefined)
-    .orderBy(workspace.name)
-    .limit(100)
+  const scope = options.workspaceId ? eq(agent.workspaceId, options.workspaceId) : undefined
+
+  const [rows, total] = await Promise.all([
+    db
+      .select({
+        id: agent.id,
+        name: agent.name,
+        workspaceId: agent.workspaceId,
+        workspaceName: workspace.name,
+        workspaceSlug: workspace.slug,
+        templateId: agent.templateId,
+        liveVersionId: agent.liveVersionId,
+        updatedAt: agent.updatedAt,
+      })
+      .from(agent)
+      .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+      .where(scope)
+      .orderBy(workspace.name)
+      .limit(100),
+    // True count, independent of the display cap above — see getClients.
+    db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(agent)
+      .where(scope)
+      .then((r) => r[0]?.n ?? 0),
+  ])
 
   const versions = await db
     .select({
@@ -881,25 +903,40 @@ export async function getAgents(options: { workspaceId?: string } = {}) {
     )
     .orderBy(desc(agentVersion.versionNumber))
 
-  const profiles = await db.select().from(voiceProfile)
+  // Global presets (dialect packs shared platform-wide) plus anything custom
+  // to a workspace actually shown here — not every voice profile that has
+  // ever existed for any client on the platform.
+  const workspaceIds = [...new Set(rows.map((row) => row.workspaceId))]
+  const profiles = await db
+    .select()
+    .from(voiceProfile)
+    .where(
+      or(
+        eq(voiceProfile.isGlobal, true),
+        workspaceIds.length > 0 ? inArray(voiceProfile.workspaceId, workspaceIds) : undefined,
+      ),
+    )
   const profileById = new Map(profiles.map((p) => [p.id, p]))
   const drafts = versions.filter((version) => version.status === 'draft')
   const testGates = await getVersionTestGates(drafts)
 
-  return rows.map((a) => {
-    const own = versions.filter((v) => v.agentId === a.id)
-    const live = own.find((v) => v.id === a.liveVersionId) ?? null
-    const draft = own.find((v) => v.status === 'draft') ?? null
-    const draftTestGate = draft ? (testGates.get(draft.id) ?? null) : null
-    return {
-      ...a,
-      live,
-      draft,
-      draftTestGate,
-      versionCount: own.length,
-      voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
-    }
-  })
+  return {
+    total,
+    rows: rows.map((a) => {
+      const own = versions.filter((v) => v.agentId === a.id)
+      const live = own.find((v) => v.id === a.liveVersionId) ?? null
+      const draft = own.find((v) => v.status === 'draft') ?? null
+      const draftTestGate = draft ? (testGates.get(draft.id) ?? null) : null
+      return {
+        ...a,
+        live,
+        draft,
+        draftTestGate,
+        versionCount: own.length,
+        voiceProfile: live?.voiceProfileId ? (profileById.get(live.voiceProfileId) ?? null) : null,
+      }
+    }),
+  }
 }
 
 /* ─── Calls ──────────────────────────────────────────────────────────────── */
@@ -1488,27 +1525,44 @@ async function getSecretHealth(): Promise<SecretHealth[]> {
 
 /* ─── Command palette index ──────────────────────────────────────────────── */
 
-export async function getCommandIndex(role: string) {
-  const [clients, agents, numbers] = await Promise.all([
-    canOperator(role, 'client.manage')
-      ? db
-          .select({ name: workspace.name, slug: workspace.slug })
-          .from(workspace)
-          .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'paused')))
-      : Promise.resolve([]),
-    canOperator(role, 'agent.publish')
-      ? db
-          .select({ name: agent.name, workspaceName: workspace.name })
-          .from(agent)
-          .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
-      : Promise.resolve([]),
-    canOperator(role, 'phone.manage')
-      ? db
-          .select({ e164: phoneNumber.e164, workspaceName: workspace.name })
-          .from(phoneNumber)
-          .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
-      : Promise.resolve([]),
-  ])
+// Every console navigation rebuilds this (see app/console/layout.tsx), so an
+// unbounded, uncached scan of clients/agents/numbers ran on every single
+// click. A 45s-stale nav index is invisible to a human operator; three full
+// table scans per click is not.
+const COMMAND_INDEX_LIMIT = 300
 
-  return { clients, agents, numbers }
+const getCachedCommandIndex = unstable_cache(
+  async (role: string) => {
+    const [clients, agents, numbers] = await Promise.all([
+      canOperator(role, 'client.manage')
+        ? db
+            .select({ name: workspace.name, slug: workspace.slug })
+            .from(workspace)
+            .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'paused')))
+            .limit(COMMAND_INDEX_LIMIT)
+        : Promise.resolve([]),
+      canOperator(role, 'agent.publish')
+        ? db
+            .select({ name: agent.name, workspaceName: workspace.name })
+            .from(agent)
+            .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+            .limit(COMMAND_INDEX_LIMIT)
+        : Promise.resolve([]),
+      canOperator(role, 'phone.manage')
+        ? db
+            .select({ e164: phoneNumber.e164, workspaceName: workspace.name })
+            .from(phoneNumber)
+            .innerJoin(workspace, eq(phoneNumber.workspaceId, workspace.id))
+            .limit(COMMAND_INDEX_LIMIT)
+        : Promise.resolve([]),
+    ])
+
+    return { clients, agents, numbers }
+  },
+  ['console-command-index'],
+  { revalidate: 45, tags: ['command-index'] },
+)
+
+export async function getCommandIndex(role: string) {
+  return getCachedCommandIndex(role)
 }

@@ -4,6 +4,12 @@ import { and, eq, gt } from 'drizzle-orm'
 import { db } from '@/server/db'
 import { user, workspace, workspaceAccess, workspaceInvitation } from '@/server/db/schema'
 
+// This page is genuinely meant to show the whole directory to an owner, not
+// a paginated list — but "whole directory" and "no limit at all" are not the
+// same promise. This is a safety ceiling against unbounded growth, not a
+// product-facing page size.
+const DIRECTORY_SAFETY_LIMIT = 1000
+
 export async function getAccessDirectory() {
   const [workspaces, memberships, users, invitations] = await Promise.all([
     db
@@ -14,7 +20,8 @@ export async function getAccessDirectory() {
         status: workspace.status,
       })
       .from(workspace)
-      .orderBy(workspace.type, workspace.name),
+      .orderBy(workspace.type, workspace.name)
+      .limit(DIRECTORY_SAFETY_LIMIT),
     db
       .select({
         id: workspaceAccess.id,
@@ -30,8 +37,13 @@ export async function getAccessDirectory() {
       .from(workspaceAccess)
       .innerJoin(user, eq(workspaceAccess.userId, user.id))
       .innerJoin(workspace, eq(workspaceAccess.workspaceId, workspace.id))
-      .orderBy(workspace.type, workspace.name, user.name),
-    db.select({ id: user.id, name: user.name, email: user.email }).from(user).orderBy(user.name),
+      .orderBy(workspace.type, workspace.name, user.name)
+      .limit(DIRECTORY_SAFETY_LIMIT),
+    db
+      .select({ id: user.id, name: user.name, email: user.email })
+      .from(user)
+      .orderBy(user.name)
+      .limit(DIRECTORY_SAFETY_LIMIT),
     db
       .select({
         id: workspaceInvitation.id,
@@ -51,7 +63,8 @@ export async function getAccessDirectory() {
           gt(workspaceInvitation.expiresAt, new Date()),
         ),
       )
-      .orderBy(workspaceInvitation.createdAt),
+      .orderBy(workspaceInvitation.createdAt)
+      .limit(DIRECTORY_SAFETY_LIMIT),
   ])
 
   return { workspaces, memberships, users, invitations }
