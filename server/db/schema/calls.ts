@@ -221,6 +221,7 @@ export const callEvent = pgTable(
       .references(() => call.id, { onDelete: 'cascade' }),
     type: text('type').notNull(),
     payload: jsonb('payload').$type<Record<string, unknown>>().default({}),
+    payloadEncrypted: text('payload_encrypted'),
     latencyMs: integer('latency_ms'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -348,6 +349,7 @@ export const booking = pgTable(
   },
   (t) => [
     index('booking_workspace_idx').on(t.workspaceId, t.scheduledAt),
+    index('booking_call_idx').on(t.callId),
     uniqueIndex('booking_workspace_external_idx').on(t.workspaceId, t.externalId),
   ],
 )
@@ -380,5 +382,8 @@ export const lead = pgTable(
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('lead_workspace_idx').on(t.workspaceId, t.createdAt)],
+  (t) => [
+    index('lead_workspace_idx').on(t.workspaceId, t.createdAt),
+    index('lead_call_idx').on(t.callId),
+  ],
 )

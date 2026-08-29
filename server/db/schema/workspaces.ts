@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -48,6 +49,9 @@ export const workspace = pgTable(
     retentionPolicy: jsonb('retention_policy').$type<Record<string, unknown>>().default({}),
     /** Console-only toggle — a packaging decision, not something a client can flip. */
     crmEnabled: boolean('crm_enabled').notNull().default(false),
+    /** Runtime cost guards; null preserves explicitly unlimited enterprise workspaces. */
+    monthlyCallLimit: integer('monthly_call_limit').default(10_000),
+    concurrentCallLimit: integer('concurrent_call_limit').notNull().default(10),
     /** Recording is opt-in per client and can only be approved from the operator console. */
     recordingEnabled: boolean('recording_enabled').notNull().default(false),
     recordingDisclosureMode: text('recording_disclosure_mode').notNull().default('none'),
@@ -70,6 +74,11 @@ export const workspace = pgTable(
       'workspace_recording_policy_consistency_check',
       sql`not ${t.recordingEnabled} or (${t.recordingApprovedAt} is not null and ${t.recordingDisclosureMode} <> 'none')`,
     ),
+    check(
+      'workspace_monthly_call_limit_check',
+      sql`${t.monthlyCallLimit} is null or ${t.monthlyCallLimit} > 0`,
+    ),
+    check('workspace_concurrent_call_limit_check', sql`${t.concurrentCallLimit} > 0`),
   ],
 )
 

@@ -19,6 +19,7 @@ export const integrationConnection = pgTable(
     label: text('label').notNull(),
     health: integrationHealthEnum('health').notNull().default('disconnected'),
     credentialsRef: text('credentials_ref'),
+    credentialsEncrypted: text('credentials_encrypted'),
     config: jsonb('config').$type<Record<string, unknown>>().default({}),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
@@ -57,5 +58,9 @@ export const auditLog = pgTable(
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('audit_workspace_idx').on(t.workspaceId, t.createdAt)],
+  (t) => [
+    index('audit_workspace_idx').on(t.workspaceId, t.createdAt),
+    index('audit_resource_idx').on(t.resourceType, t.resourceId),
+    index('audit_actor_idx').on(t.actorId),
+  ],
 )
