@@ -23,6 +23,10 @@ import {
   type RealtimeTranscriptAction,
 } from '@/server/voice/realtime-events'
 import { type RealtimeRecordingCapture, startRealtimeRecording } from '@/server/voice/recording'
+import {
+  type RealtimeSessionError,
+  resolveSidebandCloseDiagnostic,
+} from '@/server/voice/sideband-diagnostics'
 import type { ToolResult } from '@/server/voice/tools'
 
 const REALTIME_WS = 'wss://api.openai.com/v1/realtime'
@@ -41,6 +45,7 @@ type SidebandContext = {
 
 type SessionState = {
   lastCallerSpeechStoppedAt: number | null
+  lastRealtimeError: RealtimeSessionError | null
   seenToolCalls: Set<string>
   inputTokens: number
   outputTokens: number
@@ -372,6 +377,7 @@ async function handleAction(
   }
 
   const safeMessage = sanitizeLogText(action.message)
+  state.lastRealtimeError = { code: action.code, message: safeMessage }
   await recordEvent(ctx, 'realtime_error', action.sourceId, {
     code: action.code,
     message: safeMessage,
@@ -439,7 +445,13 @@ async function finalizeCall(
   // A code-1006 abnormal closure never carries a close-frame reason (there was
   // no close frame) — the only place the actual transport error shows up is
   // the socket's own 'error' event, captured below and threaded in here.
-  const closeReason = sanitizeLogText(reason.toString()) || socketError
+  const diagnostic = resolveSidebandCloseDiagnostic({
+    code,
+    frameReason: sanitizeLogText(reason.toString()) || null,
+    socketError,
+    realtimeError: state.lastRealtimeError,
+  })
+  const closeReason = diagnostic.closeReason
   const previousSideband = asRecord(row.metadata?.sideband) ?? {}
   const status = normalClose ? 'completed' : 'failed'
 
@@ -459,6 +471,7 @@ async function finalizeCall(
           closedAt: endedAt.toISOString(),
           closeCode: code,
           closeReason,
+          ...(diagnostic.realtimeError ? { realtimeError: diagnostic.realtimeError } : {}),
         },
       },
     })
@@ -537,6 +550,7 @@ async function runSideband(ctx: SidebandContext) {
   const ws = new WebSocket(url, { headers: { Authorization: `Bearer ${apiKey}` } })
   const state: SessionState = {
     lastCallerSpeechStoppedAt: null,
+    lastRealtimeError: null,
     seenToolCalls: new Set(),
     inputTokens: 0,
     outputTokens: 0,
