@@ -43,6 +43,10 @@ const createScenarioSchema = z.object({
   expectation: scenarioExpectationSchema,
 })
 
+const updateScenarioSchema = createScenarioSchema.omit({ versionId: true }).extend({
+  scenarioId: z.string().min(1),
+})
+
 const runVersionSchema = z.string().min(1)
 
 async function recordAudit(input: {
@@ -103,6 +107,7 @@ export async function createTestScenario(
     expectedOutcome: parsed.data.expectation,
     isCritical: parsed.data.isCritical,
     createdAt: new Date(),
+    updatedAt: new Date(),
   })
 
   await recordAudit({
@@ -116,6 +121,62 @@ export async function createTestScenario(
 
   revalidatePath('/console/test-lab')
   return { ok: true, message: 'أُضيف السيناريو. شغّله لتحديث قرار النشر.' }
+}
+
+export async function updateTestScenario(
+  input: z.input<typeof updateScenarioSchema>,
+): Promise<ActionResult> {
+  const access = await authorizeOperator('test.manage')
+  if (!access) return { ok: false, error: 'لا تملك صلاحية إدارة الاختبارات.' }
+
+  const parsed = updateScenarioSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات السيناريو غير مكتملة.' }
+  }
+
+  const [row] = await db
+    .select({
+      id: scenarioTest.id,
+      previousName: scenarioTest.name,
+      versionStatus: agentVersion.status,
+      versionNumber: agentVersion.versionNumber,
+      workspaceId: agent.workspaceId,
+      agentName: agent.name,
+    })
+    .from(scenarioTest)
+    .innerJoin(agentVersion, eq(scenarioTest.agentVersionId, agentVersion.id))
+    .innerJoin(agent, eq(agentVersion.agentId, agent.id))
+    .where(eq(scenarioTest.id, parsed.data.scenarioId))
+    .limit(1)
+
+  if (!row || row.versionStatus === 'archived') {
+    return { ok: false, error: 'السيناريو غير موجود أو لم يعد قابلًا للتعديل.' }
+  }
+
+  await db
+    .update(scenarioTest)
+    .set({
+      name: parsed.data.name,
+      category: parsed.data.category,
+      input: parsed.data.input,
+      expectedOutcome: parsed.data.expectation,
+      isCritical: parsed.data.isCritical,
+      updatedAt: new Date(),
+    })
+    .where(eq(scenarioTest.id, row.id))
+
+  await recordAudit({
+    workspaceId: row.workspaceId,
+    actorId: access.userId,
+    action: 'test.scenario_updated',
+    resourceType: 'scenario_test',
+    resourceId: row.id,
+    note: `تعديل سيناريو «${row.previousName}» في ${row.agentName} v${row.versionNumber}؛ يلزم تشغيله مجددًا`,
+  })
+
+  revalidatePath('/console/test-lab')
+  revalidatePath('/console/agents')
+  return { ok: true, message: 'حُدّث السيناريو. أعد تشغيله لتجديد دليل النشر.' }
 }
 
 export async function deleteTestScenario(scenarioId: string): Promise<ActionResult> {

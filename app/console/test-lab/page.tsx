@@ -227,8 +227,14 @@ export default async function TestLabPage({ searchParams }: PageProps) {
                       </details>
 
                       <ScenarioActions
-                        scenarioId={scenario.id}
-                        scenarioName={scenario.name}
+                        scenario={{
+                          id: scenario.id,
+                          name: scenario.name,
+                          category: scenario.category,
+                          isCritical: scenario.isCritical,
+                          input: scenario.inputContract,
+                          expectation: scenario.expectationContract,
+                        }}
                         openAiConfigured={data.openAiConfigured}
                       />
                     </article>

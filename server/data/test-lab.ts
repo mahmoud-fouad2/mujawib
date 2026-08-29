@@ -75,7 +75,9 @@ export async function getTestLab(requestedVersionId?: string) {
             ...latest,
             details: parsedDetails?.success ? parsedDetails.data : null,
             trusted: parsedDetails?.success ?? false,
-            fresh: latest.ranAt >= selected.updatedAt,
+            fresh:
+              latest.ranAt >=
+              new Date(Math.max(selected.updatedAt.getTime(), test.updatedAt.getTime())),
           }
         : null,
     }

@@ -20,6 +20,7 @@ export async function getVersionTestGate(versionId: string) {
         id: scenarioTest.id,
         name: scenarioTest.name,
         isCritical: scenarioTest.isCritical,
+        updatedAt: scenarioTest.updatedAt,
       })
       .from(scenarioTest)
       .where(eq(scenarioTest.agentVersionId, versionId))
@@ -71,6 +72,7 @@ export async function getVersionTestGates(versions: { id: string; updatedAt: Dat
         agentVersionId: scenarioTest.agentVersionId,
         name: scenarioTest.name,
         isCritical: scenarioTest.isCritical,
+        updatedAt: scenarioTest.updatedAt,
       })
       .from(scenarioTest)
       .where(inArray(scenarioTest.agentVersionId, versionIds)),
@@ -105,6 +107,7 @@ export async function getVersionTestGates(versions: { id: string; updatedAt: Dat
         id: test.id,
         name: test.name,
         isCritical: test.isCritical,
+        updatedAt: test.updatedAt,
         latestRun: latestByScenario.get(test.id) ?? null,
       }))
     result.set(version.id, {

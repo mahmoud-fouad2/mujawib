@@ -46,6 +46,7 @@ export const scenarioTest = pgTable(
     expectedOutcome: jsonb('expected_outcome').$type<Record<string, unknown>>().default({}),
     isCritical: boolean('is_critical').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('scenario_agent_version_idx').on(t.agentVersionId)],
 )

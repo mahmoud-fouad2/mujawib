@@ -251,6 +251,7 @@ export type GateScenario = {
   id: string
   name: string
   isCritical: boolean
+  updatedAt: Date
   latestRun: GateRun | null
 }
 
@@ -261,7 +262,10 @@ export function assessVersionTestGate(versionUpdatedAt: Date, scenarios: GateSce
       scenario.latestRun && !scenarioRunDetailsSchema.safeParse(scenario.latestRun.details).success,
   )
   const stale = scenarios.filter(
-    (scenario) => scenario.latestRun && scenario.latestRun.ranAt < versionUpdatedAt,
+    (scenario) =>
+      scenario.latestRun &&
+      scenario.latestRun.ranAt <
+        new Date(Math.max(versionUpdatedAt.getTime(), scenario.updatedAt.getTime())),
   )
   const criticalFailed = scenarios.filter(
     (scenario) => scenario.isCritical && scenario.latestRun?.passed !== true,
@@ -274,7 +278,7 @@ export function assessVersionTestGate(versionUpdatedAt: Date, scenarios: GateSce
   if (scenarios.length === 0) blockers.push('لا توجد سيناريوهات اختبار لهذه النسخة.')
   if (missing.length) blockers.push(`${missing.length} سيناريو لم يُشغّل بعد.`)
   if (invalid.length) blockers.push(`${invalid.length} نتيجة قديمة لا تعتمد على المشغّل الفعلي.`)
-  if (stale.length) blockers.push(`${stale.length} نتيجة أقدم من آخر تعديل للنسخة.`)
+  if (stale.length) blockers.push(`${stale.length} نتيجة أقدم من آخر تعديل للنسخة أو السيناريو.`)
   if (criticalFailed.length)
     blockers.push(`سيناريو حرج لم ينجح: ${criticalFailed[0]?.name ?? 'غير معروف'}.`)
 
@@ -282,7 +286,8 @@ export function assessVersionTestGate(versionUpdatedAt: Date, scenarios: GateSce
     (scenario) =>
       scenario.latestRun &&
       scenarioRunDetailsSchema.safeParse(scenario.latestRun.details).success &&
-      scenario.latestRun.ranAt >= versionUpdatedAt,
+      scenario.latestRun.ranAt >=
+        new Date(Math.max(versionUpdatedAt.getTime(), scenario.updatedAt.getTime())),
   )
 
   return {
