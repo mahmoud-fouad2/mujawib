@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { LiveRefreshIndicator } from '@/components/console/live-refresh'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
@@ -21,7 +22,11 @@ export default async function LivePage() {
 
   return (
     <>
-      <PageHead title="المراقبة اللحظية" sub="المكالمات الجارية الآن وحالة كل واحدة منها" />
+      <PageHead
+        title="المراقبة اللحظية"
+        sub="المكالمات الجارية الآن وحالة كل واحدة منها"
+        actions={<LiveRefreshIndicator />}
+      />
 
       <SummaryBar
         items={[
