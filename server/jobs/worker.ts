@@ -1,9 +1,9 @@
 import 'server-only'
 
-import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { db } from '@/server/db'
-import { call } from '@/server/db/schema'
+import { backgroundJob, call } from '@/server/db/schema'
 import { runRetentionSweep } from '@/server/security/retention'
 import { recoverStaleSidebands } from '@/server/voice/sideband'
 
@@ -62,15 +62,64 @@ async function reconcileStaleCalls() {
   for (const item of [...neverAccepted, ...abandonedByUs]) await enqueueCallIntelligence(item.id)
 }
 
-const ADVISORY_LOCK_ID = 8472910
+const MAINTENANCE_LEASE_ID = 'job_platform_maintenance'
+const MAINTENANCE_LEASE_MS = 45_000
+
+async function claimMaintenanceLease(): Promise<Date | null> {
+  const now = new Date()
+  await db
+    .insert(backgroundJob)
+    .values({
+      id: MAINTENANCE_LEASE_ID,
+      type: 'platform_maintenance',
+      dedupeKey: 'platform:maintenance',
+      payload: {},
+      status: 'pending',
+      availableAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: backgroundJob.dedupeKey })
+
+  const staleBefore = new Date(now.getTime() - MAINTENANCE_LEASE_MS)
+  const [claimed] = await db
+    .update(backgroundJob)
+    .set({
+      status: 'running',
+      lockedAt: now,
+      attempts: sql`${backgroundJob.attempts} + 1`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(backgroundJob.id, MAINTENANCE_LEASE_ID),
+        or(
+          inArray(backgroundJob.status, ['pending', 'failed', 'completed']),
+          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+        ),
+      ),
+    )
+    .returning({ lockedAt: backgroundJob.lockedAt })
+  return claimed?.lockedAt ?? null
+}
+
+async function releaseMaintenanceLease(lockedAt: Date) {
+  await db
+    .update(backgroundJob)
+    .set({ status: 'pending', lockedAt: null, lastError: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(backgroundJob.id, MAINTENANCE_LEASE_ID),
+        eq(backgroundJob.status, 'running'),
+        eq(backgroundJob.lockedAt, lockedAt),
+      ),
+    )
+}
 
 async function runMaintenanceTick() {
-  await db.transaction(async (tx) => {
-    const [lock] = (await tx.execute(
-      sql`SELECT pg_try_advisory_xact_lock(${ADVISORY_LOCK_ID}) as acquired`,
-    )) as unknown as [{ acquired: boolean } | undefined]
-    if (!lock?.acquired) return
-
+  const lease = await claimMaintenanceLease()
+  if (!lease) return
+  try {
     await reconcileStaleCalls()
     await recoverStaleSidebands()
     await drainCallIntelligenceJobs()
@@ -78,7 +127,9 @@ async function runMaintenanceTick() {
       await runRetentionSweep()
       lastRetentionSweep = Date.now()
     }
-  })
+  } finally {
+    await releaseMaintenanceLease(lease)
+  }
 }
 
 const workerGlobal = globalThis as typeof globalThis & {
