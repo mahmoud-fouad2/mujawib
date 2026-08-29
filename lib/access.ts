@@ -23,6 +23,7 @@ export type OperatorPermission =
   | 'system.view'
   | 'change.manage'
   | 'access.manage'
+  | 'recording.listen'
 
 export type ClientPermission =
   | 'portal.view'
@@ -32,6 +33,7 @@ export type ClientPermission =
   | 'crm.manage'
   | 'phone.request'
   | 'booking.manage'
+  | 'recording.listen'
 
 export const ACCESS_ROLE_LABEL: Record<AccessRole, string> = {
   owner: 'مالك المنصة',
@@ -57,6 +59,7 @@ const OPERATOR_POLICY: Record<OperatorRole, ReadonlySet<OperatorPermission>> = {
     'system.view',
     'change.manage',
     'access.manage',
+    'recording.listen',
   ]),
   ops: new Set([
     'console.view',
@@ -69,8 +72,16 @@ const OPERATOR_POLICY: Record<OperatorRole, ReadonlySet<OperatorPermission>> = {
     'phone.manage',
     'system.view',
     'change.manage',
+    'recording.listen',
   ]),
-  qa: new Set(['console.view', 'qa.review', 'test.manage', 'voice.manage', 'change.manage']),
+  qa: new Set([
+    'console.view',
+    'qa.review',
+    'test.manage',
+    'voice.manage',
+    'change.manage',
+    'recording.listen',
+  ]),
   integrator: new Set(['console.view', 'integration.manage', 'phone.manage', 'system.view']),
 }
 
@@ -83,6 +94,7 @@ const CLIENT_POLICY: Record<ClientRole, ReadonlySet<ClientPermission>> = {
     'crm.manage',
     'phone.request',
     'booking.manage',
+    'recording.listen',
   ]),
   client_manager: new Set([
     'portal.view',
@@ -92,6 +104,7 @@ const CLIENT_POLICY: Record<ClientRole, ReadonlySet<ClientPermission>> = {
     'crm.manage',
     'phone.request',
     'booking.manage',
+    'recording.listen',
   ]),
   // Reviewer and read-only can still see the CRM table (gated on `portal.view`
   // alone, like every other portal page) — `crm.manage` only decides who can

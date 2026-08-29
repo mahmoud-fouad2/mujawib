@@ -1,8 +1,9 @@
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { recordingPolicyAllowsCapture } from '@/lib/recording-policy'
 import { authorizeClientWorkspace, authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
-import { call } from '@/server/db/schema'
+import { call, workspace } from '@/server/db/schema'
 import { parseByteRange } from '@/server/storage/http-range'
 import { getRecording } from '@/server/storage/recordings'
 
@@ -38,8 +39,12 @@ async function authorizedRecording(callId: string) {
       status: call.recordingStatus,
       contentType: call.recordingContentType,
       byteSize: call.recordingByteSize,
+      recordingEnabled: workspace.recordingEnabled,
+      disclosureMode: workspace.recordingDisclosureMode,
+      approvedAt: workspace.recordingApprovedAt,
     })
     .from(call)
+    .innerJoin(workspace, eq(call.workspaceId, workspace.id))
     .where(eq(call.id, callId))
     .limit(1)
 
@@ -47,6 +52,15 @@ async function authorizedRecording(callId: string) {
     !row?.objectKey?.startsWith('recordings/v1/') ||
     (row.status !== 'ready' && row.status !== 'partial') ||
     !row.byteSize
+  ) {
+    return null
+  }
+  if (
+    !recordingPolicyAllowsCapture({
+      enabled: row.recordingEnabled,
+      disclosureMode: row.disclosureMode,
+      approvedAt: row.approvedAt,
+    })
   ) {
     return null
   }
@@ -58,8 +72,8 @@ async function authorizedRecording(callId: string) {
   }
 
   const [operator, client] = await Promise.all([
-    authorizeOperator('console.view'),
-    authorizeClientWorkspace(row.workspaceId, 'portal.view'),
+    authorizeOperator('recording.listen'),
+    authorizeClientWorkspace(row.workspaceId, 'recording.listen'),
   ])
   return operator || client ? authorized : null
 }
