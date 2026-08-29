@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { unstable_cache } from 'next/cache'
 import { CallPlayer } from '@/components/site/call-player'
 import { Industries } from '@/components/site/industries'
 import {
@@ -38,28 +39,45 @@ const READY_INTEGRATIONS = [
   { provider: 'rest_api', label: 'Webhooks / API' },
 ] as const
 
+/**
+ * The public homepage used to run six real operational aggregate queries on
+ * every anonymous visit — on the same Postgres connection pool a live call's
+ * sideband depends on. A traffic spike (the exact outcome a marketing push
+ * wants) competed directly with real calls for that pool. None of this data
+ * needs to be instant: a 90-second-stale proof strip is invisible to a
+ * visitor, so it is cached instead of refetched per request.
+ */
+const getCachedLandingData = unstable_cache(
+  async () => {
+    const [proof, hero, demos, packs, integrations, consolePreview] = await Promise.all([
+      getPlatformProof(),
+      getHeroCall(),
+      getDemoCalls(),
+      getIndustryPacks(),
+      getLiveIntegrations(),
+      getConsolePreview(),
+    ])
+    return { proof, hero, demos, packs, integrations, consolePreview }
+  },
+  ['marketing-landing-data'],
+  { revalidate: 90, tags: ['marketing'] },
+)
+
 export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
-  const data = await Promise.all([
-    getPlatformProof(),
-    getHeroCall(),
-    getDemoCalls(),
-    getIndustryPacks(),
-    getLiveIntegrations(),
-    getConsolePreview(),
-  ]).catch((error: unknown) => {
+  const data = await getCachedLandingData().catch((error: unknown) => {
     if (!isDatabaseUnavailable(error)) throw error
     console.error('[marketing] operational data unavailable')
     return null
   })
-  const proof = data?.[0] ?? null
-  const hero = data?.[1] ?? null
-  const demos = data?.[2] ?? []
-  const packs = data?.[3] ?? []
-  const integrations = data?.[4] ?? []
-  const consolePreview = data?.[5] ?? {
+  const proof = data?.proof ?? null
+  const hero = data?.hero ?? null
+  const demos = data?.demos ?? []
+  const packs = data?.packs ?? []
+  const integrations = data?.integrations ?? []
+  const consolePreview = data?.consolePreview ?? {
     queue: [],
     counts: { live: 0, review: 0, degraded: 0 },
   }
