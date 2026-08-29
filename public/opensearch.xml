@@ -4,7 +4,7 @@
   <Description>بحث في مركز معلومات وأسئلة مُجاوِب الشائعة</Description>
   <Tags>ذكاء اصطناعي استقبال صوتي مواعيد عيادات شركات</Tags>
   <Contact>contact@mujawib.com</Contact>
-  <Url type="text/html" template="https://mujawib.onrender.com/faq?q={searchTerms}"/>
+  <Url type="text/html" template="https://www.mujawib.com/faq?q={searchTerms}"/>
   <Language>ar</Language>
   <OutputEncoding>UTF-8</OutputEncoding>
   <InputEncoding>UTF-8</InputEncoding>
