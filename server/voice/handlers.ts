@@ -3,6 +3,7 @@ import 'server-only'
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { arabicServiceMatches, normalizePhoneE164 } from '@/lib/voice-normalization'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
 import { db } from '@/server/db'
 import {
@@ -170,7 +171,7 @@ async function checkAvailability(
       and(eq(knowledgeItem.workspaceId, ctx.workspaceId), eq(knowledgeItem.category, 'service')),
     )
 
-  const known = services.find((service) => service.title.includes(parsed.data.service))
+  const known = services.find((service) => arabicServiceMatches(service.title, parsed.data.service))
   if (!known) {
     return {
       ok: false,
@@ -230,6 +231,11 @@ async function createBooking(
     return { ok: false, error: 'بيانات الحجز غير مكتملة.', fallback: 'retry' }
   }
 
+  const customerPhone = normalizePhoneE164(parsed.data.customerPhone)
+  if (!customerPhone) {
+    return { ok: false, error: 'رقم الهاتف غير صالح. اذكره مع رمز الدولة.', fallback: 'retry' }
+  }
+
   if (
     !verifyAvailabilityToken(
       ctx,
@@ -282,7 +288,7 @@ async function createBooking(
       service: parsed.data.service,
       slot: parsed.data.slot,
       customerName: parsed.data.customerName,
-      customerPhone: parsed.data.customerPhone,
+      customerPhone,
       branch: parsed.data.branch,
       notes: parsed.data.notes,
       idempotencyKey: ctx.operationId ?? ctx.callId,
@@ -305,8 +311,8 @@ async function createBooking(
         externalId: response.data.bookingId,
         customerName: parsed.data.customerName,
         customerNameEncrypted: protectString(parsed.data.customerName),
-        customerPhone: parsed.data.customerPhone,
-        customerPhoneEncrypted: protectString(parsed.data.customerPhone),
+        customerPhone,
+        customerPhoneEncrypted: protectString(customerPhone),
         service: parsed.data.service,
         scheduledAt: new Date(parsed.data.slot),
         status: 'confirmed',
@@ -333,7 +339,7 @@ async function createBooking(
 
   await upsertCustomerFromContact({
     workspaceId: ctx.workspaceId,
-    phone: parsed.data.customerPhone,
+    phone: customerPhone,
     name: parsed.data.customerName,
     when: bookedAt,
   }).catch(() => console.error('[voice] could not upsert CRM contact from booking'))
@@ -357,7 +363,8 @@ async function findCallersOwnBooking(
   ctx: ToolContext,
   service: string | undefined,
 ): Promise<{ ok: true; booking: BookingRow } | { ok: false; result: ToolResult }> {
-  if (!ctx.callerNumber) {
+  const callerNumber = normalizePhoneE164(ctx.callerNumber)
+  if (!callerNumber) {
     return {
       ok: false,
       result: { ok: false, error: 'تعذّر التحقق من رقم المتصل.', fallback: 'transfer' },
@@ -370,12 +377,14 @@ async function findCallersOwnBooking(
     .where(
       and(
         eq(booking.workspaceId, ctx.workspaceId),
-        eq(booking.customerPhone, ctx.callerNumber),
+        eq(booking.customerPhone, callerNumber),
         eq(booking.status, 'confirmed'),
       ),
     )
   const upcoming = candidates.filter((b) => !b.scheduledAt || b.scheduledAt.getTime() > Date.now())
-  const matches = service ? upcoming.filter((b) => b.service?.includes(service)) : upcoming
+  const matches = service
+    ? upcoming.filter((b) => b.service && arabicServiceMatches(b.service, service))
+    : upcoming
 
   if (matches.length === 0) {
     return {
@@ -581,6 +590,10 @@ async function sendConfirmation(
   if (!parsed.success || (!parsed.data.to && !ctx.callerNumber)) {
     return { ok: false, error: 'بيانات إرسال التأكيد غير مكتملة.', fallback: 'retry' }
   }
+  const destination = normalizePhoneE164(parsed.data.to ?? ctx.callerNumber)
+  if (!destination) {
+    return { ok: false, error: 'رقم إرسال التأكيد غير صالح.', fallback: 'retry' }
+  }
 
   const integration = await findIntegration(ctx.workspaceId, ['whatsapp'], 'message')
   if (!integration) {
@@ -591,7 +604,7 @@ async function sendConfirmation(
   const response = await invokeIntegration({
     connection: integration,
     action: 'message',
-    payload: { to: parsed.data.to ?? ctx.callerNumber, bookingId: parsed.data.bookingId },
+    payload: { to: destination, bookingId: parsed.data.bookingId },
   })
   if (!response.ok) {
     return { ok: false, error: integrationError(response.code, 'قناة الإرسال'), fallback: 'retry' }
@@ -612,6 +625,10 @@ async function createCallback(
   if (!parsed.success) {
     return { ok: false, error: 'بيانات معاودة الاتصال غير مكتملة.', fallback: 'retry' }
   }
+  const customerPhone = normalizePhoneE164(parsed.data.customerPhone)
+  if (!customerPhone) {
+    return { ok: false, error: 'رقم معاودة الاتصال غير صالح.', fallback: 'retry' }
+  }
 
   const now = new Date()
   const requestId = id('cr')
@@ -621,20 +638,20 @@ async function createCallback(
       id: requestId,
       workspaceId: ctx.workspaceId,
       type: 'callback',
-      title: `معاودة اتصال — ${parsed.data.customerName ?? parsed.data.customerPhone ?? 'متصل'}`,
+      title: `معاودة اتصال — ${parsed.data.customerName ?? customerPhone}`,
       description: parsed.data.reason,
       status: 'requested',
       requestedById: 'voice',
       dedupeKey: `voice-callback:${ctx.callId}`,
       metadata: {
-        phone: parsed.data.customerPhone,
+        phone: customerPhone,
         name: parsed.data.customerName,
         // Additive: the plain fields above still carry the number, since
         // that is what Ops actually dials to call the customer back and no
         // request-detail view exists yet to read a decrypted field from.
         // These twins mean a raw database read alone — a leaked connection
         // string, a stray backup — doesn't also hand over the number.
-        phoneEncrypted: parsed.data.customerPhone ? protectString(parsed.data.customerPhone) : null,
+        phoneEncrypted: protectString(customerPhone),
         nameEncrypted: parsed.data.customerName ? protectString(parsed.data.customerName) : null,
         callId: ctx.callId,
       },
@@ -646,14 +663,12 @@ async function createCallback(
 
   await db.update(call).set({ outcome: 'callback' }).where(eq(call.id, ctx.callId))
 
-  if (parsed.data.customerPhone) {
-    await upsertCustomerFromContact({
-      workspaceId: ctx.workspaceId,
-      phone: parsed.data.customerPhone,
-      name: parsed.data.customerName ?? null,
-      when: now,
-    }).catch(() => console.error('[voice] could not upsert CRM contact from callback'))
-  }
+  await upsertCustomerFromContact({
+    workspaceId: ctx.workspaceId,
+    phone: customerPhone,
+    name: parsed.data.customerName ?? null,
+    when: now,
+  }).catch(() => console.error('[voice] could not upsert CRM contact from callback'))
 
   return { ok: true, data: { logged: true, ...(inserted ? { requestId: inserted.id } : {}) } }
 }
