@@ -30,6 +30,7 @@ import { AccountMenu } from '@/components/auth/account-menu'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { type CommandIndex, CommandPalette } from '@/components/console/command-palette'
 import { NotificationCenter } from '@/components/notifications/notification-center'
+import { useDismissable } from '@/components/ui/overlays'
 import { useTheme } from '@/components/ui/theme'
 import { canOperator } from '@/lib/access'
 import { CONSOLE_NAV, isNavActive, type NavIconKey } from '@/lib/console-nav'
@@ -114,6 +115,16 @@ export function ConsoleShell({
     if (pathname) setMobileOpen(false)
   }, [pathname])
 
+  // Below ~980px .sidebar becomes a fixed, off-canvas drawer (app-shell.css) —
+  // a real modal overlay, so it gets the same Escape/Tab-trap/focus-restore
+  // contract Sheet and Confirm already give theirs. Its content is nav links,
+  // not form fields, hence the wider initial-focus selector.
+  const drawerRef = useDismissable(
+    mobileOpen,
+    () => setMobileOpen(false),
+    'a[href], button:not([data-dismiss])',
+  )
+
   const openPalette = useCallback(() => setPaletteOpen(true), [])
 
   useEffect(() => {
@@ -130,6 +141,8 @@ export function ConsoleShell({
   return (
     <div className="shell" data-rail={rail} data-expanded={expanded}>
       <aside
+        ref={drawerRef}
+        id="console-mobile-nav"
         className="sidebar"
         data-open={mobileOpen}
         // Pointer and keyboard both expand the rail. `focus-within` alone
@@ -218,6 +231,8 @@ export function ConsoleShell({
             className="icon-btn console-mobile-toggle"
             onClick={() => setMobileOpen((v) => !v)}
             aria-label={mobileOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
+            aria-expanded={mobileOpen}
+            aria-controls="console-mobile-nav"
           >
             {mobileOpen ? <X size={18} /> : <Menu size={18} />}
           </button>

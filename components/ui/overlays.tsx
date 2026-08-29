@@ -4,8 +4,19 @@ import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 
-/** Escape to close, focus moved in on open, focus restored on close. */
-function useDismissable(open: boolean, onClose: () => void) {
+/**
+ * Escape to close, focus moved in on open, focus restored on close.
+ *
+ * `initialFocusSelector` picks what receives focus on open — the default
+ * suits Sheet/Confirm, whose content is form fields and buttons. A caller
+ * whose content is mostly navigation links (nothing a form-field selector
+ * would ever match) can override it.
+ */
+export function useDismissable(
+  open: boolean,
+  onClose: () => void,
+  initialFocusSelector = 'input, textarea, select, button:not([data-dismiss])',
+) {
   const ref = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
   // Read through a ref rather than depending on onClose directly: callers
@@ -43,12 +54,10 @@ function useDismissable(open: boolean, onClose: () => void) {
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     requestAnimationFrame(() => {
-      // Excludes [data-dismiss]: Sheet's header close button sits before the
-      // body in DOM order, so the untargeted selector focused it instead of
-      // the first real field every time this ran.
-      ref.current
-        ?.querySelector<HTMLElement>('input, textarea, select, button:not([data-dismiss])')
-        ?.focus()
+      // Excludes [data-dismiss] in the default selector: Sheet's header close
+      // button sits before the body in DOM order, so the untargeted selector
+      // focused it instead of the first real field every time this ran.
+      ref.current?.querySelector<HTMLElement>(initialFocusSelector)?.focus()
     })
 
     return () => {
@@ -56,7 +65,7 @@ function useDismissable(open: boolean, onClose: () => void) {
       document.body.style.overflow = ''
       restoreTo.current?.focus()
     }
-  }, [open])
+  }, [open, initialFocusSelector])
 
   return ref
 }
