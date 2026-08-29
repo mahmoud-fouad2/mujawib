@@ -44,7 +44,10 @@ const schema = z.object({
   pack: z.enum(['medical', 'realestate', 'auto', 'reception']),
   agentName: z.string().trim().min(2, 'اسم الموظف الصوتي مطلوب').max(60),
   services: z.array(serviceSchema).min(1, 'أضف خدمة واحدة على الأقل').max(30),
-  branches: z.array(z.string().trim().min(2).max(120)).min(1, 'أضف فرعًا واحدًا على الأقل').max(30),
+  branches: z
+    .array(z.string().trim().min(2, 'اسم الفرع قصير جدًا').max(120))
+    .min(1, 'أضف فرعًا واحدًا على الأقل')
+    .max(30),
   hoursWeekday: z.string().trim().min(3).max(40),
   hoursWeekend: z.string().trim().max(40).optional(),
   transferTo: z
@@ -139,159 +142,170 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
   const packFlows = ((template.defaultFlows as string[]) ?? []).filter(Boolean)
   const packIntegrations = ((template.defaultIntegrations as string[]) ?? []).filter(Boolean)
 
-  await db.transaction(async (tx) => {
-    await tx.insert(workspace).values({
-      id: workspaceId,
-      organizationId: ORG_ID,
-      name: data.name,
-      slug,
-      type: 'client',
-      status: 'setup',
-      industryPack: data.pack,
-      timezone: data.timezone,
-      locale: 'ar-SA',
-      businessInfo: {
-        city: data.city,
-        hours: { sun_thu: data.hoursWeekday, sat: data.hoursWeekend || 'مغلق', fri: 'مغلق' },
-        branches: data.branches,
-        transferTo: data.transferTo,
-      },
-      retentionPolicy: { calls: '180d', recordings: '30d', transcripts: '180d' },
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    // Structured knowledge — Bible §12: prices and hours never rely on retrieval.
-    await tx.insert(knowledgeItem).values([
-      ...data.services.map((s) => ({
-        id: id('kn'),
-        workspaceId,
-        category: 'service',
-        title: s.title,
-        content: { price: s.price || 'حسب الحالة' } as Record<string, unknown>,
-        source: 'onboarding',
-        createdAt: now,
-        updatedAt: now,
-      })),
-      ...data.branches.map((b) => ({
-        id: id('kn'),
-        workspaceId,
-        category: 'branch',
-        title: b,
-        content: { city: data.city, hours: data.hoursWeekday } as Record<string, unknown>,
-        source: 'onboarding',
-        createdAt: now,
-        updatedAt: now,
-      })),
-    ])
-
-    await tx.insert(agent).values({
-      id: agentId,
-      workspaceId,
-      name: data.agentName,
-      templateId: template.id,
-      liveVersionId: null,
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    await tx.insert(agentVersion).values({
-      id: versionId,
-      agentId,
-      versionNumber: 1,
-      status: 'draft',
-      identity: {
-        role: `موظف استقبال صوتي لدى ${data.name}`,
-        goals: ['الإجابة على الاستفسارات', 'إنجاز الحجز', 'التحويل الآمن عند الحاجة'],
-        restricted: ['لا يؤكد سعرًا غير موجود في المعرفة'],
-      },
-      businessRules: {
-        hours: data.hoursWeekday,
-        weekend: data.hoursWeekend || 'مغلق',
-        transferTo: data.transferTo,
-      },
-      flows: packFlows,
-      toolBindings: packIntegrations,
-      routing: { afterHours: 'callback', escalation: data.transferTo },
-      readinessScore: 0,
-      blockers: [],
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    if (packFlows.length > 0) {
-      await tx.insert(flow).values(
-        packFlows.map((name, i) => ({
-          id: id('flow'),
-          agentVersionId: versionId,
-          name,
-          goal: `إنجاز ${name} بدون تدخل بشري`,
-          requiredFields: name.includes('حجز')
-            ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
-            : ['الموضوع'],
-          actions: name.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
-          fallback: { onFailure: 'callback_or_transfer' },
-          sortOrder: i,
-          createdAt: now,
-        })),
-      )
-    }
-
-    if (packIntegrations.length > 0) {
-      await tx.insert(integrationConnection).values(
-        packIntegrations.map((provider) => ({
-          id: id('int'),
-          workspaceId,
-          provider,
-          label: provider,
-          health: 'disconnected' as const,
-          config: { scope: 'workspace' },
-          createdAt: now,
-          updatedAt: now,
-        })),
-      )
-    }
-
-    if (data.did) {
-      await tx.insert(phoneNumber).values({
-        id: id('phone'),
-        workspaceId,
-        e164: data.did.replaceAll(' ', ''),
-        label: `الرقم الرئيسي — ${data.city}`,
-        agentId,
-        mode: 'all_calls',
-        transferDestination: data.transferTo.replaceAll(' ', ''),
-        sipStatus: 'pending',
-        routingRules: { afterHours: 'callback' },
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(workspace).values({
+        id: workspaceId,
+        organizationId: ORG_ID,
+        name: data.name,
+        slug,
+        type: 'client',
+        status: 'setup',
+        industryPack: data.pack,
+        timezone: data.timezone,
+        locale: 'ar-SA',
+        businessInfo: {
+          city: data.city,
+          hours: { sun_thu: data.hoursWeekday, sat: data.hoursWeekend || 'مغلق', fri: 'مغلق' },
+          branches: data.branches,
+          transferTo: data.transferTo,
+        },
+        retentionPolicy: { calls: '180d', recordings: '30d', transcripts: '180d' },
         createdAt: now,
         updatedAt: now,
       })
+
+      // Structured knowledge — Bible §12: prices and hours never rely on retrieval.
+      await tx.insert(knowledgeItem).values([
+        ...data.services.map((s) => ({
+          id: id('kn'),
+          workspaceId,
+          category: 'service',
+          title: s.title,
+          content: { price: s.price || 'حسب الحالة' } as Record<string, unknown>,
+          source: 'onboarding',
+          createdAt: now,
+          updatedAt: now,
+        })),
+        ...data.branches.map((b) => ({
+          id: id('kn'),
+          workspaceId,
+          category: 'branch',
+          title: b,
+          content: { city: data.city, hours: data.hoursWeekday } as Record<string, unknown>,
+          source: 'onboarding',
+          createdAt: now,
+          updatedAt: now,
+        })),
+      ])
+
+      await tx.insert(agent).values({
+        id: agentId,
+        workspaceId,
+        name: data.agentName,
+        templateId: template.id,
+        liveVersionId: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      await tx.insert(agentVersion).values({
+        id: versionId,
+        agentId,
+        versionNumber: 1,
+        status: 'draft',
+        identity: {
+          role: `موظف استقبال صوتي لدى ${data.name}`,
+          goals: ['الإجابة على الاستفسارات', 'إنجاز الحجز', 'التحويل الآمن عند الحاجة'],
+          restricted: ['لا يؤكد سعرًا غير موجود في المعرفة'],
+        },
+        businessRules: {
+          hours: data.hoursWeekday,
+          weekend: data.hoursWeekend || 'مغلق',
+          transferTo: data.transferTo,
+        },
+        flows: packFlows,
+        toolBindings: packIntegrations,
+        routing: { afterHours: 'callback', escalation: data.transferTo },
+        readinessScore: 0,
+        blockers: [],
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      if (packFlows.length > 0) {
+        await tx.insert(flow).values(
+          packFlows.map((name, i) => ({
+            id: id('flow'),
+            agentVersionId: versionId,
+            name,
+            goal: `إنجاز ${name} بدون تدخل بشري`,
+            requiredFields: name.includes('حجز')
+              ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
+              : ['الموضوع'],
+            actions: name.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
+            fallback: { onFailure: 'callback_or_transfer' },
+            sortOrder: i,
+            createdAt: now,
+          })),
+        )
+      }
+
+      if (packIntegrations.length > 0) {
+        await tx.insert(integrationConnection).values(
+          packIntegrations.map((provider) => ({
+            id: id('int'),
+            workspaceId,
+            provider,
+            label: provider,
+            health: 'disconnected' as const,
+            config: { scope: 'workspace' },
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
+      }
+
+      if (data.did) {
+        await tx.insert(phoneNumber).values({
+          id: id('phone'),
+          workspaceId,
+          e164: data.did.replaceAll(' ', ''),
+          label: `الرقم الرئيسي — ${data.city}`,
+          agentId,
+          mode: 'all_calls',
+          transferDestination: data.transferTo.replaceAll(' ', ''),
+          sipStatus: 'pending',
+          routingRules: { afterHours: 'callback' },
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
+      await tx.insert(workspaceInvitation).values({
+        id: invitationId,
+        workspaceId,
+        email: ownerEmail,
+        role: 'client_admin',
+        tokenHash: invitationToken.hash,
+        status: 'pending',
+        invitedById: access.userId,
+        expiresAt: invitationExpiresAt,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      await tx.insert(auditLog).values({
+        id: id('audit'),
+        workspaceId,
+        actorId: access.email,
+        action: 'workspace.provision',
+        resourceType: 'workspace',
+        resourceId: workspaceId,
+        metadata: { note: `تهيئة ${data.name} ودعوة ${ownerEmail} من قالب ${template.name}` },
+        createdAt: now,
+      })
+    })
+  } catch {
+    // The two realistic collisions here — a duplicate DID (phoneNumber.e164 is
+    // globally unique) or two concurrent onboardings racing the same slug —
+    // must not surface as a crashed wizard. Same reasoning and shape as
+    // createInvitedWorkspaceAccount's catch in server/actions/access.ts.
+    return {
+      ok: false,
+      error: 'تعذر إنشاء مساحة العميل الآن. تحقق من رقم الاستقبال أو أعد المحاولة باسم مختلف.',
     }
-
-    await tx.insert(workspaceInvitation).values({
-      id: invitationId,
-      workspaceId,
-      email: ownerEmail,
-      role: 'client_admin',
-      tokenHash: invitationToken.hash,
-      status: 'pending',
-      invitedById: access.userId,
-      expiresAt: invitationExpiresAt,
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    await tx.insert(auditLog).values({
-      id: id('audit'),
-      workspaceId,
-      actorId: 'onboarding',
-      action: 'workspace.provision',
-      resourceType: 'workspace',
-      resourceId: workspaceId,
-      metadata: { note: `تهيئة ${data.name} ودعوة ${ownerEmail} من قالب ${template.name}` },
-      createdAt: now,
-    })
-  })
+  }
 
   return {
     ok: true,

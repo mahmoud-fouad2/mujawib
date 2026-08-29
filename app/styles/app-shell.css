@@ -532,7 +532,7 @@
 
 .notification-panel__head span {
   color: var(--text-faint);
-  font-size: var(--step--2);
+  font-size: var(--step--1);
 }
 
 .notification-panel__actions,
@@ -544,7 +544,7 @@
 
 .notification-panel__actions > button:not(.icon-btn) {
   color: var(--signal);
-  font-size: var(--step--2);
+  font-size: var(--step--1);
   font-weight: 600;
 }
 
@@ -612,7 +612,7 @@
 
 .notification-item__body > span:last-child {
   color: var(--text-muted);
-  font-size: var(--step--2);
+  font-size: var(--step--1);
   line-height: 1.6;
 }
 
@@ -639,7 +639,7 @@
 }
 
 .notification-empty span {
-  font-size: var(--step--2);
+  font-size: var(--step--1);
 }
 
 @media (max-width: 640px) {

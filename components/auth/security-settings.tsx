@@ -15,6 +15,7 @@ import { toDataURL } from 'qrcode'
 import { type FormEvent, useEffect, useState } from 'react'
 import { PasswordField } from '@/components/auth/password-field'
 import { Button } from '@/components/ui/button'
+import { Pill } from '@/components/ui/primitives'
 import { useToast } from '@/components/ui/toast'
 import { authClient } from '@/lib/auth-client'
 
@@ -134,9 +135,7 @@ export function SecuritySettings({
         <div className="security-row__body">
           <div className="security-row__title">
             <h2>تطبيق المصادقة</h2>
-            <span className="pill" data-tone={enabled ? 'good' : 'neutral'}>
-              {enabled ? 'مفعّل' : 'غير مفعّل'}
-            </span>
+            <Pill tone={enabled ? 'good' : 'neutral'}>{enabled ? 'مفعّل' : 'غير مفعّل'}</Pill>
           </div>
           <p>يضيف رمزًا مؤقتًا بعد كلمة المرور، ويمنع استخدام الحساب حتى عند انكشاف كلمة المرور.</p>
 

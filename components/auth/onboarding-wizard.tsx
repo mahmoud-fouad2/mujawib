@@ -66,7 +66,12 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
   const toast = useToast()
   const [step, setStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState<{ name: string; agent: string; inviteUrl: string } | null>(null)
+  const [done, setDone] = useState<{
+    name: string
+    agent: string
+    inviteUrl: string
+    workspaceSlug: string
+  } | null>(null)
   const [pending, startTransition] = useTransition()
 
   const [name, setName] = useState('')
@@ -92,11 +97,19 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail.trim())
       )
     if (step === 1) return Boolean(pack) && agentName.trim().length >= 2
-    if (step === 2)
+    if (step === 2) {
+      // Every non-blank row must be individually valid, not just one of them —
+      // otherwise a stray 1-character row survives this gate and only fails at
+      // the very last step, against the server's schema.
+      const svc = services.filter((s) => s.title.trim())
+      const br = branches.filter((b) => b.title.trim())
       return (
-        services.some((s) => s.title.trim().length >= 2) &&
-        branches.some((b) => b.title.trim().length >= 2)
+        svc.length > 0 &&
+        svc.every((s) => s.title.trim().length >= 2) &&
+        br.length > 0 &&
+        br.every((b) => b.title.trim().length >= 2)
       )
+    }
     if (step === 3) return /^\+?[0-9\s-]{8,20}$/.test(transferTo.trim())
     return true
   }
@@ -125,7 +138,12 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         setError(result.error)
         return
       }
-      setDone({ name: result.workspaceName, agent: result.agentName, inviteUrl: result.inviteUrl })
+      setDone({
+        name: result.workspaceName,
+        agent: result.agentName,
+        inviteUrl: result.inviteUrl,
+        workspaceSlug: result.workspaceSlug,
+      })
     })
   }
 
@@ -160,7 +178,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
             </Button>
           </div>
           <div className="row">
-            <Link href="/console/clients" className="btn btn--primary">
+            <Link href={`/console/clients/${done.workspaceSlug}`} className="btn btn--primary">
               افتح مساحة العمل
             </Link>
             <Link href="/console" className="btn">
