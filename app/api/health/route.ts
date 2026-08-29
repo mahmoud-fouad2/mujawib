@@ -7,6 +7,11 @@ import { recordingStorageProblem, recordingStorageReady } from '@/server/storage
 
 export const dynamic = 'force-dynamic'
 
+function deploymentRevision() {
+  const revision = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT_SHA
+  return revision?.trim() ? revision.trim().slice(0, 12) : null
+}
+
 export async function GET() {
   const databaseReady = await db
     .execute(sql`select 1`)
@@ -25,6 +30,7 @@ export async function GET() {
     {
       status: ready ? 'ok' : 'degraded',
       service: 'mujawib-web',
+      revision: deploymentRevision(),
       checks: {
         database: databaseReady ? 'ok' : 'down',
         voice: voiceReady ? 'ok' : 'disabled',
