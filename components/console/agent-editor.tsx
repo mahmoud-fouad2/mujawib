@@ -44,6 +44,7 @@ export type AgentEditorProps = {
     } | null
     flows: string[] | null
     toolBindings: string[] | null
+    voiceCancellationEnabled: boolean
   }
   voiceProfiles: VoiceProfileOption[]
   integrations: IntegrationOption[]
@@ -76,12 +77,23 @@ export function AgentEditorSheet({
       : ['حجز موعد', 'استفسار عن الخدمات', 'تحويل لموظف'],
   )
   const [bindings, setBindings] = useState<Set<string>>(new Set(draftVersion.toolBindings ?? []))
+  const [voiceCancellationEnabled, setVoiceCancellationEnabled] = useState(
+    draftVersion.voiceCancellationEnabled,
+  )
 
   const [newGoal, setNewGoal] = useState('')
   const [newRestricted, setNewRestricted] = useState('')
   const [newFlow, setNewFlow] = useState('')
 
   const { run, pending } = useAction()
+
+  const hasCalendarBinding = [...bindings].some(
+    (b) =>
+      b.includes('calendar') ||
+      b.includes('microsoft') ||
+      b.includes('rest_api') ||
+      b.includes('generic_api'),
+  )
 
   const handleSave = () => {
     run(
@@ -106,6 +118,7 @@ export function AgentEditorSheet({
           },
           flows: flows.filter(Boolean),
           toolBindings: [...bindings],
+          voiceCancellationEnabled: hasCalendarBinding && voiceCancellationEnabled,
         }),
       () => setOpen(false),
     )
@@ -378,7 +391,7 @@ export function AgentEditorSheet({
                       justifyContent: 'space-between',
                       background: 'var(--surface)',
                       padding: '6px 10px',
-                      borderRadius: 'var(--r-sm)',
+                      borderRadius: 'var(--r-control)',
                     }}
                   >
                     <span style={{ fontSize: 'var(--step--1)' }}>{g}</span>
@@ -428,7 +441,7 @@ export function AgentEditorSheet({
                       justifyContent: 'space-between',
                       background: 'var(--surface)',
                       padding: '6px 10px',
-                      borderRadius: 'var(--r-sm)',
+                      borderRadius: 'var(--r-control)',
                     }}
                   >
                     <span style={{ fontSize: 'var(--step--1)' }}>{r}</span>
@@ -586,7 +599,7 @@ export function AgentEditorSheet({
                       alignItems: 'center',
                       padding: '8px 10px',
                       background: 'var(--surface)',
-                      borderRadius: 'var(--r-sm)',
+                      borderRadius: 'var(--r-control)',
                       cursor: 'pointer',
                     }}
                   >
@@ -607,6 +620,46 @@ export function AgentEditorSheet({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* 7. Voice-initiated cancellation */}
+          <div className="card-sub">
+            <h4 style={{ marginBlockEnd: 'var(--s-3)' }}>إلغاء الحجز صوتيًا</h4>
+            <p
+              className="muted"
+              style={{ fontSize: 'var(--step--1)', marginBlockEnd: 'var(--s-3)' }}
+            >
+              عند التفعيل، يستطيع الموظف الصوتي إلغاء حجز قائم للمتصل نفسه فقط — بدون مراجعة بشرية —
+              بعد التحقق من أن رقم الاتصال يطابق رقم صاحب الحجز. القدرة على الحجز والتحقق من التوفر
+              لا تتطلب هذا التفعيل؛ هذا خاص بالإلغاء فقط.
+            </p>
+            <label
+              className="row"
+              style={{
+                gap: 'var(--s-2)',
+                alignItems: 'center',
+                padding: '8px 10px',
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-control)',
+                cursor: hasCalendarBinding ? 'pointer' : 'not-allowed',
+                opacity: hasCalendarBinding ? 1 : 0.6,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={hasCalendarBinding && voiceCancellationEnabled}
+                disabled={!hasCalendarBinding}
+                onChange={() => setVoiceCancellationEnabled((prev) => !prev)}
+              />
+              <span style={{ flex: 1, fontSize: 'var(--step--1)' }}>
+                {hasCalendarBinding
+                  ? 'السماح للموظف الصوتي بإلغاء حجوزات المتصلين'
+                  : 'يتطلب ربط تقويم مفعّلًا أعلاه أولًا'}
+              </span>
+              {voiceCancellationEnabled && hasCalendarBinding ? (
+                <Pill tone="warn">مفعّل</Pill>
+              ) : null}
+            </label>
           </div>
         </div>
       </Sheet>

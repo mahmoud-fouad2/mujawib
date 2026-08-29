@@ -84,6 +84,7 @@ export default async function AgentDetailPage({ params }: Props) {
                     null,
                   flows: (a.draft.flows as string[] | null) ?? null,
                   toolBindings: (a.draft.toolBindings as string[] | null) ?? null,
+                  voiceCancellationEnabled: a.draft.voiceCancellationEnabled,
                 }}
                 voiceProfiles={a.allVoiceProfiles.map((p) => ({
                   id: p.id,

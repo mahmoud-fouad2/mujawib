@@ -121,7 +121,9 @@ async function resolveAgentForNumber(
       pronunciations: words,
       flows: versionFlows,
     }),
-    tools: toolsFor(bindings),
+    tools: toolsFor(bindings, {
+      voiceCancellationEnabled: version.voiceCancellationEnabled,
+    }),
     voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',
     transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
     phoneNumberId: row.phone.id,

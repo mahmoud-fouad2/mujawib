@@ -134,7 +134,9 @@ export async function loadVersionRuntime(versionId: string): Promise<VersionRunt
       pronunciations,
       flows: versionFlows,
     }),
-    tools: toolsFor(bindings),
+    tools: toolsFor(bindings, {
+      voiceCancellationEnabled: row.version.voiceCancellationEnabled,
+    }),
   }
 }
 

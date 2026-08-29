@@ -313,6 +313,98 @@ async function createBooking(
   return { ok: true, data: { bookingId, slot: parsed.data.slot } }
 }
 
+/* ─── cancel_booking ─────────────────────────────────────────────────────── */
+
+const cancelBookingArgs = z.object({
+  service: z.string().trim().max(160).optional(),
+  slot: z
+    .string()
+    .trim()
+    .refine((value) => Number.isFinite(Date.parse(value)))
+    .optional(),
+  reason: z.string().trim().max(500).optional(),
+})
+
+async function cancelBooking(
+  ctx: ToolContext,
+  args: { service?: string; slot?: string; reason?: string },
+): Promise<ToolResult> {
+  const parsed = cancelBookingArgs.safeParse(args)
+  if (!parsed.success) {
+    return { ok: false, error: 'بيانات الإلغاء غير مكتملة.', fallback: 'retry' }
+  }
+  // The only identity check this tool has: a caller may only cancel a
+  // booking made from the same number they are calling from now. Nothing in
+  // the model's arguments — a name, a service, a claimed booking id — is
+  // trusted for this on its own.
+  if (!ctx.callerNumber) {
+    return { ok: false, error: 'تعذّر التحقق من رقم المتصل لإتمام الإلغاء.', fallback: 'transfer' }
+  }
+
+  const candidates = await db
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.workspaceId, ctx.workspaceId),
+        eq(booking.customerPhone, ctx.callerNumber),
+        eq(booking.status, 'confirmed'),
+      ),
+    )
+  const upcoming = candidates.filter((b) => !b.scheduledAt || b.scheduledAt.getTime() > Date.now())
+
+  const matches = parsed.data.service
+    ? upcoming.filter((b) => b.service?.includes(parsed.data.service as string))
+    : upcoming
+
+  if (matches.length === 0) {
+    return {
+      ok: false,
+      error: 'لا يوجد حجز قادم مؤكد بهذا الرقم يطابق ما ذكره المتصل.',
+      fallback: 'transfer',
+    }
+  }
+  if (matches.length > 1) {
+    return {
+      ok: false,
+      error:
+        'يوجد أكثر من حجز مطابق لهذا الرقم. اسأل المتصل عن الخدمة أو الموعد بدقة أكبر ثم أعد المحاولة.',
+      fallback: 'retry',
+    }
+  }
+
+  const [target] = matches
+  if (!target) {
+    return { ok: false, error: 'تعذّر تحديد الحجز المطلوب إلغاؤه.', fallback: 'retry' }
+  }
+  await db.update(booking).set({ status: 'cancelled' }).where(eq(booking.id, target.id))
+  await db.update(call).set({ outcome: 'cancellation' }).where(eq(call.id, ctx.callId))
+
+  // Best-effort, same reasoning as the portal's own cancelBooking action: the
+  // local cancellation above already stands regardless of this outcome. Most
+  // connections have never configured a cancellation endpoint (it is
+  // optional — see lib/integrations.ts), so "not attempted" is the common,
+  // expected case here, not a failure to report.
+  let externalSynced = false
+  if (target.externalId) {
+    const integration = await findIntegration(
+      ctx.workspaceId,
+      ['google_calendar', 'microsoft_365'],
+      'cancellation',
+    )
+    if (integration) {
+      const response = await invokeIntegration({
+        connection: integration,
+        action: 'cancellation',
+        payload: { externalId: target.externalId },
+      })
+      externalSynced = response.ok
+    }
+  }
+
+  return { ok: true, data: { cancelled: true, bookingId: target.id, externalSynced } }
+}
+
 /* ─── send_confirmation ──────────────────────────────────────────────────── */
 
 async function sendConfirmation(
@@ -433,6 +525,7 @@ const HANDLERS: Record<
   check_availability: (ctx, a) => checkAvailability(ctx, a),
   create_booking: (ctx, a) => createBooking(ctx, a),
   send_confirmation: (ctx, a) => sendConfirmation(ctx, a),
+  cancel_booking: (ctx, a) => cancelBooking(ctx, a),
   create_callback: (ctx, a) => createCallback(ctx, a),
   transfer_to_human: (ctx, a) => transferToHuman(ctx, a),
 }

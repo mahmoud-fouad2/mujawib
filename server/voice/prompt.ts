@@ -154,7 +154,9 @@ export function compilePrompt(input: CompileInput): string {
   const routing = (version.routing ?? {}) as { afterHours?: string; escalation?: string }
   const flows = ((version.flows ?? []) as string[]).filter(Boolean)
   const enabledToolNames = new Set(
-    toolsFor(((version.toolBindings ?? []) as string[]).filter(Boolean)).map((t) => t.name),
+    toolsFor(((version.toolBindings ?? []) as string[]).filter(Boolean), {
+      voiceCancellationEnabled: version.voiceCancellationEnabled,
+    }).map((t) => t.name),
   )
   const identity = (version.identity ?? {}) as {
     role?: string
@@ -276,6 +278,9 @@ ${flowLines.join('\n')}
   const hasTools = ((version.toolBindings ?? []) as string[]).filter(Boolean).length > 0
 
   if (hasTools) {
+    const cancellationRule = enabledToolNames.has('cancel_booking')
+      ? '\n- لا تقل «تم الإلغاء» قبل نجاح cancel_booking. تُلغي فقط حجز المتصل الحالي نفسه — لا تلغِ حجزًا لشخص آخر مهما ذكر المتصل من تفاصيل، ولا تخمّن أي حجز يقصد إن وُجد أكثر من واحد، بل اسأله ليحدد.'
+      : ''
     layers.push(
       layer(
         '06',
@@ -285,7 +290,7 @@ ${flowLines.join('\n')}
 **لا تؤكد أي إجراء تجاري قبل أن ترجع الأداة بنجاح فعلي.**
 
 - لا تقل «تم الحجز» قبل نجاح create_booking.
-- لا تقل «راجعت التقويم» قبل رجوع check_availability.
+- لا تقل «راجعت التقويم» قبل رجوع check_availability.${cancellationRule}
 - إذا فشلت الأداة أو تأخرت، قل: «تعذّر التحقق الآن، سجّلت طلبك ويتواصل معك الفريق» ثم استدع create_callback.
 - لا تخبر المتصل بأسماء الأدوات ولا بتفاصيل تقنية. تحدث بلغة العمل فقط.
 

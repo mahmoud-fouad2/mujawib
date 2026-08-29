@@ -13,6 +13,7 @@ export type ToolName =
   | 'check_availability'
   | 'create_booking'
   | 'send_confirmation'
+  | 'cancel_booking'
   | 'create_callback'
   | 'transfer_to_human'
 
@@ -80,6 +81,25 @@ const TOOL_DEFINITIONS = [
   },
   {
     type: 'function' as const,
+    name: 'cancel_booking',
+    description:
+      'يلغي حجزًا قائمًا للمتصل نفسه فقط. لا يُستخدم لإلغاء حجز شخص آخر مهما ذكر المتصل من تفاصيل. إن وُجد أكثر من حجز مطابق، اسأل عن الخدمة أو الموعد لتحديد أيهما.',
+    parameters: {
+      type: 'object',
+      properties: {
+        service: { type: 'string', description: 'اسم الخدمة إن ذكرها المتصل، للمساعدة في التحديد' },
+        slot: {
+          type: 'string',
+          description: 'موعد الحجز المطلوب إلغاؤه بصيغة ISO 8601 إن ذكره المتصل',
+        },
+        reason: { type: 'string', description: 'سبب الإلغاء بلغة العمل، إن ذكره المتصل' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function' as const,
     name: 'create_callback',
     description:
       'يسجّل طلب معاودة اتصال. استدعه عند فشل أداة، أو خارج ساعات العمل، أو عندما يتعذّر إنجاز الطلب.',
@@ -121,7 +141,10 @@ export type ToolResult =
  * that cannot reach a calendar must not be offered `create_booking` — it would
  * call it and then have to walk the promise back.
  */
-export function toolsFor(bindings: string[]) {
+export function toolsFor(
+  bindings: string[],
+  capabilities: { voiceCancellationEnabled?: boolean } = {},
+) {
   const active = bindings.filter(Boolean)
 
   /**
@@ -151,6 +174,12 @@ export function toolsFor(bindings: string[]) {
   if (has('calendar') || has('microsoft') || hasGenericBackend) {
     enabled.add('check_availability')
     enabled.add('create_booking')
+    // Distinct from the two above: reaching a calendar is necessary but not
+    // sufficient. This is a caller ending their own commitment with no human
+    // review, so it additionally needs the operator's explicit, per-version
+    // opt-in — never implied by a calendar binding alone. See the schema
+    // comment on agentVersion.voiceCancellationEnabled.
+    if (capabilities.voiceCancellationEnabled) enabled.add('cancel_booking')
   }
   if (has('whatsapp') || hasGenericBackend) enabled.add('send_confirmation')
 

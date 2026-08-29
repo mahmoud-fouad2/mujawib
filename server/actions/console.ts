@@ -412,6 +412,7 @@ const updateDraftSchema = z.object({
   }),
   flows: z.array(z.string().trim()).default([]),
   toolBindings: z.array(z.string().trim().min(1)).default([]),
+  voiceCancellationEnabled: z.boolean().default(false),
 })
 
 export async function updateAgentDraft(
@@ -435,6 +436,7 @@ export async function updateAgentDraft(
     routing,
     flows,
     toolBindings,
+    voiceCancellationEnabled,
   } = parsed.data
   const actorId = await actor()
   const now = new Date()
@@ -494,6 +496,7 @@ export async function updateAgentDraft(
           routing,
           flows,
           toolBindings,
+          voiceCancellationEnabled,
         },
         flows: versionFlows,
         agentName,
@@ -515,6 +518,7 @@ export async function updateAgentDraft(
           routing,
           flows,
           toolBindings,
+          voiceCancellationEnabled,
           compiledPrompt,
           updatedAt: now,
         })

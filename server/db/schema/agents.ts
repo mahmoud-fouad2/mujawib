@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
+  boolean,
   index,
   integer,
   jsonb,
@@ -56,6 +57,15 @@ export const agentVersion = pgTable(
     flows: jsonb('flows').$type<unknown[]>().default([]),
     toolBindings: jsonb('tool_bindings').$type<unknown[]>().default([]),
     routing: jsonb('routing').$type<Record<string, unknown>>().default({}),
+    /**
+     * A caller cancelling their own booking by phone is a distinct capability
+     * from every other tool: those confirm something the caller is asking
+     * for, this ends a commitment on their calendar without asking a human
+     * first. Off by default and never implied by a calendar binding alone —
+     * an operator opts an agent in deliberately (Agent Editor), so shipping
+     * this never silently grants a new power to an agent already live.
+     */
+    voiceCancellationEnabled: boolean('voice_cancellation_enabled').notNull().default(false),
     compiledPrompt: text('compiled_prompt'),
     readinessScore: integer('readiness_score').default(0),
     blockers: jsonb('blockers').$type<string[]>().default([]),

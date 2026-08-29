@@ -97,6 +97,7 @@ export const CALL_STATUS_LABEL: Record<string, string> = {
 export const CALL_OUTCOME_LABEL: Record<string, string> = {
   resolved: 'تم الحل',
   booking: 'حجز',
+  cancellation: 'إلغاء حجز',
   lead: 'عميل محتمل',
   transfer: 'تحويل',
   callback: 'معاودة اتصال',
@@ -139,6 +140,9 @@ export const TOOL_LABEL: Record<string, string> = {
   check_availability: 'التحقق من التوفر',
   create_booking: 'إنشاء حجز',
   send_confirmation: 'إرسال التأكيد',
+  cancel_booking: 'إلغاء حجز',
+  create_callback: 'تسجيل معاودة اتصال',
+  transfer_to_human: 'تحويل لموظف',
   find_customer: 'البحث عن العميل',
   create_lead: 'تسجيل عميل محتمل',
 }
@@ -171,6 +175,7 @@ export function outcomeTone(outcome: string | null): Tone {
       return 'good'
     case 'transfer':
     case 'callback':
+    case 'cancellation':
       return 'warn'
     case 'unresolved':
     case 'failed':

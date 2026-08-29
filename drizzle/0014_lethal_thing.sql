@@ -1,0 +1,1 @@
+ALTER TABLE "agent_version" ADD COLUMN "voice_cancellation_enabled" boolean DEFAULT false NOT NULL;
