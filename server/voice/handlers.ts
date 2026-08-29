@@ -5,7 +5,14 @@ import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
 import { db } from '@/server/db'
-import { booking, call, changeRequest, knowledgeItem, toolExecution } from '@/server/db/schema'
+import {
+  booking,
+  call,
+  changeRequest,
+  consumedAvailabilityToken,
+  knowledgeItem,
+  toolExecution,
+} from '@/server/db/schema'
 import {
   findIntegration,
   type IntegrationFailureCode,
@@ -234,6 +241,27 @@ async function createBooking(
     return {
       ok: false,
       error: 'انتهت صلاحية الموعد أو لم يعد مطابقًا لنتيجة التحقق. أعد فحص المواعيد.',
+      fallback: 'retry',
+    }
+  }
+
+  // A valid signature only proves the token was genuinely issued for this
+  // call — it says nothing about whether it has already been spent. A
+  // retried tool call gets a fresh executionId, so the claim in executeTool
+  // (keyed on that id) never sees it; this is keyed on the token itself.
+  const [, tokenSignature] = parsed.data.availabilityToken.split('.')
+  if (!tokenSignature) {
+    return { ok: false, error: 'رمز التحقق من الموعد غير صالح.', fallback: 'retry' }
+  }
+  const [claimed] = await db
+    .insert(consumedAvailabilityToken)
+    .values({ id: tokenSignature, callId: ctx.callId })
+    .onConflictDoNothing()
+    .returning({ id: consumedAvailabilityToken.id })
+  if (!claimed) {
+    return {
+      ok: false,
+      error: 'تم استخدام هذا التحقق من الموعد بالفعل. أعد فحص المواعيد إذا احتجت الحجز من جديد.',
       fallback: 'retry',
     }
   }

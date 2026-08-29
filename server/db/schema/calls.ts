@@ -273,6 +273,26 @@ export const toolExecution = pgTable(
   (t) => [index('tool_exec_call_idx').on(t.callId)],
 )
 
+/**
+ * Marks one availability token as spent the moment a booking actually
+ * proceeds on it — server/voice/handlers.ts's own toolExecution idempotency
+ * (keyed on the Realtime tool-call id) does not cover this: a retried tool
+ * call gets a fresh id, so it would sail straight past that check with the
+ * same token. `id` is the token's own HMAC signature, already unique and
+ * deterministic per token, so no extra hashing is needed to key on it.
+ *
+ * No separate cleanup: a token is only ever 10 minutes valid, so once its
+ * owning call is old enough to be purged by the retention sweep
+ * (server/security/retention.ts), the cascade takes this with it.
+ */
+export const consumedAvailabilityToken = pgTable('consumed_availability_token', {
+  id: text('id').primaryKey(),
+  callId: text('call_id')
+    .notNull()
+    .references(() => call.id, { onDelete: 'cascade' }),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const booking = pgTable(
   'booking',
   {
