@@ -152,6 +152,19 @@ export const call = pgTable(
     agentVersionId: text('agent_version_id').references(() => agentVersion.id),
     phoneNumberId: text('phone_number_id').references(() => phoneNumber.id),
     externalCallId: text('external_call_id'),
+    /**
+     * Masked at write time (`maskNumber` — app/api/voice/incoming/route.ts),
+     * e.g. `+966****4567`, so this column alone is safe to read anywhere
+     * without exposing the full number: a raw database read (a leaked
+     * `DATABASE_URL`, a stray backup) sees only the mask. The full number
+     * survives solely in `callerNumberEncrypted`, decrypted back only where
+     * the live call path genuinely needs it (server/voice/sideband.ts).
+     * `callerNumberHash` is a deterministic HMAC of the same number, used to
+     * correlate a call back to a `customer` row (server/data/crm.ts's
+     * `liveCallCountsByPhone`) without ever comparing against the mask
+     * directly — a masked value can never equal a customer's full phone, so
+     * that correlation would otherwise silently return nothing.
+     */
     callerNumber: text('caller_number'),
     callerNumberEncrypted: text('caller_number_encrypted'),
     callerNumberHash: text('caller_number_hash'),
@@ -306,9 +319,21 @@ export const booking = pgTable(
      * Encrypted twins added alongside the existing plain columns, not in
      * place of them — `customerPhone` is a live join key (`getCrmCustomers`
      * correlates it against `customer.phone`), so replacing it with a masked
-     * or encrypted value would silently break that correlation. This closes
-     * the "no encryption at rest" gap for a database-level read (a leaked
-     * `DATABASE_URL`, a stray backup) without touching the query path.
+     * or encrypted value would silently break that correlation.
+     *
+     * Unlike `call.callerNumber` (masked at write time, so its own encrypted
+     * twin genuinely protects against a raw database read — see the note on
+     * that column), these sit as full plaintext right beside their encrypted
+     * twin. Despite the name, they do not currently close the "no encryption
+     * at rest" gap for a database-level read (a leaked `DATABASE_URL`, a
+     * stray backup): that read exposes the plaintext column regardless, and
+     * nothing in the codebase reads `customerNameEncrypted`/
+     * `customerPhoneEncrypted` back yet either. Closing this for real means
+     * the same mask-plus-hash-join treatment `callerNumber` already has —
+     * migrating `customerPhone` itself to a hashed join key everywhere it is
+     * currently correlated against in full — which needs a decision about
+     * what operators actually see, since they rely on the full number today
+     * to call a customer back, not only a schema change.
      */
     customerName: text('customer_name'),
     customerNameEncrypted: text('customer_name_encrypted'),
@@ -334,6 +359,17 @@ export const lead = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
     callId: text('call_id').references(() => call.id, { onDelete: 'set null' }),
+    /**
+     * Same gap as `booking.customerPhone` (see the note there) — full
+     * plaintext sits beside its own encrypted twin, so a raw database read
+     * exposes the same value either way, and nothing reads
+     * `nameEncrypted`/`phoneEncrypted` back yet. Unlike `booking`, nothing in
+     * the codebase currently joins against `lead.phone`, so masking it here
+     * would not break a correlation the way it would for `booking` — but an
+     * operator following up on a lead still needs the real number, so this
+     * is deferred for the same reason: what operators see needs a decision,
+     * not just a schema change.
+     */
     name: text('name'),
     nameEncrypted: text('name_encrypted'),
     phone: text('phone'),
