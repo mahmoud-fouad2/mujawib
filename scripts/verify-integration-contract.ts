@@ -135,9 +135,14 @@ check(
   false,
 )
 check(
-  'cancellation is offered as an optional calendar capability',
+  'reschedule is an optional, not a required, calendar capability',
+  capabilitiesForProvider('google_calendar').includes('reschedule'),
+  false,
+)
+check(
+  'cancellation and reschedule are offered as optional calendar capabilities',
   optionalCapabilitiesForProvider('google_calendar'),
-  ['cancellation'],
+  ['cancellation', 'reschedule'],
 )
 
 if (failures > 0) {

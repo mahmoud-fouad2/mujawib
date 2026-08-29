@@ -341,6 +341,71 @@ async function createBooking(
   return { ok: true, data: { bookingId, slot: parsed.data.slot } }
 }
 
+/* ─── shared: finding the caller's own booking ───────────────────────────── */
+
+type BookingRow = typeof booking.$inferSelect
+
+/**
+ * The only identity check cancel_booking/reschedule_booking have: a caller
+ * may only touch a booking made from the same number they are calling from
+ * now. Nothing in the model's arguments — a name, a service, a claimed
+ * booking id — is trusted for this on its own. Shared so both tools apply
+ * the exact same matching and disambiguation rules rather than two
+ * hand-maintained copies drifting apart.
+ */
+async function findCallersOwnBooking(
+  ctx: ToolContext,
+  service: string | undefined,
+): Promise<{ ok: true; booking: BookingRow } | { ok: false; result: ToolResult }> {
+  if (!ctx.callerNumber) {
+    return {
+      ok: false,
+      result: { ok: false, error: 'تعذّر التحقق من رقم المتصل.', fallback: 'transfer' },
+    }
+  }
+
+  const candidates = await db
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.workspaceId, ctx.workspaceId),
+        eq(booking.customerPhone, ctx.callerNumber),
+        eq(booking.status, 'confirmed'),
+      ),
+    )
+  const upcoming = candidates.filter((b) => !b.scheduledAt || b.scheduledAt.getTime() > Date.now())
+  const matches = service ? upcoming.filter((b) => b.service?.includes(service)) : upcoming
+
+  if (matches.length === 0) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        error: 'لا يوجد حجز قادم مؤكد بهذا الرقم يطابق ما ذكره المتصل.',
+        fallback: 'transfer',
+      },
+    }
+  }
+  if (matches.length > 1) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        error:
+          'يوجد أكثر من حجز مطابق لهذا الرقم. اسأل المتصل عن الخدمة أو الموعد بدقة أكبر ثم أعد المحاولة.',
+        fallback: 'retry',
+      },
+    }
+  }
+
+  const [target] = matches
+  if (!target) {
+    return { ok: false, result: { ok: false, error: 'تعذّر تحديد الحجز.', fallback: 'retry' } }
+  }
+  return { ok: true, booking: target }
+}
+
 /* ─── cancel_booking ─────────────────────────────────────────────────────── */
 
 const cancelBookingArgs = z.object({
@@ -361,50 +426,11 @@ async function cancelBooking(
   if (!parsed.success) {
     return { ok: false, error: 'بيانات الإلغاء غير مكتملة.', fallback: 'retry' }
   }
-  // The only identity check this tool has: a caller may only cancel a
-  // booking made from the same number they are calling from now. Nothing in
-  // the model's arguments — a name, a service, a claimed booking id — is
-  // trusted for this on its own.
-  if (!ctx.callerNumber) {
-    return { ok: false, error: 'تعذّر التحقق من رقم المتصل لإتمام الإلغاء.', fallback: 'transfer' }
-  }
 
-  const candidates = await db
-    .select()
-    .from(booking)
-    .where(
-      and(
-        eq(booking.workspaceId, ctx.workspaceId),
-        eq(booking.customerPhone, ctx.callerNumber),
-        eq(booking.status, 'confirmed'),
-      ),
-    )
-  const upcoming = candidates.filter((b) => !b.scheduledAt || b.scheduledAt.getTime() > Date.now())
+  const found = await findCallersOwnBooking(ctx, parsed.data.service)
+  if (!found.ok) return found.result
+  const target = found.booking
 
-  const matches = parsed.data.service
-    ? upcoming.filter((b) => b.service?.includes(parsed.data.service as string))
-    : upcoming
-
-  if (matches.length === 0) {
-    return {
-      ok: false,
-      error: 'لا يوجد حجز قادم مؤكد بهذا الرقم يطابق ما ذكره المتصل.',
-      fallback: 'transfer',
-    }
-  }
-  if (matches.length > 1) {
-    return {
-      ok: false,
-      error:
-        'يوجد أكثر من حجز مطابق لهذا الرقم. اسأل المتصل عن الخدمة أو الموعد بدقة أكبر ثم أعد المحاولة.',
-      fallback: 'retry',
-    }
-  }
-
-  const [target] = matches
-  if (!target) {
-    return { ok: false, error: 'تعذّر تحديد الحجز المطلوب إلغاؤه.', fallback: 'retry' }
-  }
   await db.update(booking).set({ status: 'cancelled' }).where(eq(booking.id, target.id))
   await db.update(call).set({ outcome: 'cancellation' }).where(eq(call.id, ctx.callId))
 
@@ -431,6 +457,118 @@ async function cancelBooking(
   }
 
   return { ok: true, data: { cancelled: true, bookingId: target.id, externalSynced } }
+}
+
+/* ─── reschedule_booking ─────────────────────────────────────────────────── */
+
+const rescheduleBookingArgs = z.object({
+  service: z.string().trim().max(160).optional(),
+  currentSlot: z
+    .string()
+    .trim()
+    .refine((value) => Number.isFinite(Date.parse(value)))
+    .optional(),
+  newSlot: z
+    .string()
+    .trim()
+    .refine((value) => Number.isFinite(Date.parse(value))),
+  newAvailabilityToken: z.string().trim().min(32).max(2_048),
+  reason: z.string().trim().max(500).optional(),
+})
+
+async function rescheduleBooking(
+  ctx: ToolContext,
+  args: {
+    service?: string
+    currentSlot?: string
+    newSlot?: string
+    newAvailabilityToken?: string
+    reason?: string
+  },
+): Promise<ToolResult> {
+  const parsed = rescheduleBookingArgs.safeParse(args)
+  if (!parsed.success) {
+    return { ok: false, error: 'بيانات التعديل غير مكتملة.', fallback: 'retry' }
+  }
+
+  const found = await findCallersOwnBooking(ctx, parsed.data.service)
+  if (!found.ok) return found.result
+  const target = found.booking
+
+  // The new slot must have gone through its own check_availability, exactly
+  // like create_booking — no guessed slot is accepted. Verified against the
+  // existing booking's own service: this tool moves a booking, it does not
+  // also change what service it is for.
+  if (
+    !verifyAvailabilityToken(
+      ctx,
+      parsed.data.newAvailabilityToken,
+      target.service ?? '',
+      parsed.data.newSlot,
+    )
+  ) {
+    return {
+      ok: false,
+      error: 'انتهت صلاحية الموعد الجديد أو لم يعد مطابقًا لنتيجة التحقق. أعد فحص المواعيد.',
+      fallback: 'retry',
+    }
+  }
+
+  // Single-use, same mechanism and reasoning as create_booking.
+  const [, tokenSignature] = parsed.data.newAvailabilityToken.split('.')
+  if (!tokenSignature) {
+    return { ok: false, error: 'رمز التحقق من الموعد الجديد غير صالح.', fallback: 'retry' }
+  }
+  const [claimed] = await db
+    .insert(consumedAvailabilityToken)
+    .values({ id: tokenSignature, callId: ctx.callId })
+    .onConflictDoNothing()
+    .returning({ id: consumedAvailabilityToken.id })
+  if (!claimed) {
+    return {
+      ok: false,
+      error: 'تم استخدام هذا التحقق من الموعد بالفعل. أعد فحص المواعيد إذا احتجت التعديل من جديد.',
+      fallback: 'retry',
+    }
+  }
+
+  // Unlike cancellation, a missing external sync here is not safe to shrug
+  // off: silently moving only the local row would leave a real external
+  // calendar entry (if one exists) pointing at the old time with nothing
+  // left to reconcile it, since the mismatch is invisible from either side.
+  // Only skip the sync outright when there was never an external booking to
+  // begin with (no externalId at all) — nothing to get out of sync with.
+  let externalSynced = false
+  if (target.externalId) {
+    const integration = await findIntegration(
+      ctx.workspaceId,
+      ['google_calendar', 'microsoft_365'],
+      'reschedule',
+    )
+    if (!integration) {
+      return { ok: false, error: 'لا يمكن تعديل الموعد في التقويم الآن.', fallback: 'callback' }
+    }
+    const response = await invokeIntegration({
+      connection: integration,
+      action: 'reschedule',
+      payload: { externalId: target.externalId, slot: parsed.data.newSlot },
+    })
+    if (!response.ok) {
+      return { ok: false, error: integrationError(response.code, 'التقويم'), fallback: 'callback' }
+    }
+    externalSynced = true
+  }
+
+  await db
+    .update(booking)
+    .set({ scheduledAt: new Date(parsed.data.newSlot) })
+    .where(eq(booking.id, target.id))
+  await db.update(call).set({ outcome: 'reschedule' }).where(eq(call.id, ctx.callId))
+
+  return {
+    ok: true,
+    data: { bookingId: target.id, newSlot: parsed.data.newSlot, externalSynced },
+  }
 }
 
 /* ─── send_confirmation ──────────────────────────────────────────────────── */
@@ -554,6 +692,7 @@ const HANDLERS: Record<
   create_booking: (ctx, a) => createBooking(ctx, a),
   send_confirmation: (ctx, a) => sendConfirmation(ctx, a),
   cancel_booking: (ctx, a) => cancelBooking(ctx, a),
+  reschedule_booking: (ctx, a) => rescheduleBooking(ctx, a),
   create_callback: (ctx, a) => createCallback(ctx, a),
   transfer_to_human: (ctx, a) => transferToHuman(ctx, a),
 }

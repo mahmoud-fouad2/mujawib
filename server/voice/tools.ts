@@ -14,6 +14,7 @@ export type ToolName =
   | 'create_booking'
   | 'send_confirmation'
   | 'cancel_booking'
+  | 'reschedule_booking'
   | 'create_callback'
   | 'transfer_to_human'
 
@@ -100,6 +101,33 @@ const TOOL_DEFINITIONS = [
   },
   {
     type: 'function' as const,
+    name: 'reschedule_booking',
+    description:
+      'ينقل حجزًا قائمًا للمتصل نفسه فقط إلى موعد جديد. استدعِ check_availability أولًا للموعد الجديد وخذ رمزه — لا تخمّن موعدًا لم يُتحقق منه. لا يُستخدم لتعديل حجز شخص آخر. إن وُجد أكثر من حجز مطابق، اسأل عن الخدمة أو الموعد الحالي لتحديد أيهما.',
+    parameters: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'اسم خدمة الحجز الحالي إن ذكره المتصل، للمساعدة في تحديده',
+        },
+        currentSlot: {
+          type: 'string',
+          description: 'موعد الحجز الحالي بصيغة ISO 8601 إن ذكره المتصل',
+        },
+        newSlot: { type: 'string', description: 'الموعد الجديد المختار بصيغة ISO 8601' },
+        newAvailabilityToken: {
+          type: 'string',
+          description: 'الرمز المقابل للموعد الجديد كما أعادته check_availability دون أي تعديل',
+        },
+        reason: { type: 'string', description: 'سبب التعديل بلغة العمل، إن ذكره المتصل' },
+      },
+      required: ['newSlot', 'newAvailabilityToken'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function' as const,
     name: 'create_callback',
     description:
       'يسجّل طلب معاودة اتصال. استدعه عند فشل أداة، أو خارج ساعات العمل، أو عندما يتعذّر إنجاز الطلب.',
@@ -175,11 +203,16 @@ export function toolsFor(
     enabled.add('check_availability')
     enabled.add('create_booking')
     // Distinct from the two above: reaching a calendar is necessary but not
-    // sufficient. This is a caller ending their own commitment with no human
-    // review, so it additionally needs the operator's explicit, per-version
-    // opt-in — never implied by a calendar binding alone. See the schema
-    // comment on agentVersion.voiceCancellationEnabled.
-    if (capabilities.voiceCancellationEnabled) enabled.add('cancel_booking')
+    // sufficient. Both of these change a commitment the caller already has
+    // with no human review — one removes it, the other silently moves it to
+    // a different time if the model mis-hears or mis-matches which booking —
+    // so both additionally need the operator's explicit, per-version opt-in,
+    // never implied by a calendar binding alone. See the schema comment on
+    // agentVersion.voiceCancellationEnabled.
+    if (capabilities.voiceCancellationEnabled) {
+      enabled.add('cancel_booking')
+      enabled.add('reschedule_booking')
+    }
   }
   if (has('whatsapp') || hasGenericBackend) enabled.add('send_confirmation')
 

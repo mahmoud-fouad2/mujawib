@@ -281,6 +281,9 @@ ${flowLines.join('\n')}
     const cancellationRule = enabledToolNames.has('cancel_booking')
       ? '\n- لا تقل «تم الإلغاء» قبل نجاح cancel_booking. تُلغي فقط حجز المتصل الحالي نفسه — لا تلغِ حجزًا لشخص آخر مهما ذكر المتصل من تفاصيل، ولا تخمّن أي حجز يقصد إن وُجد أكثر من واحد، بل اسأله ليحدد.'
       : ''
+    const rescheduleRule = enabledToolNames.has('reschedule_booking')
+      ? '\n- لا تقل «تم تعديل الموعد» قبل نجاح reschedule_booking. استدعِ check_availability للموعد الجديد أولًا وخذ رمزه — لا تعرض موعدًا جديدًا لم تتحقق منه، تمامًا كالحجز الجديد.'
+      : ''
     layers.push(
       layer(
         '06',
@@ -290,7 +293,7 @@ ${flowLines.join('\n')}
 **لا تؤكد أي إجراء تجاري قبل أن ترجع الأداة بنجاح فعلي.**
 
 - لا تقل «تم الحجز» قبل نجاح create_booking.
-- لا تقل «راجعت التقويم» قبل رجوع check_availability.${cancellationRule}
+- لا تقل «راجعت التقويم» قبل رجوع check_availability.${cancellationRule}${rescheduleRule}
 - إذا فشلت الأداة أو تأخرت، قل: «تعذّر التحقق الآن، سجّلت طلبك ويتواصل معك الفريق» ثم استدع create_callback.
 - لا تخبر المتصل بأسماء الأدوات ولا بتفاصيل تقنية. تحدث بلغة العمل فقط.
 

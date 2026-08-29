@@ -44,6 +44,7 @@ export const callOutcomeEnum = pgEnum('call_outcome', [
   'resolved',
   'booking',
   'cancellation',
+  'reschedule',
   'lead',
   'transfer',
   'callback',

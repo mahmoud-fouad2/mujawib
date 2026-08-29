@@ -58,12 +58,16 @@ export const agentVersion = pgTable(
     toolBindings: jsonb('tool_bindings').$type<unknown[]>().default([]),
     routing: jsonb('routing').$type<Record<string, unknown>>().default({}),
     /**
-     * A caller cancelling their own booking by phone is a distinct capability
-     * from every other tool: those confirm something the caller is asking
-     * for, this ends a commitment on their calendar without asking a human
-     * first. Off by default and never implied by a calendar binding alone —
-     * an operator opts an agent in deliberately (Agent Editor), so shipping
-     * this never silently grants a new power to an agent already live.
+     * Gates both cancel_booking and reschedule_booking (server/voice/tools.ts)
+     * — a caller changing their own existing booking by phone is a distinct
+     * capability from every other tool: those confirm something the caller
+     * is asking for, these change a commitment already on the calendar
+     * without asking a human first, whether by removing it or silently
+     * moving it. Off by default and never implied by a calendar binding
+     * alone — an operator opts an agent in deliberately (Agent Editor), so
+     * shipping either tool never silently grants a new power to an agent
+     * already live. The name predates reschedule_booking; kept as-is rather
+     * than renamed, since it's already a live, migrated column.
      */
     voiceCancellationEnabled: boolean('voice_cancellation_enabled').notNull().default(false),
     compiledPrompt: text('compiled_prompt'),

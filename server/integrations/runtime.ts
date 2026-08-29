@@ -28,6 +28,8 @@ const bookingResponse = z.object({ bookingId: z.string().min(1).max(200) })
 
 const cancellationResponse = z.object({ cancelled: z.literal(true) })
 
+const rescheduleResponse = z.object({ rescheduled: z.literal(true) })
+
 const messageResponse = z.union([
   z.object({ messageId: z.string().min(1).max(200) }),
   z.object({ sent: z.literal(true) }),
@@ -95,6 +97,7 @@ const RESPONSE_SCHEMA: Partial<Record<IntegrationAction, z.ZodType>> = {
   availability: availabilityResponse,
   booking: bookingResponse,
   cancellation: cancellationResponse,
+  reschedule: rescheduleResponse,
   message: messageResponse,
 }
 

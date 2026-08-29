@@ -6,6 +6,7 @@ const INTEGRATION_ACTIONS = [
   'availability',
   'booking',
   'cancellation',
+  'reschedule',
   'message',
 ] as const
 
@@ -16,16 +17,18 @@ export const INTEGRATION_ACTION_LABEL: Record<IntegrationAction, string> = {
   availability: 'قراءة المواعيد',
   booking: 'تثبيت الحجز',
   cancellation: 'إلغاء الحجز',
+  reschedule: 'تعديل موعد الحجز',
   message: 'إرسال التأكيد',
 }
 
 /**
- * `cancellation` is deliberately absent from google_calendar/microsoft_365
- * here even though they support it — this list feeds integrationSetupState's
- * "expected" set below, and every calendar connected before this endpoint
- * existed would suddenly show as missing a required endpoint and flip to
- * not-ready. It stays an opt-in extra: configure it and cancelBooking uses
- * it, don't and nothing regresses.
+ * `cancellation`/`reschedule` are deliberately absent from
+ * google_calendar/microsoft_365 here even though they support both — this
+ * list feeds integrationSetupState's "expected" set below, and every
+ * calendar connected before these endpoints existed would suddenly show as
+ * missing a required endpoint and flip to not-ready. They stay opt-in
+ * extras: configure one and the matching voice tool uses it, don't and
+ * nothing regresses.
  */
 const PROVIDER_CAPABILITIES: Record<string, IntegrationAction[]> = {
   google_calendar: ['health', 'availability', 'booking'],
@@ -49,8 +52,8 @@ export function capabilitiesForProvider(provider: string): IntegrationAction[] {
  * PROVIDER_CAPABILITIES for exactly that reason.
  */
 const OPTIONAL_PROVIDER_CAPABILITIES: Record<string, IntegrationAction[]> = {
-  google_calendar: ['cancellation'],
-  microsoft_365: ['cancellation'],
+  google_calendar: ['cancellation', 'reschedule'],
+  microsoft_365: ['cancellation', 'reschedule'],
 }
 
 export function optionalCapabilitiesForProvider(provider: string): IntegrationAction[] {
@@ -67,6 +70,7 @@ const integrationConfigSchema = z.object({
       availability: endpointSchema.optional(),
       booking: endpointSchema.optional(),
       cancellation: endpointSchema.optional(),
+      reschedule: endpointSchema.optional(),
       message: endpointSchema.optional(),
     })
     .default({}),

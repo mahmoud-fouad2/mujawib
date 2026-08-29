@@ -635,16 +635,16 @@ export function AgentEditorSheet({
             )}
           </div>
 
-          {/* 7. Voice-initiated cancellation */}
+          {/* 7. Voice-initiated cancellation and rescheduling */}
           <div className="card-sub">
-            <h4 style={{ marginBlockEnd: 'var(--s-3)' }}>إلغاء الحجز صوتيًا</h4>
+            <h4 style={{ marginBlockEnd: 'var(--s-3)' }}>إلغاء أو تعديل الحجز صوتيًا</h4>
             <p
               className="muted"
               style={{ fontSize: 'var(--step--1)', marginBlockEnd: 'var(--s-3)' }}
             >
-              عند التفعيل، يستطيع الموظف الصوتي إلغاء حجز قائم للمتصل نفسه فقط — بدون مراجعة بشرية —
-              بعد التحقق من أن رقم الاتصال يطابق رقم صاحب الحجز. القدرة على الحجز والتحقق من التوفر
-              لا تتطلب هذا التفعيل؛ هذا خاص بالإلغاء فقط.
+              عند التفعيل، يستطيع الموظف الصوتي إلغاء أو تعديل موعد حجز قائم للمتصل نفسه فقط — بدون
+              مراجعة بشرية — بعد التحقق من أن رقم الاتصال يطابق رقم صاحب الحجز. القدرة على الحجز
+              الجديد والتحقق من التوفر لا تتطلب هذا التفعيل؛ هذا خاص بتعديل حجز قائم فقط.
             </p>
             <label
               className="row"
@@ -666,7 +666,7 @@ export function AgentEditorSheet({
               />
               <span style={{ flex: 1, fontSize: 'var(--step--1)' }}>
                 {hasCalendarBinding
-                  ? 'السماح للموظف الصوتي بإلغاء حجوزات المتصلين'
+                  ? 'السماح للموظف الصوتي بإلغاء أو تعديل حجوزات المتصلين'
                   : 'يتطلب ربط تقويم مفعّلًا أعلاه أولًا'}
               </span>
               {voiceCancellationEnabled && hasCalendarBinding ? (
