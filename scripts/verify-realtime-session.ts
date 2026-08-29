@@ -22,6 +22,7 @@ function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
     voice: 'cedar',
     transferTo: null,
     phoneNumberId: 'phone_test',
+    recordingDisclosureMode: 'none',
   }
 }
 
@@ -33,6 +34,12 @@ assert.equal(conversationOnly.audio.input.transcription.model, 'gpt-4o-transcrib
 assert.equal(conversationOnly.audio.input.transcription.language, 'ar')
 assert.equal('tools' in conversationOnly, false)
 assert.equal('tool_choice' in conversationOnly, false)
+
+const withRecordingDisclosure = buildAcceptPayload({
+  ...resolved([]),
+  recordingDisclosureMode: 'agent_intro',
+})
+assert.match(withRecordingDisclosure.instructions, /المكالمة مسجلة/)
 
 const withCalendar = buildAcceptPayload(resolved(toolsFor(['google_calendar'])))
 assert.ok(withCalendar.tools)

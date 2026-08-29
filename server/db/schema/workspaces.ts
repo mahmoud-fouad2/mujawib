@@ -48,12 +48,28 @@ export const workspace = pgTable(
     retentionPolicy: jsonb('retention_policy').$type<Record<string, unknown>>().default({}),
     /** Console-only toggle — a packaging decision, not something a client can flip. */
     crmEnabled: boolean('crm_enabled').notNull().default(false),
+    /** Recording is opt-in per client and can only be approved from the operator console. */
+    recordingEnabled: boolean('recording_enabled').notNull().default(false),
+    recordingDisclosureMode: text('recording_disclosure_mode').notNull().default('none'),
+    recordingJurisdiction: text('recording_jurisdiction'),
+    recordingApprovedAt: timestamp('recording_approved_at', { withTimezone: true }),
+    recordingApprovedById: text('recording_approved_by_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('workspace_org_slug_idx').on(t.organizationId, t.slug),
     index('workspace_status_idx').on(t.status),
+    check(
+      'workspace_recording_disclosure_mode_check',
+      sql`${t.recordingDisclosureMode} in ('none', 'agent_intro', 'external')`,
+    ),
+    check(
+      'workspace_recording_policy_consistency_check',
+      sql`not ${t.recordingEnabled} or (${t.recordingApprovedAt} is not null and ${t.recordingDisclosureMode} <> 'none')`,
+    ),
   ],
 )
 

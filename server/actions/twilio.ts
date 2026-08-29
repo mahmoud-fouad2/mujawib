@@ -153,7 +153,7 @@ export async function approvePhoneNumberPurchase(changeRequestId: string): Promi
     .from(changeRequest)
     .where(eq(changeRequest.id, changeRequestId))
     .limit(1)
-  if (!row || row.type !== 'phone_number_purchase') {
+  if (row?.type !== 'phone_number_purchase') {
     return { ok: false, error: 'الطلب غير موجود.' }
   }
   if (row.status !== 'requested' && row.status !== 'in_review') {
@@ -252,7 +252,7 @@ export async function rejectPhoneNumberPurchase(
     .from(changeRequest)
     .where(eq(changeRequest.id, changeRequestId))
     .limit(1)
-  if (!row || row.type !== 'phone_number_purchase') return { ok: false, error: 'الطلب غير موجود.' }
+  if (row?.type !== 'phone_number_purchase') return { ok: false, error: 'الطلب غير موجود.' }
 
   const now = new Date()
   await db

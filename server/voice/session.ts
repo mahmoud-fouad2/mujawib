@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { and, eq, ne } from 'drizzle-orm'
+import { recordingDisclosureInstruction } from '@/lib/recording-policy'
 import { db } from '@/server/db'
 import {
   agent,
@@ -51,6 +52,7 @@ export type ResolvedAgent = {
   voice: string
   transferTo: string | null
   phoneNumberId: string
+  recordingDisclosureMode: string
 }
 
 /**
@@ -128,6 +130,7 @@ async function resolveAgentForNumber(
     voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',
     transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
     phoneNumberId: row.phone.id,
+    recordingDisclosureMode: row.ws.recordingDisclosureMode,
   }
 }
 
@@ -171,10 +174,14 @@ export function buildAcceptPayload(resolved: ResolvedAgent, model = VOICE_MODEL)
         }
       : {}
 
+  const disclosureInstruction = recordingDisclosureInstruction(resolved.recordingDisclosureMode)
+
   return {
     type: 'realtime',
     model,
-    instructions: resolved.instructions,
+    instructions: disclosureInstruction
+      ? `${disclosureInstruction}\n\n${resolved.instructions}`
+      : resolved.instructions,
     audio: {
       input: {
         format: { type: 'audio/pcmu' },

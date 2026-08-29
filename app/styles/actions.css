@@ -1042,6 +1042,50 @@
   color: var(--text-muted);
 }
 
+.recording-policy-status {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-block-end: var(--s-5);
+  color: var(--text-muted);
+  font-size: var(--step--1);
+}
+
+.recording-policy-toggle {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: start;
+  padding-block: var(--s-3);
+  cursor: pointer;
+}
+
+.recording-policy-toggle input {
+  inline-size: 18px;
+  block-size: 18px;
+  margin-block-start: 2px;
+  accent-color: var(--accent);
+}
+
+.recording-policy-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.recording-policy-toggle strong {
+  font-size: var(--step--1);
+}
+
+.recording-policy-toggle small {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.recording-policy-toggle--confirm {
+  margin-block-start: var(--s-4);
+  border-block-start: 1px solid var(--line);
+}
+
 /* ─── deletion impact ──────────────────────────────────────────────────── */
 
 /*

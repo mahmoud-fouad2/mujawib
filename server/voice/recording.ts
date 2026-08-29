@@ -7,8 +7,9 @@ import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import WebSocket from 'ws'
 import { env } from '@/lib/env'
+import { recordingPolicyAllowsCapture } from '@/lib/recording-policy'
 import { db } from '@/server/db'
-import { call, callEvent } from '@/server/db/schema'
+import { call, callEvent, workspace } from '@/server/db/schema'
 import {
   deleteRecording,
   putRecordingFile,
@@ -354,6 +355,22 @@ export async function startRealtimeRecording(context: {
   startedAt: Date
 }) {
   if (!recordingStorageReady()) return null
+  const [policy] = await db
+    .select({
+      enabled: workspace.recordingEnabled,
+      disclosureMode: workspace.recordingDisclosureMode,
+      approvedAt: workspace.recordingApprovedAt,
+    })
+    .from(workspace)
+    .where(eq(workspace.id, context.workspaceId))
+    .limit(1)
+  if (!policy || !recordingPolicyAllowsCapture(policy)) {
+    voiceLog('RECORDING_SKIPPED', {
+      callId: maskIdentifier(context.externalCallId),
+      reason: policy ? 'workspace_policy_disabled' : 'workspace_not_found',
+    })
+    return null
+  }
   await db
     .update(call)
     .set({

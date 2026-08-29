@@ -10,6 +10,7 @@ import {
   Phone,
   Plug,
   Radio,
+  ScrollText,
   Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -25,6 +26,7 @@ import {
   restoreClient,
   setClientCrmEnabled,
   updateClient,
+  updateClientRecordingPolicy,
 } from '@/server/actions/console'
 
 const STATUSES = [
@@ -470,5 +472,139 @@ export function CrmFeatureToggle({
         {enabled ? 'عطّل CRM' : 'فعّل CRM لهذا العميل'}
       </Button>
     </div>
+  )
+}
+
+export function RecordingPolicyControl({
+  workspaceId,
+  enabled,
+  disclosureMode,
+  jurisdiction,
+  approvedAt,
+}: {
+  workspaceId: string
+  enabled: boolean
+  disclosureMode: string
+  jurisdiction: string | null
+  approvedAt: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const [nextEnabled, setNextEnabled] = useState(enabled)
+  const [nextDisclosure, setNextDisclosure] = useState(disclosureMode)
+  const [nextJurisdiction, setNextJurisdiction] = useState(jurisdiction ?? '')
+  const [confirmed, setConfirmed] = useState(false)
+  const { run, pending } = useAction()
+
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>
+        <ScrollText size={15} aria-hidden="true" />
+        {enabled ? 'التسجيل معتمد' : 'سياسة التسجيل'}
+      </Button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="سياسة تسجيل المكالمات"
+        description="قرار تشغيلي لكل عميل، مستقل عن إعداد التخزين العام للمنصة."
+        footer={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={pending}>
+              إلغاء
+            </Button>
+            <Button
+              variant="primary"
+              disabled={pending || (nextEnabled && !confirmed)}
+              onClick={() =>
+                run(
+                  () =>
+                    updateClientRecordingPolicy({
+                      workspaceId,
+                      enabled: nextEnabled,
+                      disclosureMode:
+                        nextDisclosure === 'agent_intro' || nextDisclosure === 'external'
+                          ? nextDisclosure
+                          : 'none',
+                      jurisdiction: nextJurisdiction,
+                      authorizationConfirmed: confirmed,
+                    }),
+                  () => setOpen(false),
+                )
+              }
+            >
+              {pending ? 'جارٍ الحفظ…' : 'احفظ السياسة'}
+            </Button>
+          </>
+        }
+      >
+        <p className="sheet__lead">
+          لا يبدأ التسجيل إلا بعد تفعيل التخزين الخاص واعتماد هذه السياسة. الإعداد مغلق افتراضيًا ولا
+          يُعد بديلًا عن المراجعة النظامية المحلية.
+        </p>
+        <div className="recording-policy-status">
+          <Pill tone={enabled ? 'good' : 'neutral'}>{enabled ? 'مفعّل' : 'متوقف'}</Pill>
+          <span>
+            {approvedAt
+              ? `آخر اعتماد: ${new Date(approvedAt).toLocaleDateString('ar-SA')}`
+              : 'لم يُعتمد بعد'}
+          </span>
+        </div>
+        <label className="recording-policy-toggle">
+          <input
+            type="checkbox"
+            checked={nextEnabled}
+            onChange={(event) => {
+              setNextEnabled(event.target.checked)
+              setConfirmed(false)
+            }}
+          />
+          <span>
+            <strong>السماح بتسجيل مكالمات هذا العميل</strong>
+            <small>يظل التسجيل متوقفًا إذا لم يكن التخزين الخاص مهيأ على المنصة.</small>
+          </span>
+        </label>
+        {nextEnabled ? (
+          <div className="sheet__group">
+            <h3>الإفصاح والاعتماد</h3>
+            <div className="field">
+              <label htmlFor={`recording-disclosure-${workspaceId}`}>طريقة إبلاغ المتصل</label>
+              <select
+                id={`recording-disclosure-${workspaceId}`}
+                className="input"
+                value={nextDisclosure}
+                onChange={(event) => {
+                  setNextDisclosure(event.target.value)
+                  setConfirmed(false)
+                }}
+              >
+                <option value="none">اختر طريقة الإفصاح</option>
+                <option value="agent_intro">الموظف الصوتي يبلّغ المتصل في بداية المكالمة</option>
+                <option value="external">إفصاح خارجي موثّق قبل وصول المكالمة</option>
+              </select>
+            </div>
+            <Field
+              id={`recording-jurisdiction-${workspaceId}`}
+              label="الدولة أو النطاق القضائي المراجع"
+              value={nextJurisdiction}
+              onChange={(value) => {
+                setNextJurisdiction(value)
+                setConfirmed(false)
+              }}
+              placeholder="المملكة العربية السعودية"
+            />
+            <label className="recording-policy-toggle recording-policy-toggle--confirm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              <span>
+                <strong>أؤكد وجود تفويض من العميل ومراجعة متطلبات الإفصاح المحلية</strong>
+                <small>يُسجل اسم المشغّل ووقت الاعتماد في سجل التدقيق.</small>
+              </span>
+            </label>
+          </div>
+        ) : null}
+      </Sheet>
+    </>
   )
 }

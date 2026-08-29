@@ -12,6 +12,7 @@ import {
   inspectOutboundUrl,
   optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
+import { RECORDING_DISCLOSURE_MODES } from '@/lib/recording-policy'
 import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
 import { db } from '@/server/db'
@@ -1416,6 +1417,75 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
   revalidatePath(`/console/clients/${row.slug}`)
   revalidatePath('/console')
   return { ok: true, message: `حُدّثت بيانات ${parsed.data.name}.` }
+}
+
+const recordingPolicySchema = z.object({
+  workspaceId: z.string().min(1),
+  enabled: z.boolean(),
+  disclosureMode: z.enum(RECORDING_DISCLOSURE_MODES),
+  jurisdiction: z.string().trim().max(80),
+  authorizationConfirmed: z.boolean(),
+})
+
+export async function updateClientRecordingPolicy(
+  input: z.input<typeof recordingPolicySchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+  const parsed = recordingPolicySchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'سياسة التسجيل غير صحيحة.' }
+
+  const next = parsed.data
+  if (next.enabled && next.disclosureMode === 'none') {
+    return { ok: false, error: 'اختر كيف سيُبلّغ المتصل قبل تفعيل التسجيل.' }
+  }
+  if (next.enabled && !next.jurisdiction) {
+    return { ok: false, error: 'حدّد الدولة أو النطاق القضائي الذي تمت مراجعته.' }
+  }
+  if (next.enabled && !next.authorizationConfirmed) {
+    return { ok: false, error: 'يلزم تأكيد تفويض العميل والمراجعة النظامية قبل التفعيل.' }
+  }
+
+  const [row] = await db
+    .select({ id: workspace.id, slug: workspace.slug, name: workspace.name })
+    .from(workspace)
+    .where(and(eq(workspace.id, next.workspaceId), eq(workspace.type, 'client')))
+    .limit(1)
+  if (!row) return { ok: false, error: 'العميل غير موجود.' }
+
+  const actorId = await actor()
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workspace)
+      .set({
+        recordingEnabled: next.enabled,
+        recordingDisclosureMode: next.enabled ? next.disclosureMode : 'none',
+        recordingJurisdiction: next.enabled ? next.jurisdiction : null,
+        recordingApprovedAt: next.enabled ? new Date() : null,
+        recordingApprovedById: next.enabled ? actorId : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(workspace.id, row.id))
+    await tx.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId: row.id,
+      actorId,
+      action: next.enabled ? 'workspace.recording_enabled' : 'workspace.recording_disabled',
+      resourceType: 'workspace',
+      resourceId: row.id,
+      metadata: {
+        disclosureMode: next.enabled ? next.disclosureMode : 'none',
+        jurisdiction: next.enabled ? next.jurisdiction : null,
+      },
+      createdAt: new Date(),
+    })
+  })
+
+  revalidatePath(`/console/clients/${row.slug}`)
+  return {
+    ok: true,
+    message: next.enabled ? `فُعّل التسجيل المعتمد لـ ${row.name}.` : `أُوقف التسجيل لـ ${row.name}.`,
+  }
 }
 
 /* ─── Client lifecycle: archive, restore, delete ─────────────────────────── */

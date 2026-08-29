@@ -3,7 +3,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DailyBars, Ratio, Sparkline } from '@/components/console/charts'
-import { ClientRowActions, CrmFeatureToggle } from '@/components/console/client-actions'
+import {
+  ClientRowActions,
+  CrmFeatureToggle,
+  RecordingPolicyControl,
+} from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
@@ -93,6 +97,13 @@ export default async function ClientDetailPage({ params }: Props) {
               </LinkButton>
             ) : null}
             <CrmFeatureToggle workspaceId={ws.id} enabled={ws.crmEnabled} />
+            <RecordingPolicyControl
+              workspaceId={ws.id}
+              enabled={ws.recordingEnabled}
+              disclosureMode={ws.recordingDisclosureMode}
+              jurisdiction={ws.recordingJurisdiction}
+              approvedAt={ws.recordingApprovedAt?.toISOString() ?? null}
+            />
             <ClientRowActions
               client={clientEditable(ws, info as ClientBusinessInfo)}
               canDelete={access.role === 'owner'}
