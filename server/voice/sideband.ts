@@ -561,6 +561,16 @@ async function runSideband(ctx: SidebandContext) {
       .update(backgroundJob)
       .set({ lockedAt: new Date(), updatedAt: new Date() })
       .where(eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)))
+    // Recurring production evidence (code 1006, no close frame, no socket
+    // error — durations from 22s to 244s, first seen 2026-08-22) points at an
+    // idle/unresponsive connection being reaped somewhere between this
+    // process and OpenAI, not an application-level error on either side.
+    // Nothing here previously sent a frame unless the model or caller spoke,
+    // so a quiet stretch of a live call looked identical to a dead socket to
+    // any intermediary watching for traffic. A ping is a real frame either
+    // way — it now proves the connection is alive on quiet turns too, and
+    // gives the earliest possible signal if it genuinely already died.
+    if (ws.readyState === WebSocket.OPEN) ws.ping()
   }, 15_000)
   heartbeat.unref()
 
