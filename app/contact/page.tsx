@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ContactPage } from '@/components/site/pages'
 import { SiteShell } from '@/components/site/site-shell'
+import { env } from '@/lib/env'
 import { breadcrumbSchema, contactPageSchema, JsonLd, pageMetadata } from '@/lib/seo'
 import { getPlatformContact } from '@/server/data/platform'
 
@@ -25,7 +26,7 @@ export default async function Page() {
           contactPageSchema('ar', contact),
         ]}
       />
-      <ContactPage locale="ar" contact={contact} />
+      <ContactPage locale="ar" contact={contact} recaptchaSiteKey={env.RECAPTCHA_SITE_KEY} />
     </SiteShell>
   )
 }

@@ -8,11 +8,15 @@ const contentSecurityPolicy = [
   "connect-src 'self' https: wss:",
   "font-src 'self' data:",
   "form-action 'self'",
+  // reCAPTCHA v3's risk-analysis widget runs in its own background iframe
+  // even though nothing is visibly embedded — without this it silently
+  // fails to load and the contact form loses its bot check with no error.
+  'frame-src https://www.google.com/recaptcha/',
   "frame-ancestors 'none'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "object-src 'none'",
-  `script-src 'self' 'unsafe-inline'${developmentScriptPolicy}`,
+  `script-src 'self' 'unsafe-inline' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/${developmentScriptPolicy}`,
   "style-src 'self' 'unsafe-inline'",
   'upgrade-insecure-requests',
 ].join('; ')

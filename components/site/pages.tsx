@@ -112,7 +112,15 @@ function resolveChannel(
     : null
 }
 
-export function ContactPage({ locale, contact }: { locale: Locale; contact: PlatformContact }) {
+export function ContactPage({
+  locale,
+  contact,
+  recaptchaSiteKey,
+}: {
+  locale: Locale
+  contact: PlatformContact
+  recaptchaSiteKey?: string | undefined
+}) {
   const p = pagesFor(locale).contact
   const ar = locale === 'ar'
   const channels = p.channels
@@ -140,7 +148,7 @@ export function ContactPage({ locale, contact }: { locale: Locale; contact: Plat
 
       <section className="section page-scope">
         <div className="container">
-          <ContactForm locale={locale} />
+          <ContactForm locale={locale} recaptchaSiteKey={recaptchaSiteKey} />
           {channels.length > 0 ? (
             <div className="channels reveal-group">
               {channels.map((c) => {

@@ -24,6 +24,11 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_FROM: z.string().min(3).optional(),
+    // Bot protection for the public contact form (server/actions/contact.ts).
+    // Both optional and independent of each other in validation — the form
+    // itself only attempts verification when both happen to be set.
+    RECAPTCHA_SITE_KEY: z.string().min(1).optional(),
+    RECAPTCHA_SECRET_KEY: z.string().min(1).optional(),
     // Read directly from process.env in instrumentation.ts/server/voice/log.ts/
     // server/jobs/worker.ts rather than from this validated `env` — those are
     // the SDK's own boot path and a hot logging path, and neither should gain
@@ -58,6 +63,8 @@ export const env = createEnv({
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
+    RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
+    RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
     SENTRY_DSN: process.env.SENTRY_DSN,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

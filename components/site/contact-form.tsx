@@ -1,12 +1,54 @@
 'use client'
 
 import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react'
+import Script from 'next/script'
 import { type FormEvent, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import type { Locale } from '@/lib/i18n'
 import { createSalesInquiry } from '@/server/actions/contact'
 
-export function ContactForm({ locale }: { locale: Locale }) {
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (callback: () => void) => void
+      execute: (siteKey: string, options: { action: string }) => Promise<string>
+    }
+  }
+}
+
+/** Polls briefly for the script tag below to finish loading before giving up. */
+function waitForGrecaptcha(timeoutMs = 4_000): Promise<Window['grecaptcha']> {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const check = () => {
+      if (window.grecaptcha) return resolve(window.grecaptcha)
+      if (Date.now() - start > timeoutMs) return resolve(undefined)
+      setTimeout(check, 100)
+    }
+    check()
+  })
+}
+
+/** Never throws — a missing/blocked widget degrades to an unverified submission. */
+async function getRecaptchaToken(siteKey: string): Promise<string | undefined> {
+  const grecaptcha = await waitForGrecaptcha()
+  if (!grecaptcha) return undefined
+  return new Promise((resolve) => {
+    grecaptcha.ready(() => {
+      grecaptcha
+        .execute(siteKey, { action: 'contact_submit' })
+        .then(resolve, () => resolve(undefined))
+    })
+  })
+}
+
+export function ContactForm({
+  locale,
+  recaptchaSiteKey,
+}: {
+  locale: Locale
+  recaptchaSiteKey?: string | undefined
+}) {
   const ar = locale === 'ar'
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
@@ -17,6 +59,9 @@ export function ContactForm({ locale }: { locale: Locale }) {
     const element = event.currentTarget
     const form = new FormData(element)
     startTransition(async () => {
+      const recaptchaToken = recaptchaSiteKey
+        ? await getRecaptchaToken(recaptchaSiteKey)
+        : undefined
       const response = await createSalesInquiry({
         name: String(form.get('name') ?? ''),
         company: String(form.get('company') ?? ''),
@@ -32,6 +77,7 @@ export function ContactForm({ locale }: { locale: Locale }) {
         locale,
         consent: form.get('consent') === 'on',
         website: String(form.get('website') ?? ''),
+        recaptchaToken,
       })
       setResult({ ok: response.ok, message: response.ok ? response.message : response.error })
       if (response.ok) element.reset()
@@ -64,6 +110,12 @@ export function ContactForm({ locale }: { locale: Locale }) {
 
   return (
     <form className="contact-form" onSubmit={submit}>
+      {recaptchaSiteKey ? (
+        <Script
+          src={`https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`}
+          strategy="afterInteractive"
+        />
+      ) : null}
       <div className="contact-form__head">
         <span>{ar ? 'استشارة وتشخيص مجاني' : 'Free Discovery & Scoping'}</span>
         <h2>{ar ? 'أين تضيع مكالمات عملائك اليوم؟' : 'Where are your calls dropping today?'}</h2>

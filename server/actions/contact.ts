@@ -25,9 +25,38 @@ const schema = z.object({
   locale: z.enum(['ar', 'en']),
   consent: z.boolean().refine((value) => value, 'Consent is required'),
   website: z.string().max(0).optional(),
+  recaptchaToken: z.string().optional(),
 })
 
 export type ContactResult = { ok: true; message: string } | { ok: false; error: string }
+
+/**
+ * Verifies with Google that the submission came from a real browser action.
+ * Returns true when the check is not configured at all (RECAPTCHA_SECRET_KEY
+ * unset) — the same "optional integration, off until both env vars exist"
+ * rule every other integration in lib/env.ts follows — so a missing key
+ * degrades to the honeypot/rate-limit/dedupe defenses below, not to a form
+ * that rejects every submission.
+ */
+async function verifyRecaptcha(token: string | undefined, remoteIp: string): Promise<boolean> {
+  const secret = env.RECAPTCHA_SECRET_KEY
+  if (!secret) return true
+  if (!token) return false
+
+  const body = new URLSearchParams({ secret, response: token, remoteip: remoteIp })
+  const result = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    signal: AbortSignal.timeout(5_000),
+  })
+    .then((response) => response.json())
+    .catch(() => null)
+
+  // v3 returns a 0–1 risk score instead of a pass/fail challenge; 0.5 is
+  // Google's own documented default threshold.
+  return Boolean(result?.success && (result.score === undefined || result.score >= 0.5))
+}
 
 export async function createSalesInquiry(input: z.input<typeof schema>): Promise<ContactResult> {
   const parsed = schema.safeParse(input)
@@ -64,6 +93,17 @@ export async function createSalesInquiry(input: z.input<typeof schema>): Promise
         parsed.data.locale === 'en'
           ? 'Too many requests. Please try again later.'
           : 'محاولات كثيرة خلال وقت قصير. حاول مرة أخرى بعد قليل.',
+    }
+  }
+
+  const humanVerified = await verifyRecaptcha(parsed.data.recaptchaToken, clientAddress)
+  if (!humanVerified) {
+    return {
+      ok: false,
+      error:
+        parsed.data.locale === 'en'
+          ? 'We could not verify this request. Please try again.'
+          : 'تعذر التحقق من هذا الطلب. حاول مرة أخرى.',
     }
   }
 
