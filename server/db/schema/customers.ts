@@ -44,6 +44,9 @@ export const customer = pgTable(
     uniqueIndex('customer_workspace_phone_idx').on(t.workspaceId, t.phone),
     index('customer_workspace_status_idx').on(t.workspaceId, t.status),
     index('customer_workspace_created_idx').on(t.workspaceId, t.createdAt),
+    // getPortalCustomers (server/data/portal.ts) orders this exact scope by
+    // lastCallAt — the workspace+createdAt index above doesn't cover that sort.
+    index('customer_workspace_last_call_idx').on(t.workspaceId, t.lastCallAt),
   ],
 )
 

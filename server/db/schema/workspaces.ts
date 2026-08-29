@@ -176,5 +176,8 @@ export const changeRequest = pgTable(
   (t) => [
     index('change_request_workspace_idx').on(t.workspaceId, t.status),
     uniqueIndex('change_request_workspace_dedupe_idx').on(t.workspaceId, t.dedupeKey),
+    // Console/portal both list a workspace's requests ordered by createdAt —
+    // the (workspaceId, status) index above doesn't cover that sort.
+    index('change_request_workspace_created_idx').on(t.workspaceId, t.createdAt),
   ],
 )

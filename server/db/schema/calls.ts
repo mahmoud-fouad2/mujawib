@@ -209,6 +209,11 @@ export const call = pgTable(
     index('call_origin_idx').on(t.workspaceId, t.origin),
     index('call_caller_hash_idx').on(t.workspaceId, t.callerNumberHash),
     index('call_recording_status_idx').on(t.workspaceId, t.recordingStatus),
+    // Every index above is workspace-first. The platform-wide origin='live'
+    // sweeps (console nav counts, marketing homepage stats — server/data/console.ts,
+    // server/data/marketing.ts) filter by origin (+ startedAt range) across all
+    // workspaces at once, so none of those indexes help them.
+    index('call_origin_started_idx').on(t.origin, t.startedAt),
   ],
 )
 
