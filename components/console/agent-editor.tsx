@@ -3,7 +3,7 @@
 import { Edit3, Plug, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Sheet } from '@/components/ui/overlays'
+import { Confirm, Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
 import { updateAgentDraft } from '@/server/actions/console'
@@ -163,6 +163,19 @@ export function AgentEditorSheet({
     setFlows((prev) => prev.filter((f) => f !== target))
   }
 
+  const [pendingBlueprint, setPendingBlueprint] = useState<
+    'clinic' | 'realestate' | 'auto' | 'salon' | null
+  >(null)
+  // flows is excluded: an untouched draft already carries a non-empty
+  // placeholder list there, so it would read as "customized" even when
+  // nothing has actually been written yet.
+  const hasCustomization = Boolean(role.trim()) || goals.length > 0 || restricted.length > 0
+
+  const requestBlueprint = (type: 'clinic' | 'realestate' | 'auto' | 'salon') => {
+    if (hasCustomization) setPendingBlueprint(type)
+    else applyBlueprint(type)
+  }
+
   const applyBlueprint = (type: 'clinic' | 'realestate' | 'auto' | 'salon') => {
     if (type === 'clinic') {
       setName('سارة — العيادة الطبية')
@@ -275,28 +288,28 @@ export function AgentEditorSheet({
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
-                onClick={() => applyBlueprint('clinic')}
+                onClick={() => requestBlueprint('clinic')}
               >
                 🏥 عيادة طبية
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
-                onClick={() => applyBlueprint('realestate')}
+                onClick={() => requestBlueprint('realestate')}
               >
                 🏢 عقارات
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
-                onClick={() => applyBlueprint('auto')}
+                onClick={() => requestBlueprint('auto')}
               >
                 🚗 صيانة سيارات
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
-                onClick={() => applyBlueprint('salon')}
+                onClick={() => requestBlueprint('salon')}
               >
                 ✨ صالون وتجميل
               </button>
@@ -663,6 +676,18 @@ export function AgentEditorSheet({
           </div>
         </div>
       </Sheet>
+
+      <Confirm
+        open={pendingBlueprint !== null}
+        onClose={() => setPendingBlueprint(null)}
+        onConfirm={() => {
+          if (pendingBlueprint) applyBlueprint(pendingBlueprint)
+          setPendingBlueprint(null)
+        }}
+        title="تطبيق القالب الجاهز؟"
+        body="سيستبدل هذا الاسم والهوية والأهداف والقيود الحالية بمحتوى القالب الجاهز. لا يمكن التراجع عن هذا إلا بإعادة كتابتها يدويًا."
+        confirmLabel="طبّق القالب"
+      />
     </>
   )
 }
