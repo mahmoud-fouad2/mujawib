@@ -12,7 +12,6 @@ import {
   type ScenarioRunDetails,
   scenarioExpectationSchema,
   scenarioInputSchema,
-  TEST_LAB_MODEL,
 } from '@/lib/test-lab'
 import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
@@ -23,6 +22,7 @@ import {
   runRealtimeScenario,
   type VersionRuntime,
 } from '@/server/test-lab/runtime'
+import { PRIMARY_REALTIME_MODEL } from '@/server/voice/model'
 
 type ActionResult = { ok: true; message: string } | { ok: false; error: string; refresh?: boolean }
 
@@ -167,7 +167,7 @@ async function executeAndPersist(runtime: VersionRuntime, scenario: ScenarioRow)
       schemaVersion: 1,
       status: 'error',
       runner: 'openai-realtime-text',
-      model: TEST_LAB_MODEL,
+      model: PRIMARY_REALTIME_MODEL,
       durationMs: 0,
       transcript: [],
       toolCalls: [],
@@ -182,7 +182,7 @@ async function executeAndPersist(runtime: VersionRuntime, scenario: ScenarioRow)
         schemaVersion: 1,
         status: 'error',
         runner: 'openai-realtime-text',
-        model: TEST_LAB_MODEL,
+        model: output.model,
         durationMs: output.durationMs,
         transcript: output.transcript,
         toolCalls: output.toolCalls,
@@ -202,7 +202,7 @@ async function executeAndPersist(runtime: VersionRuntime, scenario: ScenarioRow)
         schemaVersion: 1,
         status: passed ? 'passed' : 'failed',
         runner: 'openai-realtime-text',
-        model: TEST_LAB_MODEL,
+        model: output.model,
         durationMs: output.durationMs,
         transcript: output.transcript,
         toolCalls: output.toolCalls,

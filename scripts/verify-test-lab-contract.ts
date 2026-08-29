@@ -62,7 +62,7 @@ const runDetails: ScenarioRunDetails = {
   schemaVersion: 1,
   status: 'passed',
   runner: 'openai-realtime-text',
-  model: 'gpt-realtime-2.1',
+  model: 'gpt-realtime',
   durationMs: 800,
   transcript: [],
   toolCalls: [],

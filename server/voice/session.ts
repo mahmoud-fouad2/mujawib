@@ -12,6 +12,7 @@ import {
   voiceProfile,
   workspace,
 } from '@/server/db/schema'
+import { PRIMARY_REALTIME_MODEL } from '@/server/voice/model'
 import { compilePrompt } from '@/server/voice/prompt'
 import { toolsFor } from '@/server/voice/tools'
 
@@ -26,7 +27,7 @@ import { toolsFor } from '@/server/voice/tools'
  */
 
 /** Launch default — Bible §28. One model, audio to audio, no cascade. */
-export const VOICE_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview'
+export const VOICE_MODEL = PRIMARY_REALTIME_MODEL
 
 const VOICE_BY_DIALECT: Record<string, string> = {
   saudi: 'cedar',
@@ -155,7 +156,7 @@ export async function resolveAgentFromCandidates(
  * sentence more than the default 500ms allows, and cutting them off is the
  * fastest way to make an agent feel robotic.
  */
-export function buildAcceptPayload(resolved: ResolvedAgent) {
+export function buildAcceptPayload(resolved: ResolvedAgent, model = VOICE_MODEL) {
   // Tools are omitted entirely rather than sent as an empty array: a version
   // with no bindings is conversation-only, and an empty list plus
   // `tool_choice: auto` is a contradiction to hand a strict validator.
@@ -172,7 +173,7 @@ export function buildAcceptPayload(resolved: ResolvedAgent) {
 
   return {
     type: 'realtime',
-    model: VOICE_MODEL,
+    model,
     instructions: resolved.instructions,
     audio: {
       input: {

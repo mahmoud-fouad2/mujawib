@@ -15,8 +15,13 @@ import {
   voiceProfile,
   workspace,
 } from '@/server/db/schema'
+import {
+  DEFAULT_REALTIME_MODEL,
+  isRealtimeModelUnavailable,
+  realtimeModelCandidates,
+  resolveRealtimeModel,
+} from '@/server/voice/model'
 import { compilePrompt } from '@/server/voice/prompt'
-import { VOICE_MODEL } from '@/server/voice/session'
 import { toolsFor } from '@/server/voice/tools'
 
 type JsonRecord = Record<string, unknown>
@@ -36,12 +41,14 @@ export type VersionRuntime = {
 export type RealtimeScenarioOutput =
   | {
       ok: true
+      model: string
       durationMs: number
       transcript: TestLabTranscriptTurn[]
       toolCalls: TestLabToolCall[]
     }
   | {
       ok: false
+      model: string
       durationMs: number
       transcript: TestLabTranscriptTurn[]
       toolCalls: TestLabToolCall[]
@@ -144,9 +151,10 @@ function safetyIdentifier(workspaceId: string) {
   return createHash('sha256').update(`mujawib-test-lab:${workspaceId}`).digest('hex')
 }
 
-export async function runRealtimeScenario(
+async function runRealtimeScenarioWithModel(
   runtime: VersionRuntime,
   input: ScenarioInput,
+  model: string,
 ): Promise<RealtimeScenarioOutput> {
   const startedAt = Date.now()
   const transcript: TestLabTranscriptTurn[] = []
@@ -156,6 +164,7 @@ export async function runRealtimeScenario(
   if (!apiKey) {
     return {
       ok: false,
+      model,
       durationMs: 0,
       transcript,
       toolCalls,
@@ -165,7 +174,7 @@ export async function runRealtimeScenario(
   }
 
   return new Promise<RealtimeScenarioOutput>((resolve) => {
-    const url = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(VOICE_MODEL)}`
+    const url = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`
     const socket = new WebSocket(url, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -189,6 +198,7 @@ export async function runRealtimeScenario(
     const fail = (reasonCode: string, message: string) =>
       finish({
         ok: false,
+        model,
         durationMs: Date.now() - startedAt,
         transcript,
         toolCalls,
@@ -206,6 +216,7 @@ export async function runRealtimeScenario(
       if (!text) {
         finish({
           ok: true,
+          model,
           durationMs: Date.now() - startedAt,
           transcript,
           toolCalls,
@@ -247,7 +258,7 @@ export async function runRealtimeScenario(
           type: 'session.update',
           session: {
             type: 'realtime',
-            model: VOICE_MODEL,
+            model,
             output_modalities: ['text'],
             instructions: runtime.instructions,
             max_output_tokens: 500,
@@ -304,6 +315,7 @@ export async function runRealtimeScenario(
       if (parsed.toolCalls.length > 0 || turnIndex >= input.turns.length) {
         finish({
           ok: true,
+          model,
           durationMs: Date.now() - startedAt,
           transcript,
           toolCalls,
@@ -327,4 +339,37 @@ export async function runRealtimeScenario(
       }
     })
   })
+}
+
+export async function runRealtimeScenario(
+  runtime: VersionRuntime,
+  input: ScenarioInput,
+): Promise<RealtimeScenarioOutput> {
+  const configuredCandidates = realtimeModelCandidates()
+  const preferredModel = env.OPENAI_API_KEY
+    ? await resolveRealtimeModel(env.OPENAI_API_KEY)
+    : (configuredCandidates[0] ?? DEFAULT_REALTIME_MODEL)
+  const candidates =
+    preferredModel === DEFAULT_REALTIME_MODEL
+      ? [DEFAULT_REALTIME_MODEL]
+      : [...new Set([preferredModel, ...configuredCandidates])]
+  let lastResult: RealtimeScenarioOutput | null = null
+
+  for (const model of candidates) {
+    const result = await runRealtimeScenarioWithModel(runtime, input, model)
+    lastResult = result
+    if (result.ok || !isRealtimeModelUnavailable(result.reasonCode, result.message)) return result
+  }
+
+  return (
+    lastResult ?? {
+      ok: false,
+      model: candidates[0] ?? DEFAULT_REALTIME_MODEL,
+      durationMs: 0,
+      transcript: [],
+      toolCalls: [],
+      reasonCode: 'realtime_model_unavailable',
+      message: 'لا يتوفر نموذج Realtime لهذا المشروع حاليًا.',
+    }
+  )
 }

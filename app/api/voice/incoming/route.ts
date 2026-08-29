@@ -18,8 +18,9 @@ import {
   voiceError,
   voiceLog,
 } from '@/server/voice/log'
+import { resolveRealtimeModel } from '@/server/voice/model'
 import { markPhoneAnswered, markPhoneReached } from '@/server/voice/phone'
-import { buildAcceptPayload, resolveAgentFromCandidates } from '@/server/voice/session'
+import { buildAcceptPayload, resolveAgentFromCandidates, VOICE_MODEL } from '@/server/voice/session'
 import { startRealtimeSideband } from '@/server/voice/sideband'
 import { callerFrom, didCandidates, providerObserved, type SipHeader } from '@/server/voice/sip'
 
@@ -217,8 +218,22 @@ export async function POST(req: NextRequest) {
     toolCount: resolved.tools.length,
   })
 
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    voiceError('ERROR', 'OPENAI_API_KEY is not configured')
+    await db
+      .update(webhookReceipt)
+      .set({ status: 'retryable', lastError: 'openai:key_missing', updatedAt: new Date() })
+      .where(eq(webhookReceipt.id, webhookId))
+    return NextResponse.json({ accepted: false }, { status: 503 })
+  }
+
   const caller = callerFrom(headers)
-  const payload = buildAcceptPayload(resolved)
+  const realtimeModel = await resolveRealtimeModel(apiKey)
+  if (realtimeModel !== VOICE_MODEL) {
+    voiceLog('REALTIME_MODEL_FALLBACK', { configured: VOICE_MODEL, selected: realtimeModel })
+  }
+  const payload = buildAcceptPayload(resolved, realtimeModel)
 
   const now = new Date()
   const proposedId = `call_${randomUUID().replaceAll('-', '').slice(0, 16)}`
@@ -250,6 +265,7 @@ export async function POST(req: NextRequest) {
         agentName: resolved.agentName,
         agentVersionId: resolved.versionId,
         agentVersionNumber: resolved.versionNumber,
+        realtimeModel,
         openAiCallId: callId,
         routingMethod: 'explicit_phone_number',
         providerObserved: sanitizeLogText(providerObserved(headers) ?? '') || null,
@@ -303,7 +319,7 @@ export async function POST(req: NextRequest) {
   const accept = await fetch(`${OPENAI_API}/realtime/calls/${callId}/accept`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),

@@ -1,7 +1,5 @@
 import { z } from 'zod'
 
-export const TEST_LAB_MODEL = 'gpt-realtime-2.1'
-
 export const SCENARIO_CATEGORIES = [
   'opening',
   'knowledge',

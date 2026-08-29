@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict'
+import {
+  DEFAULT_REALTIME_MODEL,
+  isRealtimeModelUnavailable,
+  resolveRealtimeModel,
+} from '../server/voice/model'
 import { buildAcceptPayload, type ResolvedAgent, VOICE_MODEL } from '../server/voice/session'
 import { toolsFor } from '../server/voice/tools'
 
@@ -34,5 +39,26 @@ assert.ok(withCalendar.tools)
 assert.equal(withCalendar.tools.length > 0, true)
 assert.equal(withCalendar.tool_choice, 'auto')
 assert.equal(withCalendar.parallel_tool_calls, false)
+
+assert.equal(isRealtimeModelUnavailable('model_not_found'), true)
+assert.equal(isRealtimeModelUnavailable('rate_limit_exceeded'), false)
+
+const previousModel = process.env.OPENAI_REALTIME_MODEL
+process.env.OPENAI_REALTIME_MODEL = 'gpt-realtime-unavailable-contract-test'
+const fallbackModel = await resolveRealtimeModel(
+  'test-key',
+  async () => new Response(null, { status: 404 }),
+)
+assert.equal(fallbackModel, DEFAULT_REALTIME_MODEL)
+
+process.env.OPENAI_REALTIME_MODEL = 'gpt-realtime-available-contract-test'
+const configuredModel = await resolveRealtimeModel(
+  'test-key',
+  async () => new Response('{}', { status: 200 }),
+)
+assert.equal(configuredModel, 'gpt-realtime-available-contract-test')
+
+if (previousModel === undefined) delete process.env.OPENAI_REALTIME_MODEL
+else process.env.OPENAI_REALTIME_MODEL = previousModel
 
 console.log('Realtime accept-session verification passed.')
