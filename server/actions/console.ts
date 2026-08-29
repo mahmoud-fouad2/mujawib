@@ -1,7 +1,7 @@
 'use server'
 
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { OperatorPermission } from '@/lib/access'
@@ -462,8 +462,14 @@ export async function updateAgentDraft(
       const [prof] = await tx
         .select()
         .from(voiceProfile)
-        .where(eq(voiceProfile.id, voiceProfileId))
+        .where(
+          and(
+            eq(voiceProfile.id, voiceProfileId),
+            or(eq(voiceProfile.workspaceId, parent.workspaceId), eq(voiceProfile.isGlobal, true)),
+          ),
+        )
         .limit(1)
+      if (!prof) return { error: 'الملف الصوتي غير متاح لهذه المنشأة.' }
       const knowledge = await tx
         .select()
         .from(knowledgeItem)

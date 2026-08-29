@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
 import { canOperator } from '@/lib/access'
 import { readCallIntelligenceState } from '@/lib/call-intelligence'
 import {
@@ -795,7 +795,13 @@ export async function getAgentDetail(agentId: string) {
       .from(knowledgeItem)
       .where(eq(knowledgeItem.workspaceId, row.agent.workspaceId))
       .orderBy(knowledgeItem.category, knowledgeItem.title),
-    db.select().from(voiceProfile).orderBy(voiceProfile.name),
+    db
+      .select()
+      .from(voiceProfile)
+      .where(
+        or(eq(voiceProfile.workspaceId, row.agent.workspaceId), eq(voiceProfile.isGlobal, true)),
+      )
+      .orderBy(voiceProfile.name),
     draft
       ? db.select().from(flow).where(eq(flow.agentVersionId, draft.id)).orderBy(flow.sortOrder)
       : Promise.resolve([]),

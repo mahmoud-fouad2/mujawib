@@ -37,3 +37,16 @@ export function rateLimit(
   record.count += 1
   return { success: true, remaining: limit - record.count, resetAt: record.resetAt }
 }
+
+/**
+ * Best-effort caller identity from proxy headers.
+ *
+ * Trustworthy only if a real reverse proxy fronts this deployment and strips
+ * client-supplied values before setting its own. Falls back to a constant so
+ * a spoofed/missing header degrades to one shared bucket rather than an
+ * exception.
+ */
+export function clientIdentifier(headers: { get(name: string): string | null }): string {
+  const forwarded = headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  return forwarded || headers.get('x-real-ip') || 'unknown'
+}

@@ -5,6 +5,7 @@ import { and, eq, gte } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import { env } from '@/lib/env'
+import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { db } from '@/server/db'
 import { salesInquiry } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
@@ -49,10 +50,23 @@ export async function createSalesInquiry(input: z.input<typeof schema>): Promise
   }
 
   const requestHeaders = await headers()
-  const clientAddress =
-    requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    requestHeaders.get('x-real-ip') ??
-    'unknown'
+  const clientAddress = clientIdentifier(requestHeaders)
+
+  // The 10-minute dedupe below only catches a repeat of the *same* email from
+  // the same address — it does nothing to slow someone submitting many
+  // different emails quickly, which this closes: this is the one unauthenticated
+  // write path on the whole site with no auth in front of it at all.
+  const limited = rateLimit(`contact:${clientAddress}`, 5, 10 * 60_000)
+  if (!limited.success) {
+    return {
+      ok: false,
+      error:
+        parsed.data.locale === 'en'
+          ? 'Too many requests. Please try again later.'
+          : 'محاولات كثيرة خلال وقت قصير. حاول مرة أخرى بعد قليل.',
+    }
+  }
+
   const fingerprint = createHash('sha256')
     .update(`${env.BETTER_AUTH_SECRET}:${clientAddress}:${parsed.data.email}`)
     .digest('hex')
