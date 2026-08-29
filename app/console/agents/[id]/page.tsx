@@ -40,6 +40,8 @@ export default async function AgentDetailPage({ params }: Props) {
     goals?: string[]
     restricted?: string[]
   }
+  const draftRules = (a.draft?.businessRules ?? {}) as { hours?: string; transferTo?: string }
+  const draftRouting = (a.draft?.routing ?? {}) as { afterHours?: string }
 
   return (
     <>
@@ -214,6 +216,31 @@ export default async function AgentDetailPage({ params }: Props) {
           </div>
         </Section>
       </div>
+
+      {a.draft ? (
+        <Section title="إعدادات المسودة" meta={`v${a.draft.versionNumber}`}>
+          <div className="row" style={{ gap: 'var(--s-5)', flexWrap: 'wrap' }}>
+            <div>
+              <div className="detail-section-label" style={{ padding: 0 }}>
+                ساعات العمل
+              </div>
+              <p className="mono">{draftRules.hours || 'يتبع إعدادات العميل'}</p>
+            </div>
+            <div>
+              <div className="detail-section-label" style={{ padding: 0 }}>
+                رقم التحويل
+              </div>
+              <p className="mono">{draftRules.transferTo || 'يتبع إعدادات العميل'}</p>
+            </div>
+            <div>
+              <div className="detail-section-label" style={{ padding: 0 }}>
+                خارج الدوام
+              </div>
+              <p>{draftRouting.afterHours === 'callback' ? 'معاودة اتصال' : 'نفس سياسة التحويل'}</p>
+            </div>
+          </div>
+        </Section>
+      ) : null}
 
       <div className="split">
         <Section title="المسارات" meta={`${num(a.flows.length)}`} flush>

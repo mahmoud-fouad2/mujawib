@@ -1,6 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { db } from '@/server/db'
 import { auditLog, call, webhookReceipt } from '@/server/db/schema'
 import {
@@ -95,15 +96,30 @@ async function rejectCall(callId: string, reason: string) {
   }).catch((error) => voiceError('ERROR', `reject failed: ${sanitizeLogText(String(error))}`))
 }
 
-import { rateLimit } from '@/lib/rate-limit'
+/**
+ * Generous on purpose: every legitimate call from every client on the
+ * platform arrives through this one route from OpenAI's own infrastructure,
+ * so the cap only has to catch a genuine flood, not shape normal traffic.
+ * The real gate is `verifySignature` below — this is a second, cheaper line
+ * of defense for the case that secret ever leaks, so a flood of guesses
+ * costs the attacker more than the constant-time compare already does.
+ */
+const WEBHOOK_LIMIT = 600
+const WEBHOOK_WINDOW_MS = 60_000
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
-  const rl = rateLimit(`webhook:${ip}`, 30, 60000) // 30 requests per minute per IP
-
-  if (!rl.success) {
-    voiceError('RATE_LIMITED', `Rate limit exceeded for IP: ${ip}`)
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  const limited = rateLimit(
+    `voice-webhook:${clientIdentifier(req.headers)}`,
+    WEBHOOK_LIMIT,
+    WEBHOOK_WINDOW_MS,
+  )
+  if (!limited.success) {
+    voiceError('ERROR', 'rate limit exceeded for inbound webhook source')
+    const retryAfterSeconds = Math.max(1, Math.ceil((limited.resetAt - Date.now()) / 1000))
+    return NextResponse.json(
+      { error: 'rate limited' },
+      { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } },
+    )
   }
 
   const raw = await req.text()
