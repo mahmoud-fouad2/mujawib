@@ -43,6 +43,7 @@
     "recordings:verify-storage": "node --conditions=react-server --import tsx --env-file-if-exists=.env.local scripts/verify-recording-storage.ts",
     "integrations:verify-contract": "tsx scripts/verify-integration-contract.ts",
     "notifications:verify": "node --conditions=react-server --import tsx --env-file=.env.local scripts/verify-notification-contract.ts",
+    "test-lab:run-version": "node --conditions=react-server --import tsx --env-file-if-exists=.env.local scripts/run-agent-version-suite.ts",
     "test-lab:verify": "tsx scripts/verify-test-lab-contract.ts",
     "test:contracts": "corepack pnpm access:verify-policy && corepack pnpm auth:verify-contract && corepack pnpm voice:verify-privacy && corepack pnpm voice:verify-realtime && corepack pnpm calls:verify-intelligence && corepack pnpm integrations:verify-contract && corepack pnpm test-lab:verify"
   },

@@ -4,25 +4,13 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import {
-  evaluateScenario,
-  parseScenarioExpectation,
-  parseScenarioInput,
-  SCENARIO_CATEGORIES,
-  type ScenarioRunDetails,
-  scenarioExpectationSchema,
-  scenarioInputSchema,
-} from '@/lib/test-lab'
+import { SCENARIO_CATEGORIES, scenarioExpectationSchema, scenarioInputSchema } from '@/lib/test-lab'
 import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
-import { agent, agentVersion, auditLog, scenarioRun, scenarioTest } from '@/server/db/schema'
+import { agent, agentVersion, auditLog, scenarioTest } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
-import {
-  loadVersionRuntime,
-  runRealtimeScenario,
-  type VersionRuntime,
-} from '@/server/test-lab/runtime'
-import { PRIMARY_REALTIME_MODEL } from '@/server/voice/model'
+import { executeAndPersistScenario, type ScenarioRow } from '@/server/test-lab/execution'
+import { loadVersionRuntime } from '@/server/test-lab/runtime'
 
 type ActionResult = { ok: true; message: string } | { ok: false; error: string; refresh?: boolean }
 
@@ -214,79 +202,6 @@ export async function deleteTestScenario(scenarioId: string): Promise<ActionResu
   return { ok: true, message: 'حُذف السيناريو ونتائجه السابقة.' }
 }
 
-type ScenarioRow = typeof scenarioTest.$inferSelect
-
-async function executeAndPersist(runtime: VersionRuntime, scenario: ScenarioRow) {
-  const parsedInput = parseScenarioInput(scenario.input)
-  const expectation = parseScenarioExpectation(scenario.expectedOutcome)
-  let details: ScenarioRunDetails
-  let passed = false
-  let score = 0
-
-  if (!parsedInput || !expectation) {
-    details = {
-      schemaVersion: 1,
-      status: 'error',
-      runner: 'openai-realtime-text',
-      model: PRIMARY_REALTIME_MODEL,
-      durationMs: 0,
-      transcript: [],
-      toolCalls: [],
-      checks: [],
-      reasonCode: 'invalid_scenario_contract',
-      errorMessage: 'السيناريو قديم أو تنقصه نتيجة متوقعة قابلة للقياس.',
-    }
-  } else {
-    const output = await runRealtimeScenario(runtime, parsedInput)
-    if (!output.ok) {
-      details = {
-        schemaVersion: 1,
-        status: 'error',
-        runner: 'openai-realtime-text',
-        model: output.model,
-        durationMs: output.durationMs,
-        transcript: output.transcript,
-        toolCalls: output.toolCalls,
-        checks: [],
-        reasonCode: output.reasonCode,
-        errorMessage: output.message,
-      }
-    } else {
-      const evaluation = evaluateScenario({
-        expectation,
-        transcript: output.transcript,
-        toolCalls: output.toolCalls,
-      })
-      passed = evaluation.passed
-      score = evaluation.score
-      details = {
-        schemaVersion: 1,
-        status: passed ? 'passed' : 'failed',
-        runner: 'openai-realtime-text',
-        model: output.model,
-        durationMs: output.durationMs,
-        transcript: output.transcript,
-        toolCalls: output.toolCalls,
-        checks: evaluation.checks,
-        reasonCode: passed ? null : 'expectation_failed',
-        errorMessage: null,
-      }
-    }
-  }
-
-  await db.insert(scenarioRun).values({
-    id: id('run'),
-    agentVersionId: runtime.versionId,
-    scenarioId: scenario.id,
-    passed,
-    score,
-    details,
-    ranAt: new Date(),
-  })
-
-  return { passed, score, details }
-}
-
 async function scenarioWithVersion(scenarioId: string) {
   const [row] = await db
     .select({ scenario: scenarioTest, workspaceId: agent.workspaceId })
@@ -308,7 +223,7 @@ export async function runTestScenario(scenarioId: string): Promise<ActionResult>
   const runtime = await loadVersionRuntime(row.scenario.agentVersionId)
   if (!runtime) return { ok: false, error: 'تعذّر تحميل النسخة المطلوبة للاختبار.' }
 
-  const result = await executeAndPersist(runtime, row.scenario)
+  const result = await executeAndPersistScenario(runtime, row.scenario)
   await recordAudit({
     workspaceId: row.workspaceId,
     actorId: access.userId,
@@ -379,10 +294,10 @@ export async function runVersionTestSuite(versionId: string): Promise<ActionResu
   // for. A batch takes longer now; nothing else about the result changes.
   const results: {
     scenario: ScenarioRow
-    result: Awaited<ReturnType<typeof executeAndPersist>>
+    result: Awaited<ReturnType<typeof executeAndPersistScenario>>
   }[] = []
   for (const scenario of scenarios) {
-    results.push({ scenario, result: await executeAndPersist(runtime, scenario) })
+    results.push({ scenario, result: await executeAndPersistScenario(runtime, scenario) })
   }
 
   const failed = results.filter(({ result }) => !result.passed).length
