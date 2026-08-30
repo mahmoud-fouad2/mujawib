@@ -155,6 +155,13 @@
       "when": 1788024847646,
       "tag": "0021_brief_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788084734266,
+      "tag": "0022_bumpy_living_mummy",
+      "breakpoints": true
     }
   ]
 }

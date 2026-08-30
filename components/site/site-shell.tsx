@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { SiteAnalytics } from '@/components/site/site-analytics'
 import { SiteFooter } from '@/components/site/site-footer'
 import { SiteHeader } from '@/components/site/site-header'
 import { copyFor } from '@/lib/content/site'
@@ -19,6 +20,7 @@ export async function SiteShell({ locale, children }: { locale: Locale; children
 
   return (
     <div className="site">
+      <SiteAnalytics locale={locale} />
       <SiteHeader locale={locale} copy={copy} />
       <main>{children}</main>
       <SiteFooter locale={locale} copy={copy} contact={contact} />

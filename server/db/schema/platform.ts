@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 /**
  * Platform-wide contact channels — the email and phone the marketing site,
@@ -27,3 +27,29 @@ export const platformContact = pgTable('platform_contact', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedById: text('updated_by_id'),
 })
+
+export const siteEventTypeEnum = pgEnum('site_event_type', ['page_view', 'cta_click'])
+
+/**
+ * Self-hosted marketing-site analytics (audit report H5) — deliberately not
+ * a third-party tool: no account for this session to create, and one fewer
+ * script/cookie on a site whose own security page promises visitor privacy.
+ * No IP, no user agent, no cookie, no visitor identifier of any kind —
+ * these rows answer "what got traffic" in aggregate, never "who visited".
+ */
+export const siteEvent = pgTable(
+  'site_event',
+  {
+    id: text('id').primaryKey(),
+    type: siteEventTypeEnum('type').notNull(),
+    path: text('path').notNull(),
+    /** Set only for type = 'cta_click', e.g. 'book_consultation'. */
+    ctaId: text('cta_id'),
+    locale: text('locale').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('site_event_type_created_idx').on(t.type, t.createdAt),
+    index('site_event_path_idx').on(t.path),
+  ],
+)
