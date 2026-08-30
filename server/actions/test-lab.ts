@@ -371,21 +371,19 @@ export async function runVersionTestSuite(versionId: string): Promise<ActionResu
     }
   }
 
+  // Sequential, not the two-worker pool this used to run: this process's
+  // start script caps the heap at 384MB (render.yaml's starter plan) and
+  // owns every live call's sideband socket at the same time (README's
+  // "horizontal scaling limits" section) - two scenarios' realtime WS
+  // sessions overlapping was extra memory pressure this had no real need
+  // for. A batch takes longer now; nothing else about the result changes.
   const results: {
     scenario: ScenarioRow
     result: Awaited<ReturnType<typeof executeAndPersist>>
   }[] = []
-  let cursor = 0
-  const workers = Array.from({ length: Math.min(2, scenarios.length) }, async () => {
-    while (cursor < scenarios.length) {
-      const scenario = scenarios[cursor]
-      cursor += 1
-      if (scenario) {
-        results.push({ scenario, result: await executeAndPersist(runtime, scenario) })
-      }
-    }
-  })
-  await Promise.all(workers)
+  for (const scenario of scenarios) {
+    results.push({ scenario, result: await executeAndPersist(runtime, scenario) })
+  }
 
   const failed = results.filter(({ result }) => !result.passed).length
   const criticalFailed = results.filter(
