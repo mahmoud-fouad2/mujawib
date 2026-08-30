@@ -266,6 +266,8 @@ export function ClientRowActions({
                       hoursWeekday: form.hoursWeekday,
                       transferTo: form.transferTo,
                       notes: form.notes,
+                      monthlyCallLimit: form.monthlyCallLimit,
+                      concurrentCallLimit: form.concurrentCallLimit,
                     }),
                   () => setEditing(false),
                 )
@@ -340,6 +342,49 @@ export function ClientRowActions({
             hint="إلى هنا تذهب المكالمة عندما يطلب المتصل موظفًا بشريًا."
             mono
           />
+        </div>
+
+        <div className="sheet__group">
+          <h3>حدود الاستخدام</h3>
+          <p className="field__hint" style={{ marginBlockEnd: 'var(--s-2)' }}>
+            مرجعية وعرض فقط حاليًا — لا يوجد بعد تطبيق فعلي يمنع قبول مكالمة عند تجاوز الحد.
+          </p>
+          <div className="field">
+            <label htmlFor={`monthly-limit-${client.workspaceId}`}>الحد الشهري للمكالمات</label>
+            <input
+              id={`monthly-limit-${client.workspaceId}`}
+              className="input mono"
+              type="number"
+              min={1}
+              value={form.monthlyCallLimit ?? ''}
+              placeholder="بلا حد"
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  monthlyCallLimit: event.target.value ? Number(event.target.value) : null,
+                }))
+              }
+            />
+            <span className="field__hint">اتركه فارغًا لعميل بلا حد شهري.</span>
+          </div>
+          <div className="field">
+            <label htmlFor={`concurrent-limit-${client.workspaceId}`}>
+              الحد الأقصى للمكالمات المتزامنة
+            </label>
+            <input
+              id={`concurrent-limit-${client.workspaceId}`}
+              className="input mono"
+              type="number"
+              min={1}
+              value={form.concurrentCallLimit}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  concurrentCallLimit: Math.max(1, Number(event.target.value) || 1),
+                }))
+              }
+            />
+          </div>
         </div>
 
         <div className="sheet__group">

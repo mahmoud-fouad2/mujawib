@@ -79,6 +79,14 @@ function daysBack(n: number) {
   return d
 }
 
+/** Calendar-month start, not a rolling window — a monthly call limit resets on the 1st, not 30 days ago. */
+function startOfMonth() {
+  const d = new Date()
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
 function liveCutoff() {
   return new Date(Date.now() - 2 * 60 * 60 * 1000)
 }
@@ -531,12 +539,13 @@ export async function getMetricTrends() {
 
 export async function getClients(options: { search?: string; status?: WorkspaceStatus } = {}) {
   const since = daysBack(30)
+  const monthStart = startOfMonth()
   const scope = and(
     eq(workspace.type, 'client'),
     options.search ? sql`${workspace.name} ilike ${`%${options.search}%`}` : undefined,
     options.status ? eq(workspace.status, options.status) : undefined,
   )
-  const [clients, total, calls, bookings, agents, unhealthy] = await Promise.all([
+  const [clients, total, calls, callsThisMonth, bookings, agents, unhealthy] = await Promise.all([
     db
       .select({
         id: workspace.id,
@@ -546,6 +555,8 @@ export async function getClients(options: { search?: string; status?: WorkspaceS
         industryPack: workspace.industryPack,
         businessInfo: workspace.businessInfo,
         createdAt: workspace.createdAt,
+        monthlyCallLimit: workspace.monthlyCallLimit,
+        concurrentCallLimit: workspace.concurrentCallLimit,
       })
       .from(workspace)
       .where(scope)
@@ -563,6 +574,11 @@ export async function getClients(options: { search?: string; status?: WorkspaceS
       .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
       .from(call)
       .where(and(gte(call.startedAt, since), eq(call.origin, 'live')))
+      .groupBy(call.workspaceId),
+    db
+      .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(and(gte(call.startedAt, monthStart), eq(call.origin, 'live')))
       .groupBy(call.workspaceId),
     db
       .select({ workspaceId: booking.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })
@@ -587,6 +603,7 @@ export async function getClients(options: { search?: string; status?: WorkspaceS
   const countByWorkspace = (rows: { workspaceId: string; n: number }[]) =>
     new Map(rows.map((row) => [row.workspaceId, row.n]))
   const callsByWorkspace = countByWorkspace(calls)
+  const callsThisMonthByWorkspace = countByWorkspace(callsThisMonth)
   const bookingsByWorkspace = countByWorkspace(bookings)
   const agentsByWorkspace = countByWorkspace(agents)
   const unhealthyByWorkspace = countByWorkspace(unhealthy)
@@ -597,6 +614,7 @@ export async function getClients(options: { search?: string; status?: WorkspaceS
       .map((client) => ({
         ...client,
         calls30d: callsByWorkspace.get(client.id) ?? 0,
+        callsThisMonth: callsThisMonthByWorkspace.get(client.id) ?? 0,
         bookings30d: bookingsByWorkspace.get(client.id) ?? 0,
         agents: agentsByWorkspace.get(client.id) ?? 0,
         unhealthy: unhealthyByWorkspace.get(client.id) ?? 0,

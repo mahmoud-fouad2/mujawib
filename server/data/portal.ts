@@ -32,6 +32,49 @@ function daysBack(n: number) {
   return d
 }
 
+function startOfMonth() {
+  const d = new Date()
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export type PortalUsage = {
+  callsThisMonth: number
+  /** null = unlimited. */
+  monthlyCallLimit: number | null
+  concurrentCallLimit: number
+}
+
+/** Reference/display only — nothing enforces this limit at call-accept time yet. */
+export async function getPortalMonthlyUsage(workspaceId: string): Promise<PortalUsage> {
+  const [ws] = await db
+    .select({
+      monthlyCallLimit: workspace.monthlyCallLimit,
+      concurrentCallLimit: workspace.concurrentCallLimit,
+    })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+
+  const [row] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(call)
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        gte(call.startedAt, startOfMonth()),
+      ),
+    )
+
+  return {
+    callsThisMonth: row?.n ?? 0,
+    monthlyCallLimit: ws?.monthlyCallLimit ?? null,
+    concurrentCallLimit: ws?.concurrentCallLimit ?? 10,
+  }
+}
+
 /** The portal resolves only a workspace explicitly granted to the current identity. */
 export async function getPortalWorkspace(slug?: string) {
   const access = await getPortalAccess(slug)

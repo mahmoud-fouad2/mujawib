@@ -34,10 +34,20 @@ export type ClientEditable = {
   hoursWeekday: string
   transferTo: string
   notes: string
+  /** null = unlimited. */
+  monthlyCallLimit: number | null
+  concurrentCallLimit: number
 }
 
 export function clientEditable(
-  workspace: { id: string; slug: string; name: string; status: string },
+  workspace: {
+    id: string
+    slug: string
+    name: string
+    status: string
+    monthlyCallLimit: number | null
+    concurrentCallLimit: number
+  },
   info: ClientBusinessInfo,
 ): ClientEditable {
   return {
@@ -55,5 +65,7 @@ export function clientEditable(
     hoursWeekday: info.hours?.sun_thu ?? '',
     transferTo: info.transferTo ?? '',
     notes: info.notes ?? '',
+    monthlyCallLimit: workspace.monthlyCallLimit,
+    concurrentCallLimit: workspace.concurrentCallLimit,
   }
 }

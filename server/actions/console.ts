@@ -1328,6 +1328,10 @@ const clientSchema = z.object({
   hoursWeekday: z.string().trim().max(40).optional(),
   transferTo: optionalPhone,
   notes: z.string().trim().max(1000).optional(),
+  // null = unlimited (workspace_monthly_call_limit_check allows null; the
+  // concurrent one is NOT NULL with a > 0 check, so it always has a value).
+  monthlyCallLimit: z.number().int().positive().nullable().optional(),
+  concurrentCallLimit: z.number().int().positive().optional(),
 })
 
 const STATUS_LABEL: Record<string, string> = {
@@ -1398,6 +1402,11 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
       name: parsed.data.name,
       status: parsed.data.status,
       businessInfo: nextBusinessInfo,
+      monthlyCallLimit:
+        parsed.data.monthlyCallLimit === undefined
+          ? row.monthlyCallLimit
+          : parsed.data.monthlyCallLimit,
+      concurrentCallLimit: parsed.data.concurrentCallLimit ?? row.concurrentCallLimit,
       updatedAt: new Date(),
     })
     .where(eq(workspace.id, parsed.data.workspaceId))

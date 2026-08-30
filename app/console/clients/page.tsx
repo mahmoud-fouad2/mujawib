@@ -94,6 +94,7 @@ export default async function ClientsPage({
                   <th>القطاع</th>
                   <th>المدينة</th>
                   <th>مكالمات 30 يومًا</th>
+                  <th>الاستخدام الشهري</th>
                   <th>حجوزات</th>
                   <th>موظفون</th>
                   <th>الربط</th>
@@ -119,6 +120,21 @@ export default async function ClientsPage({
                       </td>
                       <td className="muted">{info.city ?? '—'}</td>
                       <td className="mono">{num(c.calls30d)}</td>
+                      <td className="mono">
+                        {c.monthlyCallLimit ? (
+                          <span
+                            style={
+                              c.callsThisMonth / c.monthlyCallLimit >= 0.8
+                                ? { color: 'var(--bad)' }
+                                : undefined
+                            }
+                          >
+                            {num(c.callsThisMonth)} / {num(c.monthlyCallLimit)}
+                          </span>
+                        ) : (
+                          <span className="muted">{num(c.callsThisMonth)} (بلا حد)</span>
+                        )}
+                      </td>
                       <td className="mono">{num(c.bookings30d)}</td>
                       <td className="mono">{num(c.agents)}</td>
                       <td>

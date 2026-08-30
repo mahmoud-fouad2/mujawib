@@ -5,6 +5,7 @@ import { dayMonth, num } from '@/lib/format'
 import {
   getPortalHourly,
   getPortalInsights,
+  getPortalMonthlyUsage,
   getPortalSummary,
   getPortalTrend,
   getPortalWorkspace,
@@ -40,13 +41,17 @@ export default async function PortalInsightsPage() {
   const businessInfo = (workspace.businessInfo ?? {}) as { hours?: Record<string, string> }
   const { start: WORK_START, end: WORK_END } = parseWorkHours(businessInfo.hours?.sun_thu)
 
-  const [summary, insights, reasons, trend, hourly] = await Promise.all([
+  const [summary, insights, reasons, trend, hourly, usage] = await Promise.all([
     getPortalSummary(workspace.id),
     getPortalInsights(workspace.id),
     getTopReasons(workspace.id),
     getPortalTrend(workspace.id, 30),
     getPortalHourly(workspace.id),
+    getPortalMonthlyUsage(workspace.id),
   ])
+  const usagePercent = usage.monthlyCallLimit
+    ? Math.min(100, Math.round((usage.callsThisMonth / usage.monthlyCallLimit) * 100))
+    : null
 
   const maxHour = Math.max(1, ...hourly.map((h) => h.n))
   const conversion = summary.answered ? Math.round((summary.bookings / summary.answered) * 100) : 0
@@ -63,6 +68,30 @@ export default async function PortalInsightsPage() {
           { label: 'مكالمة خارج الدوام', value: num(summary.afterHours) },
         ]}
       />
+
+      <Section title="الاستخدام الشهري" meta="يتجدد أول كل شهر ميلادي" flush>
+        <div className="share-row" style={{ padding: 'var(--s-4)' }}>
+          <div style={{ flex: 1 }}>
+            <div className="share-row__label">
+              {usage.monthlyCallLimit
+                ? `${num(usage.callsThisMonth)} من ${num(usage.monthlyCallLimit)} مكالمة`
+                : `${num(usage.callsThisMonth)} مكالمة — بلا حد شهري`}
+            </div>
+            {usagePercent !== null ? (
+              <div className="share-row__track">
+                <span
+                  className="share-row__fill"
+                  style={{
+                    width: `${usagePercent}%`,
+                    background: usagePercent >= 90 ? 'var(--bad)' : 'var(--signal)',
+                  }}
+                />
+              </div>
+            ) : null}
+          </div>
+          {usagePercent !== null ? <span className="share-row__value">{usagePercent}%</span> : null}
+        </div>
+      </Section>
 
       <div className="split">
         <Section title="حجم المكالمات" meta="آخر 30 يومًا · الملوّن انتهى بحجز" flush>
