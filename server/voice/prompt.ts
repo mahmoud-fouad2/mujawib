@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { InferSelectModel } from 'drizzle-orm'
+import { z } from 'zod'
 import type {
   agentVersion,
   flow,
@@ -10,6 +11,54 @@ import type {
   workspace,
 } from '@/server/db/schema'
 import { toolsFor } from '@/server/voice/tools'
+
+/**
+ * These JSONB columns have no application-level write path that guarantees
+ * their shape (console forms write some; a few, like knowledgeItem.content,
+ * have never had one — see the audit's H4 finding). A stray manual edit, an
+ * incomplete migration, or a bug elsewhere that writes an unexpected shape
+ * must degrade to "field absent" here, not throw: this function runs inside
+ * the incoming-call webhook, before OpenAI's accept() call, with nothing
+ * upstream catching an exception — a throw here means the call never
+ * connects at all. Every field below is already optional in the shape this
+ * file actually reads, so falling back to {} on a parse failure changes
+ * nothing for well-formed data and is exactly the existing "field missing"
+ * behavior for malformed data, not a new code path.
+ */
+const businessInfoSchema = z
+  .object({
+    city: z.string().optional(),
+    hours: z.record(z.string(), z.string()).optional(),
+    branches: z.array(z.string()).optional(),
+    transferTo: z.string().optional(),
+  })
+  .catch({})
+
+const businessRulesSchema = z
+  .object({ hours: z.string().optional(), transferTo: z.string().optional() })
+  .catch({})
+
+const routingSchema = z
+  .object({ afterHours: z.string().optional(), escalation: z.string().optional() })
+  .catch({})
+
+const identitySchema = z
+  .object({
+    role: z.string().optional(),
+    goals: z.array(z.string()).optional(),
+    restricted: z.array(z.string()).optional(),
+  })
+  .catch({})
+
+const languagePolicySchema = z.object({ switchToEnglish: z.string().optional() }).catch({})
+
+const serviceContentSchema = z
+  .object({ price: z.string().optional(), duration: z.string().optional() })
+  .catch({})
+
+const bodyContentSchema = z.object({ body: z.string().optional() }).catch({})
+
+const flowFallbackSchema = z.object({ onFailure: z.string().optional() }).nullable().catch(null)
 
 /**
  * Prompt Compiler — Product Bible §12.
@@ -73,7 +122,7 @@ const FALLBACK_LABEL: Record<string, string> = {
 }
 
 function describeFallback(fallback: unknown): string {
-  const onFailure = (fallback as { onFailure?: string } | null)?.onFailure
+  const onFailure = flowFallbackSchema.parse(fallback)?.onFailure
   return (onFailure && FALLBACK_LABEL[onFailure]) || 'سجّل معاودة اتصال بالاسم والرقم'
 }
 
@@ -144,27 +193,18 @@ export function compilePrompt(input: CompileInput): string {
   const { workspace: ws, version, agentName, profile, knowledge, pronunciations } = input
   const structuredFlows = [...(input.flows ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
 
-  const info = (ws.businessInfo ?? {}) as {
-    city?: string
-    hours?: Record<string, string>
-    branches?: string[]
-    transferTo?: string
-  }
-  const rules = (version.businessRules ?? {}) as { hours?: string; transferTo?: string }
-  const routing = (version.routing ?? {}) as { afterHours?: string; escalation?: string }
-  const flows = ((version.flows ?? []) as string[]).filter(Boolean)
+  const info = businessInfoSchema.parse(ws.businessInfo)
+  const rules = businessRulesSchema.parse(version.businessRules)
+  const routing = routingSchema.parse(version.routing)
+  const flows = stringArray(version.flows)
   const enabledToolNames = new Set(
-    toolsFor(((version.toolBindings ?? []) as string[]).filter(Boolean), {
+    toolsFor(stringArray(version.toolBindings), {
       voiceCancellationEnabled: version.voiceCancellationEnabled,
     }).map((t) => t.name),
   )
-  const identity = (version.identity ?? {}) as {
-    role?: string
-    goals?: string[]
-    restricted?: string[]
-  }
-  const goals = (identity.goals ?? []).filter(Boolean)
-  const restricted = (identity.restricted ?? []).filter(Boolean)
+  const identity = identitySchema.parse(version.identity)
+  const goals = stringArray(identity.goals).filter(Boolean)
+  const restricted = stringArray(identity.restricted).filter(Boolean)
 
   const services = knowledge.filter((k) => k.category === 'service')
   const branches = knowledge.filter((k) => k.category === 'branch')
@@ -193,7 +233,7 @@ ${identity.role ? `\n${identity.role}` : ''}${
   )
 
   if (profile) {
-    const policy = (profile.languagePolicy ?? {}) as { switchToEnglish?: string }
+    const policy = languagePolicySchema.parse(profile.languagePolicy)
     layers.push(
       layer(
         '03',
@@ -224,7 +264,7 @@ ${
     ? `الخدمات والأسعار — أجب منها حرفيًا ولا تقدّر سعرًا غير مذكور:
 ${services
   .map((s) => {
-    const c = (s.content ?? {}) as { price?: string; duration?: string }
+    const c = serviceContentSchema.parse(s.content)
     return `- ${s.title}${c.price ? ` — ${c.price}` : ''}${c.duration ? ` (${c.duration})` : ''}`
   })
   .join('\n')}`
@@ -233,11 +273,11 @@ ${services
 
 ${branches.length ? `الفروع:\n${branches.map((b) => `- ${b.title}`).join('\n')}` : ''}
 ${staff.length ? `\nالفريق:\n${staff.map((s) => `- ${s.title}`).join('\n')}` : ''}
-${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: ${((p.content ?? {}) as { body?: string }).body ?? ''}`).join('\n')}` : ''}
+${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: ${bodyContentSchema.parse(p.content).body ?? ''}`).join('\n')}` : ''}
 ${
   faqs.length
     ? `\nأسئلة متكررة — أجب بهذه الإجابة المعتمدة حرفيًا ولا تخترع غيرها:\n${faqs
-        .map((f) => `- س: ${f.title}\n  ج: ${((f.content ?? {}) as { body?: string }).body ?? ''}`)
+        .map((f) => `- س: ${f.title}\n  ج: ${bodyContentSchema.parse(f.content).body ?? ''}`)
         .join('\n')}`
     : ''
 }`,

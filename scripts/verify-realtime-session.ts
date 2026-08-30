@@ -23,6 +23,8 @@ function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
     transferTo: null,
     phoneNumberId: 'phone_test',
     recordingDisclosureMode: 'none',
+    monthlyCallLimit: null,
+    concurrentCallLimit: 10,
   }
 }
 

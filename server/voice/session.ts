@@ -53,6 +53,9 @@ export type ResolvedAgent = {
   transferTo: string | null
   phoneNumberId: string
   recordingDisclosureMode: string
+  /** null = unlimited. */
+  monthlyCallLimit: number | null
+  concurrentCallLimit: number
 }
 
 /**
@@ -131,6 +134,8 @@ async function resolveAgentForNumber(
     transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
     phoneNumberId: row.phone.id,
     recordingDisclosureMode: row.ws.recordingDisclosureMode,
+    monthlyCallLimit: row.ws.monthlyCallLimit,
+    concurrentCallLimit: row.ws.concurrentCallLimit,
   }
 }
 

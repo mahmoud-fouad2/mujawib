@@ -1,9 +1,10 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { db } from '@/server/db'
 import { auditLog, call, webhookReceipt } from '@/server/db/schema'
+import { notifyOperators, tryNotify } from '@/server/notifications/service'
 import {
   protectedLookup,
   protectJson,
@@ -95,6 +96,61 @@ async function rejectCall(callId: string, reason: string) {
     },
     body: JSON.stringify({ status_code: 486 }),
   }).catch((error) => voiceError('ERROR', `reject failed: ${sanitizeLogText(String(error))}`))
+}
+
+/** A call currently occupying a concurrency slot — reserved through to hangup. */
+const OCCUPYING_STATUSES = ['accepting', 'live', 'ringing', 'waiting_tool'] as const
+
+function startOfMonth() {
+  const d = new Date()
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+/**
+ * Reference limits (workspace.monthlyCallLimit/concurrentCallLimit, set from
+ * the console's client edit sheet) enforced here for the first time — until
+ * now they existed only as a number an operator could type in, with nothing
+ * reading them back at call time. Checked against real `origin: 'live'` rows
+ * only: seed/demo data must never count against a client's real usage.
+ */
+async function overCapacity(
+  workspaceId: string,
+  monthlyCallLimit: number | null,
+  concurrentCallLimit: number,
+): Promise<string | null> {
+  if (monthlyCallLimit !== null) {
+    const [monthly] = await db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(call)
+      .where(
+        and(
+          eq(call.workspaceId, workspaceId),
+          eq(call.origin, 'live'),
+          gte(call.startedAt, startOfMonth()),
+        ),
+      )
+    if ((monthly?.n ?? 0) >= monthlyCallLimit) {
+      return `monthly limit reached (${monthly?.n ?? 0}/${monthlyCallLimit})`
+    }
+  }
+
+  const [concurrent] = await db
+    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .from(call)
+    .where(
+      and(
+        eq(call.workspaceId, workspaceId),
+        eq(call.origin, 'live'),
+        inArray(call.status, [...OCCUPYING_STATUSES]),
+      ),
+    )
+  if ((concurrent?.n ?? 0) >= concurrentCallLimit) {
+    return `concurrent limit reached (${concurrent?.n ?? 0}/${concurrentCallLimit})`
+  }
+
+  return null
 }
 
 /**
@@ -217,6 +273,39 @@ export async function POST(req: NextRequest) {
     voice: resolved.voice,
     toolCount: resolved.tools.length,
   })
+
+  const capacityReason = await overCapacity(
+    resolved.workspaceId,
+    resolved.monthlyCallLimit,
+    resolved.concurrentCallLimit,
+  )
+  if (capacityReason) {
+    voiceLog('CAPACITY_LIMIT_REACHED', {
+      workspaceId: resolved.workspaceId,
+      callId: maskIdentifier(callId),
+      reason: capacityReason,
+    })
+    await rejectCall(callId, capacityReason)
+    await db
+      .update(webhookReceipt)
+      .set({ status: 'rejected', completedAt: new Date(), updatedAt: new Date() })
+      .where(eq(webhookReceipt.id, webhookId))
+    await tryNotify(() =>
+      notifyOperators({
+        workspaceId: resolved.workspaceId,
+        roles: ['owner', 'ops'],
+        severity: 'critical',
+        category: 'call',
+        title: 'مكالمة حقيقية رُفضت لتجاوز حد الاستخدام',
+        message: `${resolved.workspaceName} — ${capacityReason}`,
+        href: '/console/clients',
+        sourceType: 'call',
+        sourceId: resolved.workspaceId,
+        dedupeKey: `capacity:${resolved.workspaceId}:${new Date().toISOString().slice(0, 10)}`,
+      }),
+    )
+    return NextResponse.json({ accepted: false, reason: capacityReason }, { status: 200 })
+  }
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
