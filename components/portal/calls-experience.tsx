@@ -20,6 +20,7 @@ import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
   CALL_STATUS_LABEL,
+  CRM_RANGE_LABEL,
   clock,
   duration,
   fullDate,
@@ -51,6 +52,14 @@ const FILTER_TABS = [
   { id: 'resolved', label: 'أُنجزت' },
 ] as const
 
+const RANGE_DAYS: Record<string, number | null> = {
+  all: null,
+  today: 1,
+  week: 7,
+  month: 30,
+  year: 365,
+}
+
 export function PortalCallsExperience({
   rows,
   selected,
@@ -60,8 +69,13 @@ export function PortalCallsExperience({
 }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
+  const [range, setRange] = useState<string>('all')
 
   const filteredRows = useMemo(() => {
+    const now = Date.now()
+    const rangeDays = RANGE_DAYS[range] ?? null
+    const rangeCutoff = rangeDays ? now - rangeDays * 24 * 60 * 60 * 1000 : null
+
     return rows.filter((r) => {
       const matchFilter =
         filter === 'all' ||
@@ -70,6 +84,8 @@ export function PortalCallsExperience({
         (filter === 'transfer' && (r.outcome === 'transfer' || r.status === 'transferred')) ||
         (filter === 'resolved' && (r.outcome === 'resolved' || r.outcome === 'lead'))
 
+      const matchRange = !rangeCutoff || new Date(r.startedAt).getTime() >= rangeCutoff
+
       const q = search.trim().toLowerCase()
       const matchSearch =
         !q ||
@@ -77,9 +93,9 @@ export function PortalCallsExperience({
         Boolean(r.intent?.toLowerCase().includes(q)) ||
         Boolean(r.outcome?.toLowerCase().includes(q))
 
-      return matchFilter && matchSearch
+      return matchFilter && matchRange && matchSearch
     })
-  }, [rows, filter, search])
+  }, [rows, filter, range, search])
 
   if (rows.length === 0) {
     return (
@@ -133,6 +149,19 @@ export function PortalCallsExperience({
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            <select
+              className="input"
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              style={{ height: '38px', fontSize: 'var(--step--1)', minInlineSize: 140 }}
+              aria-label="فلترة حسب تاريخ المكالمة"
+            >
+              {Object.entries(CRM_RANGE_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="portal-toolbar__filters">

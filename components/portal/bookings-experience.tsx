@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { Confirm } from '@/components/ui/overlays'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
-import { clock, fullDate, maskPhone } from '@/lib/format'
+import { CRM_RANGE_LABEL, clock, fullDate, maskPhone } from '@/lib/format'
 import { cancelBooking } from '@/server/actions/portal'
 import type { getPortalBookings } from '@/server/data/portal'
 
@@ -18,12 +18,24 @@ const FILTER_TABS = [
   { id: 'cancelled', label: 'الملغاة' },
 ] as const
 
+const RANGE_DAYS: Record<string, number | null> = {
+  all: null,
+  today: 1,
+  week: 7,
+  month: 30,
+  year: 365,
+}
+
 export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
+  const [range, setRange] = useState<string>('all')
 
   const filteredRows = useMemo(() => {
     const now = Date.now()
+    const rangeDays = RANGE_DAYS[range] ?? null
+    const rangeCutoff = rangeDays ? now - rangeDays * 24 * 60 * 60 * 1000 : null
+
     return rows.filter((b) => {
       const isUpcoming = b.scheduledAt && new Date(b.scheduledAt).getTime() > now
 
@@ -32,6 +44,12 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
         (filter === 'confirmed' && b.status === 'confirmed') ||
         (filter === 'upcoming' && isUpcoming && b.status === 'confirmed') ||
         (filter === 'cancelled' && b.status === 'cancelled')
+
+      // The appointment date, not when the booking record was created — an
+      // operator managing this list cares which appointments fall in the
+      // window, not when mujawib happened to write the row.
+      const matchRange =
+        !rangeCutoff || (b.scheduledAt && new Date(b.scheduledAt).getTime() >= rangeCutoff)
 
       const q = search.trim().toLowerCase()
       const meta = (b.metadata ?? {}) as { branch?: string }
@@ -42,9 +60,9 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
         Boolean(b.service?.toLowerCase().includes(q)) ||
         Boolean(meta.branch?.toLowerCase().includes(q))
 
-      return matchFilter && matchSearch
+      return matchFilter && matchRange && matchSearch
     })
-  }, [rows, filter, search])
+  }, [rows, filter, range, search])
 
   const handleExportCsv = () => {
     const headers = ['العميل', 'الجوال', 'الخدمة', 'تاريخ الموعد', 'الوقت', 'الفرع', 'الحالة']
@@ -93,6 +111,20 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <select
+            className="input"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+            style={{ height: '38px', fontSize: 'var(--step--1)', minInlineSize: 140 }}
+            aria-label="فلترة حسب تاريخ الموعد"
+          >
+            {Object.entries(CRM_RANGE_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
 
           <button
             type="button"
