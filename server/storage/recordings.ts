@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { randomBytes, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import {
   DeleteObjectCommand,
@@ -119,5 +120,37 @@ export async function getRecording(objectKey: string, range?: string): Promise<S
     contentRange: object.ContentRange,
     contentType: object.ContentType ?? 'audio/wav',
     etag: object.ETag,
+  }
+}
+
+/**
+ * Verifies the real object-store permissions, not only that env values exist.
+ * The probe is private, random, tiny, and deleted even when verification fails.
+ */
+export async function verifyRecordingStorageAccess() {
+  const { client: s3, bucket } = storage()
+  const objectKey = `healthchecks/${randomUUID()}.bin`
+  const expected = randomBytes(32)
+
+  try {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: objectKey,
+        Body: expected,
+        ContentLength: expected.byteLength,
+        ContentType: 'application/octet-stream',
+        CacheControl: 'private, no-store',
+      }),
+    )
+    const object = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }))
+    if (!object.Body) throw new Error('Recording storage returned an empty probe body')
+    const actual = Buffer.from(await object.Body.transformToByteArray())
+    if (!actual.equals(expected)) throw new Error('Recording storage probe did not round-trip')
+    return { ok: true as const }
+  } finally {
+    await s3
+      .send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }))
+      .catch(() => undefined)
   }
 }

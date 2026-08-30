@@ -99,7 +99,8 @@ services:
         value: gpt-5.4-mini-2026-03-17
 
       # Private call recordings. Leave disabled until the complete S3/R2
-      # credential set below is configured. The bucket itself must stay private.
+      # credential set below is configured and `pnpm recordings:verify-storage`
+      # succeeds. The bucket itself must stay private.
       - key: RECORDING_STORAGE_ENABLED
         sync: false
       - key: RECORDING_STORAGE_ENDPOINT
