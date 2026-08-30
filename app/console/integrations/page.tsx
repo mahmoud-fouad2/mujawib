@@ -96,6 +96,7 @@ export default async function IntegrationsPage({
                       optionalCapabilities={r.optionalCapabilities}
                       endpoints={r.config.endpoints}
                       credentialsRef={r.credentialsRef}
+                      hasStoredCredential={r.hasStoredCredential}
                     />
                   </td>
                 </tr>

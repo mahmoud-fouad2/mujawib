@@ -92,6 +92,7 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
 
             <LinkButton
               href={localePath(locale, '/contact')}
+              data-cta="header_contact"
               variant="primary"
               size="sm"
               className="site-header__cta"
@@ -132,7 +133,13 @@ export function SiteHeader({ locale, copy }: { locale: Locale; copy: SiteCopy })
             <LinkButton href="/sign-in" size="md" block>
               {copy.common.signIn}
             </LinkButton>
-            <LinkButton href={localePath(locale, '/contact')} variant="primary" size="md" block>
+            <LinkButton
+              href={localePath(locale, '/contact')}
+              variant="primary"
+              size="md"
+              block
+              data-cta="mobile_header_contact"
+            >
               {copy.common.bookDemo}
             </LinkButton>
           </div>

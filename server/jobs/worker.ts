@@ -3,7 +3,7 @@ import 'server-only'
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { db } from '@/server/db'
-import { backgroundJob, call } from '@/server/db/schema'
+import { backgroundJob, call, callEvent } from '@/server/db/schema'
 import { runRetentionSweep } from '@/server/security/retention'
 import { recoverStaleSidebands } from '@/server/voice/sideband'
 
@@ -49,7 +49,11 @@ async function reconcileStaleCalls() {
     .set({
       status: sql`case
         when coalesce(jsonb_array_length(${call.transcript}), 0) > 0
-          or ${call.transcriptEncrypted} is not null
+          or exists (
+            select 1 from ${callEvent}
+            where ${callEvent.callId} = ${call.id}
+              and ${callEvent.type} in ('caller_turn', 'agent_turn')
+          )
         then 'completed'::call_status
         else 'completed_no_transcript'::call_status
       end`,

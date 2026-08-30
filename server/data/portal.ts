@@ -2,7 +2,8 @@ import 'server-only'
 
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { getPortalAccess } from '@/server/auth/access'
-import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
+import { buildCallSummary } from '@/server/calls/presentation'
+import { readCallTranscript } from '@/server/calls/transcript'
 import { liveCallCountsByPhone } from '@/server/data/crm'
 import { db } from '@/server/db'
 import {
@@ -18,7 +19,6 @@ import {
   workspace,
 } from '@/server/db/schema'
 import { sqlTimestamp } from '@/server/db/values'
-import { revealJson } from '@/server/security/protected-data'
 
 /**
  * Client Portal data — Bible §20. Everything here answers a business question.
@@ -303,9 +303,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
       .from(toolExecution)
       .where(eq(toolExecution.callId, callId)),
   ])
-  const transcript = normalizeTranscript(
-    revealJson<unknown[]>(row.transcriptEncrypted, row.transcript ?? []),
-  )
+  const transcript = await readCallTranscript(callId, row.transcriptEncrypted, row.transcript ?? [])
   const bookingRecord = relatedBooking[0] ?? null
   const leadRecord = relatedLead[0] ?? null
   const metadata = row.metadata ?? {}

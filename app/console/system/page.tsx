@@ -22,7 +22,7 @@ const ACTION_LABEL: Record<string, string> = {
 }
 
 export default async function SystemPage() {
-  const [{ counts, latency, audit, secretHealth }, contact, access] = await Promise.all([
+  const [{ counts, latency, audit, analytics, secretHealth }, contact, access] = await Promise.all([
     getSystemOverview(),
     getPlatformContactDraft(),
     requireOperatorPage('/console/system'),
@@ -88,6 +88,49 @@ export default async function SystemPage() {
           { label: 'تنفيذات أدوات', value: num(counts?.tools ?? 0) },
         ]}
       />
+
+      <Section title="أداء الموقع" meta="آخر 30 يومًا، دون ملفات تعريف ارتباط أو بيانات زائر شخصية">
+        <MetricStrip
+          metrics={[
+            { label: 'مشاهدات الصفحات', value: num(analytics.pageViews) },
+            { label: 'نقرات الدعوة للإجراء', value: num(analytics.ctaClicks) },
+            {
+              label: 'معدل النقر',
+              value: `${analytics.clickRate.toLocaleString('ar-SA', { maximumFractionDigits: 1 })}%`,
+            },
+          ]}
+        />
+        <div className="split">
+          <div>
+            <h3>الصفحات الأكثر مشاهدة</h3>
+            <div className="queue">
+              {analytics.topPages.map((item) => (
+                <div key={item.path} className="queue__row">
+                  <span className="mono">{item.path}</span>
+                  <span className="mono muted">{num(item.count)}</span>
+                </div>
+              ))}
+              {analytics.topPages.length === 0 ? (
+                <span className="muted">لا بيانات بعد.</span>
+              ) : null}
+            </div>
+          </div>
+          <div>
+            <h3>الدعوات الأكثر نقرًا</h3>
+            <div className="queue">
+              {analytics.topCtas.map((item) => (
+                <div key={item.ctaId} className="queue__row">
+                  <span className="mono">{item.ctaId}</span>
+                  <span className="mono muted">{num(item.count)}</span>
+                </div>
+              ))}
+              {analytics.topCtas.length === 0 ? (
+                <span className="muted">لا بيانات بعد.</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </Section>
 
       <div className="split">
         <Section title="سجل التدقيق" meta="كل تغيير على الإنتاج" flush>

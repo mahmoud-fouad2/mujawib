@@ -272,6 +272,7 @@ export function ContactForm({
 
       <Button
         type="submit"
+        data-cta="contact_form_submit"
         variant="primary"
         size="lg"
         disabled={pending}

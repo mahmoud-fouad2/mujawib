@@ -4,15 +4,11 @@ import { createHash } from 'node:crypto'
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
 import { enqueueCallIntelligence } from '@/server/calls/intelligence'
+import { compactCallTranscript } from '@/server/calls/transcript'
 import { db } from '@/server/db'
 import { backgroundJob, call, callEvent, toolExecution } from '@/server/db/schema'
 import { notifyOperators, notifyWorkspaceMembers, tryNotify } from '@/server/notifications/service'
-import {
-  protectJson,
-  protectString,
-  revealJson,
-  revealString,
-} from '@/server/security/protected-data'
+import { protectJson, protectString, revealString } from '@/server/security/protected-data'
 import { executeTool } from '@/server/voice/handlers'
 import { maskIdentifier, sanitizeLogText, voiceError, voiceLog } from '@/server/voice/log'
 import {
@@ -142,6 +138,7 @@ async function recordEvent(
   sourceId: string,
   payload: Record<string, unknown> = {},
   latencyMs?: number,
+  payloadEncrypted?: string,
 ) {
   await db
     .insert(callEvent)
@@ -150,6 +147,7 @@ async function recordEvent(
       callId: ctx.callRecordId,
       type,
       payload,
+      ...(payloadEncrypted ? { payloadEncrypted } : {}),
       ...(latencyMs === undefined ? {} : { latencyMs }),
       occurredAt: new Date(),
     })
@@ -184,32 +182,7 @@ async function appendTranscript(
   if (!cleanText) return
 
   const turnId = stableId('turn', ctx.callRecordId, action.role, action.sourceId)
-  const [row] = await db
-    .select({ transcript: call.transcript, transcriptEncrypted: call.transcriptEncrypted })
-    .from(call)
-    .where(eq(call.id, ctx.callRecordId))
-    .limit(1)
-  if (!row) return
-
-  const transcript = revealJson<unknown[]>(
-    row.transcriptEncrypted,
-    Array.isArray(row.transcript) ? row.transcript : [],
-  )
-  const alreadyStored = transcript.some((turn) => asRecord(turn)?.sourceId === turnId)
-  if (alreadyStored) return
-
   const at = Math.max(0, (Date.now() - ctx.startedAt.getTime()) / 1000)
-  await db
-    .update(call)
-    .set({
-      transcript: [],
-      transcriptEncrypted: protectJson([
-        ...transcript,
-        { role: action.role, text: cleanText, at, sourceId: turnId },
-      ]),
-    })
-    .where(eq(call.id, ctx.callRecordId))
-
   const latencyMs =
     action.role === 'agent' && state.lastCallerSpeechStoppedAt
       ? Math.max(0, Date.now() - state.lastCallerSpeechStoppedAt)
@@ -225,6 +198,7 @@ async function appendTranscript(
       sourceEvent: action.eventType,
     },
     latencyMs,
+    protectJson({ role: action.role, text: cleanText, at, sourceId: turnId }),
   )
 }
 
@@ -290,15 +264,7 @@ function sendToolOutput(ws: WebSocket, action: RealtimeToolAction, result: ToolR
   ws.send(JSON.stringify({ type: 'response.create' }))
 }
 
-async function handleToolCall(
-  ws: WebSocket,
-  ctx: SidebandContext,
-  action: RealtimeToolAction,
-  state: SessionState,
-) {
-  if (state.seenToolCalls.has(action.toolCallId)) return
-  state.seenToolCalls.add(action.toolCallId)
-
+async function handleToolCall(ws: WebSocket, ctx: SidebandContext, action: RealtimeToolAction) {
   const args = parseArguments(action.argumentsJson)
   voiceLog('TOOL_CALL_STARTED', {
     callId: maskIdentifier(ctx.externalCallId),
@@ -342,21 +308,14 @@ async function handleToolCall(
   sendToolOutput(ws, action, result)
 }
 
-async function handleAction(
-  ws: WebSocket,
-  ctx: SidebandContext,
-  action: RealtimeAction,
-  state: SessionState,
-) {
+async function handleAction(ctx: SidebandContext, action: RealtimeAction, state: SessionState) {
   if (action.kind === 'transcript') {
     await appendTranscript(ctx, action, state)
     return
   }
 
-  if (action.kind === 'tool_call') {
-    await handleToolCall(ws, ctx, action, state)
-    return
-  }
+  // Tool actions are scheduled by handleMessage on their own ordered queue.
+  if (action.kind === 'tool_call') return
 
   if (action.kind === 'lifecycle') {
     if (action.state === 'speech_stopped') state.lastCallerSpeechStoppedAt = Date.now()
@@ -395,6 +354,7 @@ async function handleMessage(
   data: RawData,
   state: SessionState,
   recording: RealtimeRecordingCapture | null,
+  scheduleToolCall: (action: RealtimeToolAction) => void,
 ) {
   let event: unknown
   try {
@@ -418,7 +378,11 @@ async function handleMessage(
   }
 
   for (const action of actionsFromRealtimeEvent(event)) {
-    await handleAction(ws, ctx, action, state)
+    if (action.kind === 'tool_call') {
+      scheduleToolCall(action)
+      continue
+    }
+    await handleAction(ctx, action, state)
   }
 }
 
@@ -429,6 +393,7 @@ async function finalizeCall(
   state: SessionState,
   socketError: string | null,
 ) {
+  await compactCallTranscript(ctx.callRecordId)
   const endedAt = new Date()
   const normalClose = NORMAL_CLOSE_CODES.has(code)
   const [row] = await db
@@ -556,6 +521,14 @@ async function runSideband(ctx: SidebandContext) {
     outputTokens: 0,
   }
   let queue = Promise.resolve()
+  let toolQueue = Promise.resolve()
+  const scheduleToolCall = (action: RealtimeToolAction) => {
+    if (state.seenToolCalls.has(action.toolCallId)) return
+    state.seenToolCalls.add(action.toolCallId)
+    toolQueue = toolQueue
+      .then(() => handleToolCall(ws, ctx, action))
+      .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
+  }
   const heartbeat = setInterval(() => {
     void db
       .update(backgroundJob)
@@ -596,7 +569,7 @@ async function runSideband(ctx: SidebandContext) {
         })
       }
       queue = queue
-        .then(() => handleMessage(ws, ctx, data, state, recording))
+        .then(() => handleMessage(ws, ctx, data, state, recording, scheduleToolCall))
         .catch((error) => {
           voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error)))
         })
@@ -614,6 +587,7 @@ async function runSideband(ctx: SidebandContext) {
       clearTimeout(timeout)
       clearInterval(heartbeat)
       queue = queue
+        .then(() => toolQueue)
         .then(() => finalizeCall(ctx, code, reason, state, socketError))
         .then(() => recording?.finalize())
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))

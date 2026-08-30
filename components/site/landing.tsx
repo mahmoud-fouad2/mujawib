@@ -133,13 +133,14 @@ export async function Landing({ locale }: { locale: Locale }) {
               <div className="hero__actions">
                 <LinkButton
                   href={localePath(locale, '/contact')}
+                  data-cta="hero_contact"
                   variant="primary"
                   size="lg"
                   trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
                 >
                   {copy.hero.primary}
                 </LinkButton>
-                <LinkButton href="#calls" size="lg">
+                <LinkButton href="#calls" size="lg" data-cta="hero_call_demos">
                   {copy.hero.secondary}
                 </LinkButton>
               </div>

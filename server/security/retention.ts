@@ -2,7 +2,7 @@ import 'server-only'
 
 import { and, eq, inArray, lt, ne, sql } from 'drizzle-orm'
 import { db } from '@/server/db'
-import { auditLog, booking, call, lead, workspace } from '@/server/db/schema'
+import { auditLog, booking, call, callEvent, lead, workspace } from '@/server/db/schema'
 
 const MAX_BATCH = 500
 
@@ -42,21 +42,33 @@ export async function runRetentionSweep() {
           eq(call.origin, 'live'),
           lt(call.startedAt, transcriptCutoff),
           eligible,
-          sql`${call.transcriptEncrypted} is not null or ${call.transcript} <> '[]'::jsonb`,
+          sql`${call.transcriptEncrypted} is not null
+            or ${call.transcript} <> '[]'::jsonb
+            or exists (
+              select 1 from ${callEvent}
+              where ${callEvent.callId} = ${call.id}
+                and ${callEvent.type} in ('caller_turn', 'agent_turn')
+                and ${callEvent.payloadEncrypted} is not null
+            )`,
         ),
       )
       .limit(MAX_BATCH)
 
     if (expiredTranscripts.length > 0) {
+      const callIds = expiredTranscripts.map(({ id }) => id)
+      await db
+        .update(callEvent)
+        .set({ payloadEncrypted: null })
+        .where(
+          and(
+            inArray(callEvent.callId, callIds),
+            inArray(callEvent.type, ['caller_turn', 'agent_turn']),
+          ),
+        )
       await db
         .update(call)
         .set({ transcript: [], transcriptEncrypted: null })
-        .where(
-          inArray(
-            call.id,
-            expiredTranscripts.map(({ id }) => id),
-          ),
-        )
+        .where(inArray(call.id, callIds))
     }
 
     const expiredCalls = await db

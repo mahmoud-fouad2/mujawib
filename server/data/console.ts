@@ -10,7 +10,8 @@ import {
   normalizeIntegrationConfig,
   optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
-import { buildCallSummary, normalizeTranscript } from '@/server/calls/presentation'
+import { buildCallSummary } from '@/server/calls/presentation'
+import { readCallTranscript } from '@/server/calls/transcript'
 import { db } from '@/server/db'
 import {
   agent,
@@ -32,6 +33,7 @@ import {
   salesInquiry,
   scenarioRun,
   scenarioTest,
+  siteEvent,
   toolExecution,
   voiceProfile,
   type WorkspaceStatus,
@@ -1054,8 +1056,10 @@ export async function getCallDetail(id: string) {
     db.select().from(lead).where(eq(lead.callId, id)).limit(1),
   ])
 
-  const transcript = normalizeTranscript(
-    revealJson<unknown[]>(row.call.transcriptEncrypted, row.call.transcript ?? []),
+  const transcript = await readCallTranscript(
+    id,
+    row.call.transcriptEncrypted,
+    row.call.transcript ?? [],
   )
   const tools = rawTools.map((item) => ({
     ...item,
@@ -1274,6 +1278,8 @@ export async function getIntegrations(options: { workspaceId?: string } = {}) {
       health: integrationConnection.health,
       config: integrationConnection.config,
       credentialsRef: integrationConnection.credentialsRef,
+      hasStoredCredential:
+        sql<boolean>`${integrationConnection.credentialsEncrypted} is not null`.mapWith(Boolean),
       lastSuccessAt: integrationConnection.lastSuccessAt,
       lastErrorAt: integrationConnection.lastErrorAt,
       errorRate24h: integrationConnection.errorRate24h,
@@ -1298,6 +1304,7 @@ export async function getIntegrations(options: { workspaceId?: string } = {}) {
         provider: row.provider,
         config,
         credentialsRef: row.credentialsRef,
+        hasStoredCredential: row.hasStoredCredential,
       }),
     }
   })
@@ -1484,10 +1491,55 @@ export async function getSystemOverview() {
     .orderBy(desc(auditLog.createdAt))
     .limit(20)
 
+  const analyticsSince = daysBack(30)
+  const [analyticsCounts, topPages, topCtas] = await Promise.all([
+    db
+      .select({
+        pageViews: sql<number>`count(*) filter (where ${siteEvent.type} = 'page_view')`.mapWith(
+          Number,
+        ),
+        ctaClicks: sql<number>`count(*) filter (where ${siteEvent.type} = 'cta_click')`.mapWith(
+          Number,
+        ),
+      })
+      .from(siteEvent)
+      .where(gte(siteEvent.createdAt, analyticsSince)),
+    db
+      .select({ path: siteEvent.path, count: sql<number>`count(*)`.mapWith(Number) })
+      .from(siteEvent)
+      .where(and(eq(siteEvent.type, 'page_view'), gte(siteEvent.createdAt, analyticsSince)))
+      .groupBy(siteEvent.path)
+      .orderBy(desc(sql`count(*)`))
+      .limit(6),
+    db
+      .select({ ctaId: siteEvent.ctaId, count: sql<number>`count(*)`.mapWith(Number) })
+      .from(siteEvent)
+      .where(
+        and(
+          eq(siteEvent.type, 'cta_click'),
+          isNotNull(siteEvent.ctaId),
+          gte(siteEvent.createdAt, analyticsSince),
+        ),
+      )
+      .groupBy(siteEvent.ctaId)
+      .orderBy(desc(sql`count(*)`))
+      .limit(6),
+  ])
+
+  const pageViews = analyticsCounts[0]?.pageViews ?? 0
+  const ctaClicks = analyticsCounts[0]?.ctaClicks ?? 0
+
   return {
     counts: counts ?? null,
     latency: latency ?? { p50: 0, p95: 0 },
     audit,
+    analytics: {
+      pageViews,
+      ctaClicks,
+      clickRate: pageViews > 0 ? (ctaClicks / pageViews) * 100 : 0,
+      topPages,
+      topCtas,
+    },
     secretHealth: await getSecretHealth(),
   }
 }

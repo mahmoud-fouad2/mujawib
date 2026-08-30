@@ -44,7 +44,7 @@ export function SiteFooter({
               {contact.email ? (
                 <a href={`mailto:${contact.email}`}>{contact.email}</a>
               ) : (
-                <Link href={localePath(locale, '/contact')}>
+                <Link href={localePath(locale, '/contact')} data-cta="footer_contact">
                   <MessageSquare size={14} aria-hidden="true" />
                   {locale === 'ar' ? 'تواصل معنا' : 'Contact us'}
                 </Link>

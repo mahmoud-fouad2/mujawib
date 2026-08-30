@@ -37,6 +37,7 @@ import {
 } from '@/server/db/schema'
 import { invokeIntegration } from '@/server/integrations/runtime'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
+import { protectString } from '@/server/security/protected-data'
 import { getVersionTestGate } from '@/server/test-lab/gate'
 import { markPhoneActive, markPhoneDisabled } from '@/server/voice/phone'
 import { compilePrompt } from '@/server/voice/prompt'
@@ -808,6 +809,8 @@ export async function setClientCrmEnabled(
 const integrationUpdateSchema = z.object({
   connectionId: z.string().min(1),
   credentialsRef: z.string().trim().max(84).optional(),
+  credentialValue: z.string().max(4_096).optional(),
+  clearStoredCredential: z.boolean().optional(),
   endpoints: z.object({
     health: z.string().trim().max(2_048).optional(),
     availability: z.string().trim().max(2_048).optional(),
@@ -861,12 +864,20 @@ export async function updateIntegrationConnection(
   if (rawReference && !normalizedReference) {
     return { ok: false, error: 'مرجع المفتاح يجب أن يكون مثل env:CLIENT_CALENDAR_TOKEN.' }
   }
+  const credentialValue = parsed.data.credentialValue ?? ''
+  const credentialUpdate = credentialValue
+    ? { credentialsEncrypted: protectString(credentialValue), credentialsRef: null }
+    : rawReference
+      ? { credentialsEncrypted: null, credentialsRef: normalizedReference }
+      : parsed.data.clearStoredCredential
+        ? { credentialsEncrypted: null, credentialsRef: null }
+        : {}
 
   await db
     .update(integrationConnection)
     .set({
       config: { version: 1, endpoints },
-      credentialsRef: normalizedReference,
+      ...credentialUpdate,
       health: 'disconnected',
       updatedAt: new Date(),
     })

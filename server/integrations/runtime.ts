@@ -127,6 +127,7 @@ export async function invokeIntegration<T = Record<string, unknown>>(input: {
     method: input.action === 'health' ? 'GET' : 'POST',
     ...(input.payload ? { body: input.payload } : {}),
     credentialsRef: input.connection.credentialsRef,
+    credentialsEncrypted: input.connection.credentialsEncrypted,
   })
 
   if (!response.ok) {

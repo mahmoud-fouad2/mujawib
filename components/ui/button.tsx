@@ -64,6 +64,7 @@ type AnchorExtras = Pick<
 > & {
   'aria-label'?: string
   'aria-current'?: ComponentPropsWithoutRef<'a'>['aria-current']
+  'data-cta'?: string
   'data-testid'?: string
 }
 

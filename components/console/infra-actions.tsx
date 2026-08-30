@@ -63,6 +63,7 @@ export function IntegrationRowActions({
   optionalCapabilities = [],
   endpoints,
   credentialsRef,
+  hasStoredCredential,
 }: {
   id: string
   label: string
@@ -70,11 +71,19 @@ export function IntegrationRowActions({
   optionalCapabilities?: IntegrationAction[]
   endpoints: Partial<Record<IntegrationAction, string | undefined>>
   credentialsRef: string | null
+  hasStoredCredential: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [nextEndpoints, setNextEndpoints] = useState(endpoints)
   const [nextCredentialsRef, setNextCredentialsRef] = useState(credentialsRef ?? '')
+  const [credentialValue, setCredentialValue] = useState('')
+  const [clearStoredCredential, setClearStoredCredential] = useState(false)
   const { run, pending } = useAction()
+  const closeSheet = () => {
+    setCredentialValue('')
+    setClearStoredCredential(false)
+    setOpen(false)
+  }
 
   return (
     <>
@@ -93,12 +102,12 @@ export function IntegrationRowActions({
 
       <Sheet
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={closeSheet}
         title={`إعداد ${label}`}
-        description="اضبط مسارات التنفيذ، واترك الأسرار داخل بيئة التشغيل لا داخل قاعدة البيانات."
+        description="اضبط مسارات التنفيذ واحفظ رمز كل عميل مشفّرًا، أو استخدم مرجع بيئة قديمًا عند الحاجة."
         footer={
           <>
-            <Button onClick={() => setOpen(false)} disabled={pending}>
+            <Button onClick={closeSheet} disabled={pending}>
               إلغاء
             </Button>
             <Button
@@ -110,9 +119,11 @@ export function IntegrationRowActions({
                     updateIntegrationConnection({
                       connectionId: id,
                       credentialsRef: nextCredentialsRef,
+                      credentialValue,
+                      clearStoredCredential,
                       endpoints: nextEndpoints,
                     }),
-                  () => setOpen(false),
+                  closeSheet,
                 )
               }
             >
@@ -144,6 +155,44 @@ export function IntegrationRowActions({
           ))}
 
           <div className="field">
+            <label htmlFor={`credential-value-${id}`}>رمز الوصول الخاص بالعميل</label>
+            <input
+              id={`credential-value-${id}`}
+              className="input mono"
+              dir="ltr"
+              type="password"
+              autoComplete="new-password"
+              value={credentialValue}
+              onChange={(event) => {
+                setCredentialValue(event.target.value)
+                if (event.target.value) setClearStoredCredential(false)
+              }}
+              placeholder={
+                hasStoredCredential
+                  ? 'محفوظ ومشفّر — اتركه فارغًا للإبقاء عليه'
+                  : 'ألصق الرمز مرة واحدة'
+              }
+            />
+            <span className="field__hint">
+              لا يُعاد عرض الرمز بعد الحفظ، ولا يظهر في السجلات أو استجابات الواجهة.
+            </span>
+          </div>
+
+          {hasStoredCredential ? (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={clearStoredCredential}
+                onChange={(event) => {
+                  setClearStoredCredential(event.target.checked)
+                  if (event.target.checked) setCredentialValue('')
+                }}
+              />
+              احذف الرمز المشفّر المحفوظ
+            </label>
+          ) : null}
+
+          <div className="field">
             <label htmlFor={`credential-${id}`}>مرجع المفتاح الآمن</label>
             <input
               id={`credential-${id}`}
@@ -154,7 +203,7 @@ export function IntegrationRowActions({
               placeholder="env:CLIENT_CALENDAR_TOKEN"
             />
             <span className="field__hint">
-              اسم متغير البيئة فقط. لا تضع رمز الوصول أو كلمة المرور في هذا الحقل.
+              توافق خلفي فقط: اسم متغير البيئة مثل env:CLIENT_CALENDAR_TOKEN.
             </span>
           </div>
         </div>

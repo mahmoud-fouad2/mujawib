@@ -310,6 +310,7 @@ export function OutcomeStory({ locale, copy }: { locale: Locale; copy: SiteCopy 
           </div>
           <LinkButton
             href={localePath(locale, '/contact')}
+            data-cta="results_contact"
             variant="primary"
             trailing={<ArrowIcon locale={locale} size={16} className="arrow" aria-hidden="true" />}
           >
@@ -464,6 +465,7 @@ export function ConsolePreview({
             <li className="console-preview__cta">
               <LinkButton
                 href="/sign-in"
+                data-cta="console_sign_in"
                 variant="primary"
                 trailing={<Arrow size={16} className="arrow" aria-hidden="true" />}
               >
@@ -547,13 +549,18 @@ export function CloseCta({ locale, copy }: { locale: Locale; copy: SiteCopy }) {
           <div className="close-cta__actions">
             <LinkButton
               href={localePath(locale, '/contact')}
+              data-cta="closing_contact_primary"
               variant="primary"
               size="lg"
               trailing={<Arrow size={17} className="arrow" aria-hidden="true" />}
             >
               {copy.cta.primary}
             </LinkButton>
-            <LinkButton href={localePath(locale, '/contact')} size="lg">
+            <LinkButton
+              href={localePath(locale, '/contact')}
+              size="lg"
+              data-cta="closing_contact_secondary"
+            >
               {copy.cta.secondary}
             </LinkButton>
           </div>

@@ -196,12 +196,15 @@ export function integrationSetupState(input: {
   provider: string
   config: IntegrationConfig
   credentialsRef: string | null
+  hasStoredCredential?: boolean
 }) {
   const expected = capabilitiesForProvider(input.provider).filter((action) => action !== 'health')
   const configured = configuredActions(input.config)
   const missing = expected.filter((action) => !configured.includes(action))
   const credentialValid =
-    !input.credentialsRef || Boolean(credentialReference(input.credentialsRef))
+    input.hasStoredCredential === true ||
+    !input.credentialsRef ||
+    Boolean(credentialReference(input.credentialsRef))
 
   return {
     expected,

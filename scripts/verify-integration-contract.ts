@@ -112,6 +112,22 @@ check(
   true,
 )
 check(
+  'encrypted workspace credential is accepted without an environment reference',
+  integrationSetupState({
+    provider: 'google_calendar',
+    config: normalizeIntegrationConfig({
+      version: 1,
+      endpoints: {
+        availability: 'https://api.example.com/availability',
+        booking: 'https://api.example.com/bookings',
+      },
+    }),
+    credentialsRef: null,
+    hasStoredCredential: true,
+  }).ready,
+  true,
+)
+check(
   // Cancellation must stay opt-in for calendars: every connection made
   // before this endpoint existed has no way to have configured one, and
   // must not regress to "not ready" because of it.

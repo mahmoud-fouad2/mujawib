@@ -3,6 +3,7 @@ import 'server-only'
 import { lookup } from 'node:dns/promises'
 import { Agent, request } from 'node:https'
 import { credentialReference, inspectOutboundUrl, isPrivateAddress } from '@/lib/integrations'
+import { revealString } from '@/server/security/protected-data'
 
 const MAX_RESPONSE_BYTES = 256 * 1024
 const DEFAULT_TIMEOUT_MS = 8_000
@@ -30,7 +31,12 @@ async function resolvePublicDestination(
 
 function resolveBearer(
   credentialsRef: string | null,
+  credentialsEncrypted: string | null,
 ): { ok: true; value: string | null } | { ok: false } {
+  if (credentialsEncrypted) {
+    const value = revealString(credentialsEncrypted)
+    return value ? { ok: true, value } : { ok: false }
+  }
   if (!credentialsRef) return { ok: true, value: null }
   const normalized = credentialReference(credentialsRef)
   if (!normalized) return { ok: false }
@@ -131,6 +137,7 @@ export async function safeIntegrationRequest(input: {
   method: 'GET' | 'POST'
   body?: Record<string, unknown>
   credentialsRef: string | null
+  credentialsEncrypted?: string | null
   timeoutMs?: number
 }): Promise<SafeHttpResult> {
   const started = Date.now()
@@ -143,7 +150,7 @@ export async function safeIntegrationRequest(input: {
     return { ok: false, code: 'unsafe_url', status: null, latencyMs: Date.now() - started }
   }
 
-  const bearer = resolveBearer(input.credentialsRef)
+  const bearer = resolveBearer(input.credentialsRef, input.credentialsEncrypted ?? null)
   if (!bearer.ok) {
     return {
       ok: false,

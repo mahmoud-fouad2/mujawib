@@ -9,7 +9,8 @@ import {
   readCallIntelligenceState,
 } from '@/lib/call-intelligence'
 import { env } from '@/lib/env'
-import { normalizeTranscript, type TranscriptTurn } from '@/server/calls/presentation'
+import type { TranscriptTurn } from '@/server/calls/presentation'
+import { readCallTranscript } from '@/server/calls/transcript'
 import { db } from '@/server/db'
 import {
   backgroundJob,
@@ -20,7 +21,6 @@ import {
   qaResult,
   toolExecution,
 } from '@/server/db/schema'
-import { revealJson } from '@/server/security/protected-data'
 import { maskIdentifier, voiceError, voiceLog } from '@/server/voice/log'
 
 const RESPONSES_API = 'https://api.openai.com/v1/responses'
@@ -103,9 +103,7 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
   const [row] = await db.select().from(call).where(eq(call.id, callId)).limit(1)
   if (!row) return { state: 'failed', errorCode: 'request_failed' }
 
-  const transcript = normalizeTranscript(
-    revealJson<unknown[]>(row.transcriptEncrypted, row.transcript ?? []),
-  )
+  const transcript = await readCallTranscript(callId, row.transcriptEncrypted, row.transcript ?? [])
   const hash = transcriptHash(transcript)
   const model = env.OPENAI_POST_CALL_MODEL ?? DEFAULT_MODEL
   const previous = readCallIntelligenceState(row.metadata)
