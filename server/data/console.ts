@@ -881,6 +881,29 @@ export async function getAgentDetail(agentId: string) {
 
 /* ─── Agents ─────────────────────────────────────────────────────────────── */
 
+export async function getAgentCreationOptions() {
+  const [clients, profiles] = await Promise.all([
+    db
+      .select({ id: workspace.id, name: workspace.name, slug: workspace.slug })
+      .from(workspace)
+      .where(and(eq(workspace.type, 'client'), ne(workspace.status, 'archived')))
+      .orderBy(workspace.name),
+    db
+      .select({
+        id: voiceProfile.id,
+        workspaceId: voiceProfile.workspaceId,
+        name: voiceProfile.name,
+        dialect: voiceProfile.dialect,
+        style: voiceProfile.style,
+        isGlobal: voiceProfile.isGlobal,
+      })
+      .from(voiceProfile)
+      .orderBy(voiceProfile.name),
+  ])
+
+  return { clients, profiles }
+}
+
 export async function getAgents(options: { workspaceId?: string } = {}) {
   const scope = options.workspaceId ? eq(agent.workspaceId, options.workspaceId) : undefined
 

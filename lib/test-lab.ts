@@ -36,6 +36,7 @@ export const scenarioExpectationSchema = z
     mustIncludeAll: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
     mustNotInclude: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
     expectedTool: z.enum(TESTABLE_TOOL_NAMES).nullable().default(null),
+    allowedTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(5).default([]),
     forbiddenTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(5).default([]),
     language: z.enum(['ar', 'en']).nullable().default(null),
     maxWords: z.number().int().min(3).max(120).nullable().default(null),
@@ -46,11 +47,27 @@ export const scenarioExpectationSchema = z
       value.mustIncludeAll.length > 0 ||
       value.mustNotInclude.length > 0 ||
       value.expectedTool !== null ||
+      value.allowedTools.length > 0 ||
       value.forbiddenTools.length > 0 ||
       value.language !== null ||
       value.maxWords !== null,
     { message: 'أضف نتيجة متوقعة واحدة على الأقل.' },
   )
+  .superRefine((value, context) => {
+    const contradictions = value.allowedTools.filter((tool) => value.forbiddenTools.includes(tool))
+    if (value.expectedTool && value.forbiddenTools.includes(value.expectedTool)) {
+      contradictions.push(value.expectedTool)
+    }
+    if (contradictions.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['forbiddenTools'],
+        message: `لا يمكن السماح بالإجراء ومنعه في السيناريو نفسه: ${[
+          ...new Set(contradictions),
+        ].join('، ')}`,
+      })
+    }
+  })
 
 export type ScenarioInput = z.infer<typeof scenarioInputSchema>
 export type ScenarioExpectation = z.infer<typeof scenarioExpectationSchema>
@@ -193,11 +210,15 @@ export function evaluateScenario(input: {
       evidence: toolNames.length ? toolNames.join('، ') : null,
     })
   } else {
+    const unexpectedTools = toolNames.filter(
+      (toolName) =>
+        !input.expectation.allowedTools.includes(toolName as (typeof TESTABLE_TOOL_NAMES)[number]),
+    )
     checks.push({
       id: 'no_unexpected_tool',
       label: 'لا يطلب إجراءً غير متوقع',
-      passed: toolNames.length === 0,
-      evidence: toolNames.length ? toolNames.join('، ') : null,
+      passed: unexpectedTools.length === 0,
+      evidence: unexpectedTools.length ? unexpectedTools.join('، ') : null,
     })
   }
 

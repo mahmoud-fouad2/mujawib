@@ -13,6 +13,7 @@ import {
   optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
 import { RECORDING_DISCLOSURE_MODES } from '@/lib/recording-policy'
+import { createVoiceAgentDraft } from '@/server/agents/create'
 import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
 import { db } from '@/server/db'
@@ -38,6 +39,11 @@ import {
 import { invokeIntegration } from '@/server/integrations/runtime'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
 import { protectString } from '@/server/security/protected-data'
+import {
+  recordingStorageProblem,
+  recordingStorageReady,
+  verifyRecordingStorageAccess,
+} from '@/server/storage/recordings'
 import { getVersionTestGate } from '@/server/test-lab/gate'
 import { markPhoneActive, markPhoneDisabled } from '@/server/voice/phone'
 import { compilePrompt } from '@/server/voice/prompt'
@@ -205,6 +211,45 @@ export async function reopenReview(qaId: string): Promise<ActionResult> {
 }
 
 /* ─── Agent versions ─────────────────────────────────────────────────────── */
+
+const createAgentSchema = z.object({
+  workspaceId: z.string().min(1, 'اختر العميل.'),
+  name: z.string().trim().min(2, 'اسم الموظف الصوتي مطلوب.').max(60),
+  voiceProfileId: z.string().min(1, 'اختر ملفًا صوتيًا.'),
+})
+
+/** Creates a complete first draft from the console, including measurable release tests. */
+export async function createVoiceAgent(
+  input: z.input<typeof createAgentSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('agent.publish')
+  if (denied) return denied
+
+  const parsed = createAgentSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات الموظف غير صالحة.' }
+  }
+
+  const actorId = await actor()
+
+  try {
+    const result = await createVoiceAgentDraft({
+      ...parsed.data,
+      actorId,
+    })
+    if (!result.ok) return { ok: false, error: result.error }
+    revalidatePath('/console/agents')
+    revalidatePath(`/console/clients/${result.workspaceSlug}`)
+    revalidatePath('/console/test-lab')
+    return {
+      ok: true,
+      message: `أُنشئ ${parsed.data.name} كمسودة مع ${result.scenarioCount} سيناريوهات جاهزة للتشغيل.`,
+    }
+  } catch (error) {
+    console.error('[agent] create failed', error)
+    return { ok: false, error: 'تعذر إنشاء الموظف الصوتي. لم تُكتب بيانات جزئية.' }
+  }
+}
 
 /**
  * Publishing is gated, not decorative — Bible §23. Every configured scenario
@@ -2180,4 +2225,34 @@ export async function updatePlatformContact(
   revalidatePath('/contact')
   revalidatePath('/privacy')
   return { ok: true, message: 'حُفظت قنوات التواصل.' }
+}
+
+/** Runs a private, random Put/Get/Delete probe without exposing storage coordinates. */
+export async function verifyRecordingStorage(): Promise<ActionResult> {
+  const denied = await requireActionPermission('integration.manage')
+  if (denied) return denied
+
+  const problem = recordingStorageProblem()
+  if (problem) return { ok: false, error: `إعدادات التخزين غير مكتملة: ${problem}` }
+  if (!recordingStorageReady()) {
+    return { ok: false, error: 'تخزين التسجيلات غير مفعّل في بيئة التشغيل.' }
+  }
+
+  try {
+    await verifyRecordingStorageAccess()
+    await audit({
+      workspaceId: null,
+      action: 'system.recording_storage_verified',
+      resourceType: 'recording_storage',
+      resourceId: 'private',
+      note: 'نجح اختبار الكتابة والقراءة والحذف لتخزين التسجيلات الخاص',
+    })
+    revalidatePath('/console/system')
+    return { ok: true, message: 'تخزين التسجيلات يعمل: نجحت الكتابة والقراءة والحذف.' }
+  } catch {
+    return {
+      ok: false,
+      error: 'فشل الوصول الفعلي للتخزين. راجع صلاحيات R2 ثم أعد الاختبار.',
+    }
+  }
 }

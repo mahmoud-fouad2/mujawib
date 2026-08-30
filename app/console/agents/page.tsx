@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AgentRowActions } from '@/components/console/agent-actions'
+import { AgentCreateSheet } from '@/components/console/agent-create'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { Pill } from '@/components/ui/primitives'
 import { num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
-import { getAgents, getClientBySlug } from '@/server/data/console'
+import { getAgentCreationOptions, getAgents, getClientBySlug } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الموظفون الصوتيون' }
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,10 @@ export default async function AgentsPage({
 }) {
   const params = await searchParams
   const client = params.client ? await getClientBySlug(params.client) : null
-  const { rows: agents, total } = await getAgents(client ? { workspaceId: client.id } : {})
+  const [{ rows: agents, total }, creationOptions] = await Promise.all([
+    getAgents(client ? { workspaceId: client.id } : {}),
+    getAgentCreationOptions(),
+  ])
 
   const published = agents.filter((a) => a.live?.status === 'published').length
   const blocked = agents.filter((a) => a.draft && !a.draftTestGate?.canPublish).length
@@ -31,6 +35,13 @@ export default async function AgentsPage({
           client
             ? `موظفو ${client.name} الصوتيون`
             : 'النسخة التي تعمل الآن، والمسودة التالية، وما يمنعها من النشر'
+        }
+        actions={
+          <AgentCreateSheet
+            clients={creationOptions.clients}
+            profiles={creationOptions.profiles}
+            initialWorkspaceId={client?.id}
+          />
         }
       />
 

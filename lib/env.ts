@@ -17,6 +17,12 @@ export const env = createEnv({
     RECORDING_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     RECORDING_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     RECORDING_MAX_SECONDS: z.coerce.number().int().min(60).max(7_200).default(3_600),
+    // Backward-compatible Cloudflare R2 names. R2_PUBLIC_BASE_URL is
+    // intentionally not consumed: recordings are never served from a public URL.
+    R2_ACCOUNT_ID: z.string().min(1).optional(),
+    R2_BUCKET: z.string().min(1).optional(),
+    R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+    R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     // Accept either a raw 32-byte key or a deployment passphrase. The
     // protected-data boundary derives the latter into an isolated 256-bit key.
     DATA_ENCRYPTION_KEY: z.string().min(1).optional(),
@@ -58,6 +64,10 @@ export const env = createEnv({
     RECORDING_STORAGE_ACCESS_KEY_ID: process.env.RECORDING_STORAGE_ACCESS_KEY_ID,
     RECORDING_STORAGE_SECRET_ACCESS_KEY: process.env.RECORDING_STORAGE_SECRET_ACCESS_KEY,
     RECORDING_MAX_SECONDS: process.env.RECORDING_MAX_SECONDS,
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+    R2_BUCKET: process.env.R2_BUCKET,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
     DATA_ENCRYPTION_KEY: process.env.DATA_ENCRYPTION_KEY,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,

@@ -9,14 +9,10 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { env } from '@/lib/env'
-
-type RecordingStorageConfig = {
-  endpoint: string
-  region: string
-  bucket: string
-  accessKeyId: string
-  secretAccessKey: string
-}
+import {
+  type RecordingStorageConfig,
+  resolveRecordingStorageConfig,
+} from '@/lib/recording-storage-config'
 
 export type StoredRecording = {
   body: NonNullable<Awaited<ReturnType<typeof getObject>>['Body']>
@@ -28,35 +24,34 @@ export type StoredRecording = {
 
 let client: S3Client | null = null
 
-function configuredValues(): RecordingStorageConfig | null {
-  const endpoint = env.RECORDING_STORAGE_ENDPOINT
-  const bucket = env.RECORDING_STORAGE_BUCKET
-  const accessKeyId = env.RECORDING_STORAGE_ACCESS_KEY_ID
-  const secretAccessKey = env.RECORDING_STORAGE_SECRET_ACCESS_KEY
-  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) return null
-  return {
-    endpoint,
+function resolution() {
+  return resolveRecordingStorageConfig({
+    enabled: process.env.RECORDING_STORAGE_ENABLED,
+    endpoint: env.RECORDING_STORAGE_ENDPOINT,
     region: env.RECORDING_STORAGE_REGION,
-    bucket,
-    accessKeyId,
-    secretAccessKey,
-  }
+    bucket: env.RECORDING_STORAGE_BUCKET,
+    accessKeyId: env.RECORDING_STORAGE_ACCESS_KEY_ID,
+    secretAccessKey: env.RECORDING_STORAGE_SECRET_ACCESS_KEY,
+    r2AccountId: env.R2_ACCOUNT_ID,
+    r2Bucket: env.R2_BUCKET,
+    r2AccessKeyId: env.R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: env.R2_SECRET_ACCESS_KEY,
+  })
 }
 
 export function recordingStorageProblem(): string | null {
-  if (env.RECORDING_STORAGE_ENABLED !== 'true') return null
-  return configuredValues()
-    ? null
-    : 'RECORDING_STORAGE_ENABLED requires endpoint, bucket, access key id, and secret access key'
+  return resolution().problem
 }
 
 export function recordingStorageReady(): boolean {
-  return env.RECORDING_STORAGE_ENABLED === 'true' && configuredValues() !== null
+  const resolved = resolution()
+  return resolved.enabled && resolved.config !== null
 }
 
 function storage() {
-  const config = configuredValues()
-  if (env.RECORDING_STORAGE_ENABLED !== 'true' || !config) {
+  const resolved = resolution()
+  const config: RecordingStorageConfig | null = resolved.config
+  if (!resolved.enabled || !config) {
     throw new Error('Private recording storage is not configured')
   }
 

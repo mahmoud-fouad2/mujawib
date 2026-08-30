@@ -6,6 +6,7 @@ import {
   parseScenarioInput,
   type ScenarioExpectation,
   type ScenarioRunDetails,
+  scenarioExpectationSchema,
 } from '../lib/test-lab'
 
 const expectation: ScenarioExpectation = {
@@ -13,6 +14,7 @@ const expectation: ScenarioExpectation = {
   mustIncludeAll: [],
   mustNotInclude: ['تم الحجز'],
   expectedTool: null,
+  allowedTools: [],
   forbiddenTools: ['create_booking'],
   language: 'ar' as const,
   maxWords: 20,
@@ -45,6 +47,7 @@ const toolRequest = evaluateScenario({
     mustIncludeAll: [],
     mustNotInclude: [],
     expectedTool: 'transfer_to_human',
+    allowedTools: [],
     forbiddenTools: [],
     language: 'ar',
     maxWords: 20,
@@ -53,6 +56,31 @@ const toolRequest = evaluateScenario({
   toolCalls: [{ name: 'transfer_to_human', argumentsJson: '{"reason":"requested"}' }],
 })
 assert.equal(toolRequest.passed, true)
+
+const optionalHandoff = evaluateScenario({
+  expectation: {
+    mustIncludeAny: ['مختص'],
+    mustIncludeAll: [],
+    mustNotInclude: [],
+    expectedTool: null,
+    allowedTools: ['transfer_to_human'],
+    forbiddenTools: ['create_booking'],
+    language: 'ar',
+    maxWords: 20,
+  },
+  transcript: [{ role: 'agent', text: 'أحوّلك للمختص الآن.' }],
+  toolCalls: [{ name: 'transfer_to_human', argumentsJson: '{"reason":"medical"}' }],
+})
+assert.equal(optionalHandoff.passed, true)
+
+assert.equal(
+  scenarioExpectationSchema.safeParse({
+    ...expectation,
+    allowedTools: ['transfer_to_human'],
+    forbiddenTools: ['transfer_to_human'],
+  }).success,
+  false,
+)
 
 assert.deepEqual(parseScenarioInput({ utterance: 'مرحبا' }), { turns: ['مرحبا'] })
 assert.equal(parseScenarioExpectation({ pass: true }), null)

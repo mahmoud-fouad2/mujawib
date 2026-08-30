@@ -37,6 +37,7 @@ type ScenarioDraft = {
   mustIncludeAll: string
   mustNotInclude: string
   expectedTool: '' | (typeof TESTABLE_TOOL_NAMES)[number]
+  allowedTools: (typeof TESTABLE_TOOL_NAMES)[number][]
   forbiddenTools: (typeof TESTABLE_TOOL_NAMES)[number][]
   language: 'ar' | 'en'
   maxWords: string
@@ -60,6 +61,7 @@ const EMPTY_DRAFT: ScenarioDraft = {
   mustIncludeAll: '',
   mustNotInclude: '',
   expectedTool: '',
+  allowedTools: [],
   forbiddenTools: [],
   language: 'ar',
   maxWords: '35',
@@ -88,6 +90,7 @@ function draftFromScenario(scenario: EditableScenario): ScenarioDraft {
     mustIncludeAll: scenario.expectation?.mustIncludeAll.join('\n') ?? '',
     mustNotInclude: scenario.expectation?.mustNotInclude.join('\n') ?? '',
     expectedTool: scenario.expectation?.expectedTool ?? '',
+    allowedTools: scenario.expectation?.allowedTools ?? [],
     forbiddenTools: scenario.expectation?.forbiddenTools ?? [],
     language: scenario.expectation?.language ?? 'ar',
     maxWords: scenario.expectation?.maxWords ? String(scenario.expectation.maxWords) : '',
@@ -105,6 +108,7 @@ function scenarioContract(draft: ScenarioDraft) {
       mustIncludeAll: lines(draft.mustIncludeAll),
       mustNotInclude: lines(draft.mustNotInclude),
       expectedTool: draft.expectedTool || null,
+      allowedTools: draft.allowedTools,
       forbiddenTools: draft.forbiddenTools,
       language: draft.language,
       maxWords: draft.maxWords ? Number(draft.maxWords) : null,
@@ -118,6 +122,7 @@ function hasBusinessExpectation(draft: ScenarioDraft) {
       lines(draft.mustIncludeAll).length ||
       lines(draft.mustNotInclude).length ||
       draft.expectedTool ||
+      draft.allowedTools.length ||
       draft.forbiddenTools.length,
   )
 }
@@ -135,12 +140,30 @@ function ScenarioFields({
     onChange({ ...draft, [key]: value })
 
   const toggleForbiddenTool = (tool: (typeof TESTABLE_TOOL_NAMES)[number]) => {
-    set(
-      'forbiddenTools',
-      draft.forbiddenTools.includes(tool)
+    const adding = !draft.forbiddenTools.includes(tool)
+    onChange({
+      ...draft,
+      expectedTool: adding && draft.expectedTool === tool ? '' : draft.expectedTool,
+      allowedTools: adding
+        ? draft.allowedTools.filter((item) => item !== tool)
+        : draft.allowedTools,
+      forbiddenTools: adding
+        ? [...draft.forbiddenTools, tool]
+        : draft.forbiddenTools.filter((item) => item !== tool),
+    })
+  }
+
+  const toggleAllowedTool = (tool: (typeof TESTABLE_TOOL_NAMES)[number]) => {
+    const adding = !draft.allowedTools.includes(tool)
+    onChange({
+      ...draft,
+      allowedTools: adding
+        ? [...draft.allowedTools, tool]
+        : draft.allowedTools.filter((item) => item !== tool),
+      forbiddenTools: adding
         ? draft.forbiddenTools.filter((item) => item !== tool)
-        : [...draft.forbiddenTools, tool],
-    )
+        : draft.forbiddenTools,
+    })
   }
 
   return (
@@ -240,9 +263,16 @@ function ScenarioFields({
             id={`${prefix}-tool`}
             className="input"
             value={draft.expectedTool}
-            onChange={(event) =>
-              set('expectedTool', event.target.value as '' | (typeof TESTABLE_TOOL_NAMES)[number])
-            }
+            onChange={(event) => {
+              const expectedTool = event.target.value as '' | (typeof TESTABLE_TOOL_NAMES)[number]
+              onChange({
+                ...draft,
+                expectedTool,
+                forbiddenTools: expectedTool
+                  ? draft.forbiddenTools.filter((item) => item !== expectedTool)
+                  : draft.forbiddenTools,
+              })
+            }}
           >
             <option value="">لا إجراء</option>
             {TESTABLE_TOOL_NAMES.map((tool) => (
@@ -265,6 +295,20 @@ function ScenarioFields({
           </select>
         </div>
       </div>
+
+      <fieldset className="test-lab-tool-checks">
+        <legend>إجراءات مسموحة لكنها غير إلزامية</legend>
+        {TESTABLE_TOOL_NAMES.map((tool) => (
+          <label key={tool} className="check-row">
+            <input
+              type="checkbox"
+              checked={draft.allowedTools.includes(tool)}
+              onChange={() => toggleAllowedTool(tool)}
+            />
+            <span>{TOOL_LABEL[tool]}</span>
+          </label>
+        ))}
+      </fieldset>
 
       <fieldset className="test-lab-tool-checks">
         <legend>إجراءات ممنوعة في هذا السيناريو</legend>

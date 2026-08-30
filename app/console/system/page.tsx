@@ -1,12 +1,14 @@
 import { CircleAlert, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import { PlatformContactSettings } from '@/components/console/platform-contact-form'
+import { RecordingStorageCheck } from '@/components/console/recording-storage-check'
 import { MetricStrip, PageHead, Section } from '@/components/console/ui'
 import { EmptyState } from '@/components/ui/primitives'
 import { clock, fullDate, num, relative } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getSystemOverview } from '@/server/data/console'
 import { getPlatformContactDraft } from '@/server/data/platform'
+import { recordingStorageProblem, recordingStorageReady } from '@/server/storage/recordings'
 
 export const metadata: Metadata = { title: 'النظام' }
 export const dynamic = 'force-dynamic'
@@ -19,6 +21,7 @@ const ACTION_LABEL: Record<string, string> = {
   'system.secret_baseline': 'تسجيل مرجعي لمفتاح تشفير',
   'system.secret_drift': 'تغيّر مفتاح تشفير',
   'system.contact_update': 'تحديث قنوات التواصل',
+  'system.recording_storage_verified': 'اختبار تخزين التسجيلات',
 }
 
 export default async function SystemPage() {
@@ -28,6 +31,11 @@ export default async function SystemPage() {
     requireOperatorPage('/console/system'),
   ])
   const recentChange = secretHealth.some((s) => s.status === 'recent-change')
+  const recordingState = recordingStorageProblem()
+    ? 'misconfigured'
+    : recordingStorageReady()
+      ? 'ready'
+      : 'disabled'
 
   return (
     <>
@@ -74,6 +82,15 @@ export default async function SystemPage() {
 
       <Section title="قنوات التواصل العامة" meta="ما يظهره الموقع وبيانات محركات البحث للزوار">
         <PlatformContactSettings canEdit={access.role === 'owner'} initial={contact} />
+      </Section>
+
+      <Section title="تخزين التسجيلات" meta="خاص، بلا رابط bucket مباشر أو وصول عام">
+        <RecordingStorageCheck
+          state={recordingState}
+          canVerify={
+            access.role === 'owner' || access.role === 'ops' || access.role === 'integrator'
+          }
+        />
       </Section>
 
       <MetricStrip
