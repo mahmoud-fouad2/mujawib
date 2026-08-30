@@ -1,13 +1,14 @@
 import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ClientRowActions } from '@/components/console/client-actions'
+import { ClientRowActions, ClientsToolbar } from '@/components/console/client-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { type ClientBusinessInfo, clientEditable } from '@/lib/client-editable'
 import { num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getClients } from '@/server/data/console'
+import type { WorkspaceStatus } from '@/server/db/schema'
 
 export const metadata: Metadata = { title: 'العملاء' }
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,20 @@ const PACK_LABEL: Record<string, string> = {
   reception: 'خدمة العملاء',
 }
 
-export default async function ClientsPage() {
+const VALID_STATUSES: WorkspaceStatus[] = ['discovery', 'setup', 'pilot', 'live', 'paused']
+
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>
+}) {
+  const params = await searchParams
+  const search = params.q?.trim() || ''
+  const status = VALID_STATUSES.includes(params.status as WorkspaceStatus)
+    ? (params.status as WorkspaceStatus)
+    : ''
   const [{ rows: clients, total }, access] = await Promise.all([
-    getClients(),
+    getClients({ ...(search ? { search } : {}), ...(status ? { status } : {}) }),
     requireOperatorPage('/console/clients'),
   ])
   // Permanent deletion is the owner's alone; everyone else sees it disabled
@@ -60,12 +72,17 @@ export default async function ClientsPage() {
       <Section
         title="كل العملاء"
         meta={truncated ? `تعرض أول ${num(clients.length)} من ${num(total)} عميل` : undefined}
+        action={<ClientsToolbar search={search} status={status} />}
         flush
       >
         {clients.length === 0 ? (
           <EmptyState
-            title="لا عملاء بعد"
-            body="أضف أول عميل من زر «عميل جديد» أعلاه ليبدأ إعداد الموظف الصوتي له."
+            title={search || status ? 'لا نتائج مطابقة' : 'لا عملاء بعد'}
+            body={
+              search || status
+                ? 'جرّب مصطلح بحث آخر أو امسح فلتر الحالة.'
+                : 'أضف أول عميل من زر «عميل جديد» أعلاه ليبدأ إعداد الموظف الصوتي له.'
+            }
           />
         ) : (
           <div className="table-scroll">

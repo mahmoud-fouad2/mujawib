@@ -34,6 +34,7 @@ import {
   scenarioTest,
   toolExecution,
   voiceProfile,
+  type WorkspaceStatus,
   workspace,
 } from '@/server/db/schema'
 import { sqlTimestamp } from '@/server/db/values'
@@ -528,8 +529,13 @@ export async function getMetricTrends() {
 
 /* ─── Clients ────────────────────────────────────────────────────────────── */
 
-export async function getClients() {
+export async function getClients(options: { search?: string; status?: WorkspaceStatus } = {}) {
   const since = daysBack(30)
+  const scope = and(
+    eq(workspace.type, 'client'),
+    options.search ? sql`${workspace.name} ilike ${`%${options.search}%`}` : undefined,
+    options.status ? eq(workspace.status, options.status) : undefined,
+  )
   const [clients, total, calls, bookings, agents, unhealthy] = await Promise.all([
     db
       .select({
@@ -542,15 +548,16 @@ export async function getClients() {
         createdAt: workspace.createdAt,
       })
       .from(workspace)
-      .where(eq(workspace.type, 'client'))
+      .where(scope)
       .orderBy(workspace.name)
       .limit(100),
-    // True count, independent of the display cap above — the list silently
-    // truncates past 100 clients, but "X of Y" must never lie about Y.
+    // True count for the current filter scope, independent of the display
+    // cap above — the list silently truncates past 100 clients, but
+    // "X of Y" must never lie about Y.
     db
       .select({ n: sql<number>`count(*)`.mapWith(Number) })
       .from(workspace)
-      .where(eq(workspace.type, 'client'))
+      .where(scope)
       .then((rows) => rows[0]?.n ?? 0),
     db
       .select({ workspaceId: call.workspaceId, n: sql<number>`count(*)`.mapWith(Number) })

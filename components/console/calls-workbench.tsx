@@ -1,8 +1,9 @@
 'use client'
 
-import { Check, MessageSquareText, PanelRightOpen, UserRound, X } from 'lucide-react'
+import { Check, MessageSquareText, PanelRightOpen, Search, UserRound, X } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { RecordingPlayer } from '@/components/calls/recording-player'
 import { CallIntelligenceStatus } from '@/components/console/call-intelligence-status'
 import { QuickPronunciationFix } from '@/components/console/quick-pronunciation'
@@ -62,9 +63,34 @@ export function CallsWorkbench({
   search?: string
   canRetrySummary: boolean
 }) {
+  const router = useRouter()
+  const [query, setQuery] = useState(search ?? '')
+
+  useEffect(() => setQuery(search ?? ''), [search])
+
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed === (search ?? '')) return
+    const id = window.setTimeout(() => {
+      router.replace(hrefFor(filter, undefined, trimmed || undefined), { scroll: false })
+    }, 350)
+    return () => window.clearTimeout(id)
+  }, [query, search, filter, router])
+
   return (
     <div className="workbench">
       <div className="workbench__list">
+        <div className="workbench__search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            className="input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ابحث برقم المتصل، النية، أو معرّف المكالمة…"
+            aria-label="بحث في المكالمات"
+          />
+        </div>
         <div className="workbench__filters">
           {CALL_FILTERS.map((f) => (
             <Link

@@ -871,9 +871,32 @@
   max-block-size: 760px;
 }
 
-.workbench__filters {
+.workbench__search {
   position: sticky;
   inset-block-start: 0;
+  z-index: 2;
+  padding: var(--s-3) var(--s-3) 0;
+  background: var(--surface);
+}
+
+.workbench__search svg {
+  position: absolute;
+  margin-inline-start: 12px;
+  margin-block-start: 11px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.workbench__search .input {
+  inline-size: 100%;
+  padding-inline-start: 34px;
+  block-size: 36px;
+  font-size: var(--step--1);
+}
+
+.workbench__filters {
+  position: sticky;
+  inset-block-start: 48px;
   z-index: 2;
   display: flex;
   gap: 4px;
@@ -2384,6 +2407,40 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+/* Console clients list toolbar (components/console/client-actions.tsx). */
+.clients-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.clients-toolbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.clients-toolbar__search svg {
+  position: absolute;
+  inset-inline-start: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.clients-toolbar__search .input {
+  padding-inline-start: 32px;
+  block-size: 34px;
+  font-size: var(--step--1);
+  min-inline-size: 200px;
+}
+
+.clients-toolbar select.input {
+  block-size: 34px;
+  font-size: var(--step--1);
+  min-inline-size: 140px;
 }
 
 /* CRM table toolbar (components/portal/crm-table.tsx) — a flatter row than

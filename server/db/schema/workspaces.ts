@@ -30,6 +30,8 @@ export const workspaceStatusEnum = pgEnum('workspace_status', [
   'archived',
 ])
 
+export type WorkspaceStatus = (typeof workspaceStatusEnum.enumValues)[number]
+
 /** Client company / tenant workspace */
 export const workspace = pgTable(
   'workspace',

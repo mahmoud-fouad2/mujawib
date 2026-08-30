@@ -11,9 +11,11 @@ import {
   Plug,
   Radio,
   ScrollText,
+  Search,
   Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
@@ -38,6 +40,59 @@ const STATUSES = [
 ] as const
 
 import type { ClientEditable } from '@/lib/client-editable'
+
+function clientsHrefFor(search: string, status: string) {
+  const params = new URLSearchParams()
+  if (search) params.set('q', search)
+  if (status) params.set('status', status)
+  const qs = params.toString()
+  return `/console/clients${qs ? `?${qs}` : ''}`
+}
+
+export function ClientsToolbar({ search, status }: { search: string; status: string }) {
+  const router = useRouter()
+  const [query, setQuery] = useState(search)
+
+  useEffect(() => setQuery(search), [search])
+
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed === search) return
+    const id = window.setTimeout(() => {
+      router.replace(clientsHrefFor(trimmed, status), { scroll: false })
+    }, 350)
+    return () => window.clearTimeout(id)
+  }, [query, search, status, router])
+
+  return (
+    <div className="clients-toolbar">
+      <div className="clients-toolbar__search">
+        <Search size={15} aria-hidden="true" />
+        <input
+          type="search"
+          className="input"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="ابحث باسم العميل…"
+          aria-label="بحث في العملاء"
+        />
+      </div>
+      <select
+        className="input"
+        value={status}
+        onChange={(event) => router.replace(clientsHrefFor(query, event.target.value))}
+        aria-label="فلترة حسب الحالة"
+      >
+        <option value="">كل الحالات</option>
+        {STATUSES.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
 
 /** A labelled input. Declared once so every field in the sheet matches. */
 function Field({
