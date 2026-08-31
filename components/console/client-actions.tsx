@@ -347,7 +347,8 @@ export function ClientRowActions({
         <div className="sheet__group">
           <h3>حدود الاستخدام</h3>
           <p className="field__hint" style={{ marginBlockEnd: 'var(--s-2)' }}>
-            مرجعية وعرض فقط حاليًا — لا يوجد بعد تطبيق فعلي يمنع قبول مكالمة عند تجاوز الحد.
+            تُطبّق فعليًا عند قبول المكالمة: إذا تجاوز العميل الحد الشهري أو المتزامن تُرفض المكالمة
+            بأمان وتُسجّل في السجل التشغيلي.
           </p>
           <div className="field">
             <label htmlFor={`monthly-limit-${client.workspaceId}`}>الحد الشهري للمكالمات</label>

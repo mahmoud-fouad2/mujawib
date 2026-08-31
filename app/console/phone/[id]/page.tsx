@@ -6,14 +6,7 @@ import { PhoneLifecycleActions, PhoneRowActions } from '@/components/console/inf
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { Pill, type Tone } from '@/components/ui/primitives'
-import {
-  CALL_OUTCOME_LABEL,
-  CALL_STATUS_LABEL,
-  fullDate,
-  maskPhone,
-  relative,
-  statusTone,
-} from '@/lib/format'
+import { CALL_OUTCOME_LABEL, CALL_STATUS_LABEL, fullDate, relative, statusTone } from '@/lib/format'
 import { getPhoneNumberDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
@@ -266,7 +259,7 @@ export default async function PhoneDetailPage({ params, searchParams }: Props) {
               {phone.recentCalls.length ? (
                 phone.recentCalls.map((item) => (
                   <tr key={item.id}>
-                    <td className="mono">{maskPhone(item.callerNumber)}</td>
+                    <td className="mono">{item.callerNumber ?? '—'}</td>
                     <td>
                       <Pill tone={statusTone(item.status)}>
                         {CALL_STATUS_LABEL[item.status] ?? item.status}

@@ -12,7 +12,7 @@ const CATEGORIES = [
   { value: 'person', label: 'اسم شخص' },
   { value: 'area', label: 'منطقة أو فرع' },
   { value: 'service', label: 'خدمة' },
-  { value: 'medicine', label: 'دواء' },
+  { value: 'medicine', label: 'مصطلح متخصص / دواء' },
 ] as const
 
 /**

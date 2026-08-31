@@ -1,3 +1,5 @@
+import { normalizePhoneE164 } from '@/lib/voice-normalization'
+
 /**
  * Pulling the dialled DID out of the SIP headers OpenAI forwards.
  *
@@ -29,6 +31,14 @@ const CALLER_IDENTITY_HEADERS = new Set([
   'p-preferred-identity',
   'remote-party-id',
 ])
+
+const CALLER_HEADER_PRIORITY = [
+  'p-asserted-identity',
+  'from',
+  'remote-party-id',
+  'p-preferred-identity',
+  'contact',
+] as const
 
 /** Known transport/session headers cannot describe the business DID. */
 const NON_DESTINATION_HEADERS = new Set([
@@ -126,12 +136,29 @@ export function didCandidates(headers: SipHeader[] | undefined): DidCandidate[] 
   return candidates
 }
 
-/** The calling party, for the call record. Best effort — never blocks a call. */
+/**
+ * The calling party, for the call record and trusted session context.
+ *
+ * SIP trunks commonly anonymise or shorten `From` while preserving the full
+ * asserted identity in another source-party header. Prefer the network-
+ * asserted identity, then inspect every standard source header. Destination
+ * headers are never considered here, so the business DID cannot become the
+ * caller by accident.
+ */
 export function callerFrom(headers: SipHeader[] | undefined): string | null {
-  const from = headers?.find((h) => h.name.toLowerCase() === 'from')
-  if (!from) return null
-  const [first] = numbersIn(from.value)
-  return first ? toE164(first) : null
+  if (!headers?.length) return null
+
+  for (const preferredName of CALLER_HEADER_PRIORITY) {
+    for (const header of headers) {
+      if (header.name.trim().toLowerCase() !== preferredName) continue
+      for (const token of numbersIn(header.value)) {
+        const canonical = normalizePhoneE164(token)
+        if (canonical) return canonical
+      }
+    }
+  }
+
+  return null
 }
 
 /** Provider evidence, when the ingress supplied a generic User-Agent header. */

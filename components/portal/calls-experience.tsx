@@ -24,7 +24,6 @@ import {
   clock,
   duration,
   fullDate,
-  maskPhone,
   outcomeTone,
   relative,
   statusTone,
@@ -219,7 +218,7 @@ export function PortalCallsExperience({
               aria-current={selected?.id === call.id ? 'page' : undefined}
             >
               <span className="portal-call-row__top">
-                <strong className="mono">{maskPhone(call.callerNumber)}</strong>
+                <strong className="mono">{call.callerNumber ?? '—'}</strong>
                 <span>{duration(call.durationSeconds)}</span>
               </span>
               <span className="portal-call-row__reason">
@@ -263,7 +262,7 @@ function PortalCallDetail({ call }: { call: CallDetail }) {
       <header className="portal-call-detail__head">
         <div>
           <span className="portal-call-detail__eyebrow">{fullDate(call.startedAt)}</span>
-          <h2 className="mono">{maskPhone(call.callerNumber)}</h2>
+          <h2 className="mono">{call.callerNumber ?? '—'}</h2>
           <p>
             {clock(call.startedAt)} · {duration(call.durationSeconds)}
             {call.branch ? ` · ${call.branch}` : ''}

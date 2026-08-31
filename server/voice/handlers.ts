@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { arabicServiceMatches, normalizePhoneE164 } from '@/lib/voice-normalization'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
@@ -13,6 +13,7 @@ import {
   consumedAvailabilityToken,
   knowledgeItem,
   toolExecution,
+  workspace,
 } from '@/server/db/schema'
 import {
   findIntegration,
@@ -75,7 +76,7 @@ const bookingArgs = z.object({
     .trim()
     .refine((value) => Number.isFinite(Date.parse(value))),
   customerName: z.string().trim().min(1).max(160),
-  customerPhone: z.string().trim().min(7).max(30),
+  customerPhone: z.string().trim().min(7).max(30).optional(),
   branch: z.string().trim().max(160).optional(),
   notes: z.string().trim().max(500).optional(),
   availabilityToken: z.string().trim().min(32).max(2_048),
@@ -137,6 +138,119 @@ const confirmationArgs = z.object({
   bookingId: z.string().trim().min(1).max(200),
 })
 
+type InternalSlotResult =
+  | { ok: true; slots: string[] }
+  | { ok: false; error: string; fallback: 'callback' | 'retry' }
+
+function riyadhDateString(offsetDays = 0) {
+  const shifted = new Date(Date.now() + offsetDays * 86_400_000)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Riyadh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(shifted)
+}
+
+function requestedDate(value: string): string | null {
+  const normalized = value.trim().toLowerCase()
+  if (['today', 'اليوم'].includes(normalized)) return riyadhDateString()
+  if (['tomorrow', 'غدا', 'غدًا', 'بكره', 'بكرة'].includes(normalized)) return riyadhDateString(1)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null
+  const date = new Date(`${normalized}T12:00:00+03:00`)
+  if (!Number.isFinite(date.getTime())) return null
+  const today = riyadhDateString()
+  const max = riyadhDateString(90)
+  return normalized >= today && normalized <= max ? normalized : null
+}
+
+function hoursForDate(businessInfo: Record<string, unknown> | null, date: string): string | null {
+  const hours =
+    businessInfo?.hours &&
+    typeof businessInfo.hours === 'object' &&
+    !Array.isArray(businessInfo.hours)
+      ? (businessInfo.hours as Record<string, unknown>)
+      : null
+  if (!hours) return null
+  const day = new Date(`${date}T12:00:00+03:00`).getUTCDay()
+  const value = day === 6 ? hours.sat : day === 5 ? hours.fri : hours.sun_thu
+  return typeof value === 'string' ? value : null
+}
+
+function hourWindow(value: string): { start: number; end: number } | null {
+  if (/مغلق|closed/i.test(value)) return null
+  const match = value.match(/(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/)
+  if (!match) return null
+  const start = Number(match[1]) * 60 + Number(match[2])
+  const end = Number(match[3]) * 60 + Number(match[4])
+  return start < end ? { start, end } : null
+}
+
+function periodMatches(minutes: number, period: string | undefined) {
+  if (!period || period === 'any') return true
+  if (period === 'morning') return minutes < 12 * 60
+  if (period === 'afternoon') return minutes >= 12 * 60 && minutes < 17 * 60
+  return minutes >= 17 * 60
+}
+
+async function internalAvailability(
+  ctx: ToolContext,
+  preferredDate: string,
+  preferredPeriod: string | undefined,
+): Promise<InternalSlotResult> {
+  const date = requestedDate(preferredDate)
+  if (!date) {
+    return { ok: false, error: 'حدّد يومًا صحيحًا خلال التسعين يومًا القادمة.', fallback: 'retry' }
+  }
+
+  const [ws] = await db
+    .select({ businessInfo: workspace.businessInfo })
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1)
+  const window = hourWindow(hoursForDate(ws?.businessInfo ?? null, date) ?? '')
+  if (!window) {
+    return {
+      ok: false,
+      error: 'المركز مغلق في هذا اليوم أو ساعات العمل غير مكتملة.',
+      fallback: 'retry',
+    }
+  }
+
+  const dayStart = new Date(`${date}T00:00:00+03:00`)
+  const dayEnd = new Date(`${date}T23:59:59+03:00`)
+  const occupied = await db
+    .select({ scheduledAt: booking.scheduledAt })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.workspaceId, ctx.workspaceId),
+        eq(booking.status, 'confirmed'),
+        gte(booking.scheduledAt, dayStart),
+        lt(booking.scheduledAt, dayEnd),
+      ),
+    )
+  const occupiedTimes = new Set(
+    occupied.flatMap((row) => (row.scheduledAt ? [row.scheduledAt.getTime()] : [])),
+  )
+
+  const now = Date.now()
+  const slots: string[] = []
+  for (let minutes = window.start; minutes + 60 <= window.end; minutes += 60) {
+    if (!periodMatches(minutes, preferredPeriod)) continue
+    const hour = String(Math.floor(minutes / 60)).padStart(2, '0')
+    const minute = String(minutes % 60).padStart(2, '0')
+    const slot = new Date(`${date}T${hour}:${minute}:00+03:00`)
+    if (slot.getTime() <= now + 30 * 60_000 || occupiedTimes.has(slot.getTime())) continue
+    slots.push(slot.toISOString())
+    if (slots.length === 2) break
+  }
+
+  return slots.length
+    ? { ok: true, slots }
+    : { ok: false, error: 'لا توجد مواعيد شاغرة في الفترة المطلوبة.', fallback: 'retry' }
+}
+
 /* ─── check_availability ─────────────────────────────────────────────────── */
 
 async function checkAvailability(
@@ -146,20 +260,6 @@ async function checkAvailability(
   const parsed = availabilityArgs.safeParse(args)
   if (!parsed.success) {
     return { ok: false, error: 'بيانات البحث عن موعد غير مكتملة.', fallback: 'retry' }
-  }
-
-  const integration = await findIntegration(
-    ctx.workspaceId,
-    ['google_calendar', 'microsoft_365'],
-    'availability',
-  )
-
-  if (!integration) {
-    return {
-      ok: false,
-      error: 'لا يوجد تقويم مربوط بهذا الحساب.',
-      fallback: 'callback',
-    }
   }
 
   // The service must exist in structured knowledge — Bible §12 forbids quoting
@@ -177,6 +277,32 @@ async function checkAvailability(
       ok: false,
       error: 'هذه الخدمة غير مسجّلة لدى هذا العميل.',
       fallback: 'transfer',
+    }
+  }
+
+  const integration = await findIntegration(
+    ctx.workspaceId,
+    ['google_calendar', 'microsoft_365'],
+    'availability',
+  )
+
+  if (!integration) {
+    const local = await internalAvailability(
+      ctx,
+      parsed.data.preferredDate,
+      parsed.data.preferredPeriod,
+    )
+    if (!local.ok) return local
+    return {
+      ok: true,
+      data: {
+        service: known.title,
+        source: 'mujawib_calendar',
+        slots: local.slots.map((slot) => ({
+          slot,
+          availabilityToken: availabilityToken(ctx, known.title, slot),
+        })),
+      },
     }
   }
 
@@ -231,9 +357,13 @@ async function createBooking(
     return { ok: false, error: 'بيانات الحجز غير مكتملة.', fallback: 'retry' }
   }
 
-  const customerPhone = normalizePhoneE164(parsed.data.customerPhone)
+  const customerPhone = normalizePhoneE164(parsed.data.customerPhone ?? ctx.callerNumber)
   if (!customerPhone) {
-    return { ok: false, error: 'رقم الهاتف غير صالح. اذكره مع رمز الدولة.', fallback: 'retry' }
+    return {
+      ok: false,
+      error: 'تعذّر قراءة رقم الاتصال تلقائيًا. اطلب من المتصل رقمًا مع رمز الدولة.',
+      fallback: 'retry',
+    }
   }
 
   if (
@@ -277,38 +407,60 @@ async function createBooking(
     ['google_calendar', 'microsoft_365'],
     'booking',
   )
-  if (!integration) {
-    return { ok: false, error: 'لا يمكن تثبيت الحجز الآن.', fallback: 'callback' }
-  }
-
-  const response = await invokeIntegration<{ bookingId: string }>({
-    connection: integration,
-    action: 'booking',
-    payload: {
-      service: parsed.data.service,
-      slot: parsed.data.slot,
-      customerName: parsed.data.customerName,
-      customerPhone,
-      branch: parsed.data.branch,
-      notes: parsed.data.notes,
-      idempotencyKey: ctx.operationId ?? ctx.callId,
-    },
-  })
-  if (!response.ok) {
-    return { ok: false, error: integrationError(response.code, 'التقويم'), fallback: 'callback' }
+  let externalId: string
+  let source: 'external_calendar' | 'mujawib_calendar'
+  if (integration) {
+    const response = await invokeIntegration<{ bookingId: string }>({
+      connection: integration,
+      action: 'booking',
+      payload: {
+        service: parsed.data.service,
+        slot: parsed.data.slot,
+        customerName: parsed.data.customerName,
+        customerPhone,
+        branch: parsed.data.branch,
+        notes: parsed.data.notes,
+        idempotencyKey: ctx.operationId ?? ctx.callId,
+      },
+    })
+    if (!response.ok) {
+      return { ok: false, error: integrationError(response.code, 'التقويم'), fallback: 'callback' }
+    }
+    externalId = response.data.bookingId
+    source = 'external_calendar'
+  } else {
+    externalId = `internal:${ctx.operationId ?? ctx.callId}`
+    source = 'mujawib_calendar'
   }
 
   // Only recorded once the upstream calendar confirmed it.
   const proposedBookingId = id('bk')
   const bookedAt = new Date()
   const bookingId = await db.transaction(async (tx) => {
+    if (source === 'mujawib_calendar') {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`${ctx.workspaceId}:${parsed.data.slot}`}))`,
+      )
+      const [occupied] = await tx
+        .select({ id: booking.id })
+        .from(booking)
+        .where(
+          and(
+            eq(booking.workspaceId, ctx.workspaceId),
+            eq(booking.status, 'confirmed'),
+            eq(booking.scheduledAt, new Date(parsed.data.slot)),
+          ),
+        )
+        .limit(1)
+      if (occupied) return null
+    }
     const [inserted] = await tx
       .insert(booking)
       .values({
         id: proposedBookingId,
         workspaceId: ctx.workspaceId,
         callId: ctx.callId,
-        externalId: response.data.bookingId,
+        externalId,
         customerName: parsed.data.customerName,
         customerNameEncrypted: protectString(parsed.data.customerName),
         customerPhone,
@@ -316,7 +468,12 @@ async function createBooking(
         service: parsed.data.service,
         scheduledAt: new Date(parsed.data.slot),
         status: 'confirmed',
-        metadata: { branch: parsed.data.branch, notes: parsed.data.notes, source: 'voice' },
+        metadata: {
+          branch: parsed.data.branch,
+          notes: parsed.data.notes,
+          source: 'voice',
+          calendar: source,
+        },
         createdAt: bookedAt,
       })
       .onConflictDoNothing({ target: [booking.workspaceId, booking.externalId] })
@@ -326,16 +483,19 @@ async function createBooking(
     const [existing] = await tx
       .select({ id: booking.id })
       .from(booking)
-      .where(
-        and(
-          eq(booking.workspaceId, ctx.workspaceId),
-          eq(booking.externalId, response.data.bookingId),
-        ),
-      )
+      .where(and(eq(booking.workspaceId, ctx.workspaceId), eq(booking.externalId, externalId)))
       .limit(1)
     if (!existing) throw new Error('booking result could not be reconciled')
     return existing.id
   })
+
+  if (!bookingId) {
+    return {
+      ok: false,
+      error: 'حُجز هذا الموعد للتو. أعد فحص المواعيد واختر وقتًا آخر.',
+      fallback: 'retry',
+    }
+  }
 
   await upsertCustomerFromContact({
     workspaceId: ctx.workspaceId,
@@ -344,7 +504,7 @@ async function createBooking(
     when: bookedAt,
   }).catch(() => console.error('[voice] could not upsert CRM contact from booking'))
 
-  return { ok: true, data: { bookingId, slot: parsed.data.slot } }
+  return { ok: true, data: { bookingId, slot: parsed.data.slot, source } }
 }
 
 /* ─── shared: finding the caller's own booking ───────────────────────────── */
@@ -449,7 +609,7 @@ async function cancelBooking(
   // optional — see lib/integrations.ts), so "not attempted" is the common,
   // expected case here, not a failure to report.
   let externalSynced = false
-  if (target.externalId) {
+  if (target.externalId && !target.externalId.startsWith('internal:')) {
     const integration = await findIntegration(
       ctx.workspaceId,
       ['google_calendar', 'microsoft_365'],
@@ -548,7 +708,7 @@ async function rescheduleBooking(
   // Only skip the sync outright when there was never an external booking to
   // begin with (no externalId at all) — nothing to get out of sync with.
   let externalSynced = false
-  if (target.externalId) {
+  if (target.externalId && !target.externalId.startsWith('internal:')) {
     const integration = await findIntegration(
       ctx.workspaceId,
       ['google_calendar', 'microsoft_365'],
@@ -568,10 +728,37 @@ async function rescheduleBooking(
     externalSynced = true
   }
 
-  await db
-    .update(booking)
-    .set({ scheduledAt: new Date(parsed.data.newSlot) })
-    .where(eq(booking.id, target.id))
+  const moved = await db.transaction(async (tx) => {
+    if (target.externalId?.startsWith('internal:')) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`${ctx.workspaceId}:${parsed.data.newSlot}`}))`,
+      )
+      const [occupied] = await tx
+        .select({ id: booking.id })
+        .from(booking)
+        .where(
+          and(
+            eq(booking.workspaceId, ctx.workspaceId),
+            eq(booking.status, 'confirmed'),
+            eq(booking.scheduledAt, new Date(parsed.data.newSlot)),
+          ),
+        )
+        .limit(1)
+      if (occupied && occupied.id !== target.id) return false
+    }
+    await tx
+      .update(booking)
+      .set({ scheduledAt: new Date(parsed.data.newSlot) })
+      .where(eq(booking.id, target.id))
+    return true
+  })
+  if (!moved) {
+    return {
+      ok: false,
+      error: 'حُجز الموعد الجديد للتو. أعد فحص المواعيد واختر وقتًا آخر.',
+      fallback: 'retry',
+    }
+  }
   await db.update(call).set({ outcome: 'reschedule' }).where(eq(call.id, ctx.callId))
 
   return {
@@ -697,6 +884,12 @@ async function transferToHuman(ctx: ToolContext, args: { reason?: string }): Pro
   return { ok: true, data: { transferTo: ctx.transferTo, reason: args.reason } }
 }
 
+async function endCall(args: { reason?: string }): Promise<ToolResult> {
+  const reason = args.reason?.trim().slice(0, 160)
+  if (!reason) return { ok: false, error: 'سبب إنهاء المكالمة غير مكتمل.', fallback: 'retry' }
+  return { ok: true, data: { readyToHangup: true, reason } }
+}
+
 /* ─── dispatcher ─────────────────────────────────────────────────────────── */
 
 const HANDLERS: Record<
@@ -710,6 +903,7 @@ const HANDLERS: Record<
   reschedule_booking: (ctx, a) => rescheduleBooking(ctx, a),
   create_callback: (ctx, a) => createCallback(ctx, a),
   transfer_to_human: (ctx, a) => transferToHuman(ctx, a),
+  end_call: (_ctx, a) => endCall(a),
 }
 
 /**

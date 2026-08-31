@@ -3,9 +3,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AddPhoneNumberAction, PhoneRowActions } from '@/components/console/infra-actions'
 import { PendingPhoneRequestsSection } from '@/components/console/phone-requests'
+import { ConsoleSearchFilters, CsvExportButton } from '@/components/console/table-tools'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
+  fullDate,
   num,
   PHONE_LIFECYCLE_HINT,
   PHONE_LIFECYCLE_LABEL,
@@ -18,24 +20,59 @@ import { getClientBySlug, getClientOptions, getPhoneNumbers } from '@/server/dat
 export const metadata: Metadata = { title: 'الهاتف' }
 export const dynamic = 'force-dynamic'
 
+type SearchParams = { client?: string; q?: string; status?: string; range?: string }
+
+const PHONE_STATUS_OPTIONS = [
+  { value: 'all', label: 'كل الحالات' },
+  { value: 'active', label: 'نشط' },
+  { value: 'verified', label: 'تم التحقق' },
+  { value: 'verifying', label: 'قيد التحقق' },
+  { value: 'pending', label: 'بانتظار أول مكالمة' },
+  { value: 'degraded', label: 'يحتاج انتباهًا' },
+  { value: 'disabled', label: 'معطّل' },
+]
+
+const RANGE_DAYS: Record<string, number | null> = {
+  all: null,
+  today: 1,
+  week: 7,
+  month: 30,
+  year: 365,
+}
+
 const MODE_LABEL: Record<string, string> = {
   all_calls: 'كل المكالمات',
   overflow: 'عند الازدحام',
   after_hours: 'خارج الدوام',
 }
 
-export default async function PhonePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ client?: string }>
-}) {
+export default async function PhonePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
+  const search = params.q?.trim() ?? ''
+  const status = PHONE_STATUS_OPTIONS.some((option) => option.value === params.status)
+    ? (params.status ?? 'all')
+    : 'all'
+  const range = Object.hasOwn(RANGE_DAYS, params.range ?? '') ? (params.range ?? 'all') : 'all'
   const [client, clients, pendingRequests] = await Promise.all([
     params.client ? getClientBySlug(params.client) : Promise.resolve(null),
     getClientOptions(),
     getPendingPhoneRequests(),
   ])
-  const numbers = await getPhoneNumbers(client ? { workspaceId: client.id } : {})
+  const allNumbers = await getPhoneNumbers(client ? { workspaceId: client.id } : {})
+  const cutoffDays = RANGE_DAYS[range]
+  const cutoff = cutoffDays ? Date.now() - cutoffDays * 24 * 60 * 60 * 1000 : null
+  const numbers = allNumbers.filter((n) => {
+    const q = search.toLowerCase()
+    const statusMatch = status === 'all' || n.sipStatus === status
+    const searchable = [n.e164, n.label, n.workspaceName, n.workspaceSlug, n.agentName]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const searchMatch = !q || searchable.includes(q)
+    const activityDate = n.lastSuccessfulCallAt ?? n.verifiedAt ?? n.lastTestAt ?? null
+    const rangeMatch = !cutoff || (activityDate && new Date(activityDate).getTime() >= cutoff)
+    return statusMatch && searchMatch && rangeMatch
+  })
 
   // Counted from evidence, not from the status string: a seeded row can carry
   // `verified` without any call ever having proved it.
@@ -73,6 +110,40 @@ export default async function PhonePage({
         ]}
       />
 
+      <ConsoleSearchFilters
+        basePath="/console/phone"
+        client={params.client}
+        search={search}
+        status={status}
+        range={range}
+        searchPlaceholder="ابحث برقم أو عميل أو موظف صوتي…"
+        statusOptions={PHONE_STATUS_OPTIONS}
+      >
+        <CsvExportButton
+          filename={`mujawib-phone-routes-${new Date().toISOString().slice(0, 10)}.csv`}
+          headers={[
+            'الرقم',
+            'العميل',
+            'الموظف الصوتي',
+            'وضع الاستقبال',
+            'وجهة التحويل',
+            'حالة المسار',
+            'آخر مكالمة ناجحة',
+            'مكالمات 30 يومًا',
+          ]}
+          rows={numbers.map((n) => [
+            n.e164,
+            n.workspaceName,
+            n.agentName ?? '',
+            MODE_LABEL[n.mode] ?? n.mode,
+            n.transferDestination ?? '',
+            PHONE_LIFECYCLE_LABEL[n.sipStatus ?? 'pending'] ?? n.sipStatus ?? 'pending',
+            n.lastSuccessfulCallAt ? fullDate(n.lastSuccessfulCallAt) : '',
+            n.calls30d,
+          ])}
+        />
+      </ConsoleSearchFilters>
+
       {pendingRequests.length > 0 ? (
         <Section
           title="طلبات شراء أرقام بانتظار الاعتماد"
@@ -84,11 +155,13 @@ export default async function PhonePage({
       ) : null}
 
       <Section title="الأرقام" action={<AddPhoneNumberAction clients={clients} />} flush>
-        {numbers.length === 0 ? (
+        {allNumbers.length === 0 ? (
           <EmptyState
             title="لا يوجد رقم مربوط"
             body="اربط رقمًا بعميل وموظف صوتي منشور، ثم اتصل به لإثبات أن المسار يعمل."
           />
+        ) : numbers.length === 0 ? (
+          <EmptyState title="لا نتائج مطابقة" body="غيّر البحث أو الفلاتر لعرض أرقام أخرى." />
         ) : (
           <div className="table-scroll">
             <table className="table table--rows">

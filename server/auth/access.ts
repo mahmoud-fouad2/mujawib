@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
@@ -294,6 +294,21 @@ export async function authorizeClientWorkspace(
 export async function getPortalWorkspacesForCurrentUser() {
   const session = await currentSession()
   if (!session) return []
+  const operator = await operatorAccessForUser(session.user.id)
+  if (operator && canOperator(operator.role, 'client.manage')) {
+    return db
+      .select({
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        status: workspace.status,
+        role: sql<'client_admin'>`'client_admin'`,
+      })
+      .from(workspace)
+      .where(eq(workspace.type, 'client'))
+      .orderBy(workspace.name)
+  }
+
   const rows = await db
     .select({
       id: workspace.id,

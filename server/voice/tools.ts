@@ -17,6 +17,7 @@ export type ToolName =
   | 'reschedule_booking'
   | 'create_callback'
   | 'transfer_to_human'
+  | 'end_call'
 
 const TOOL_DEFINITIONS = [
   {
@@ -58,11 +59,15 @@ const TOOL_DEFINITIONS = [
           description: 'الرمز المقابل للموعد كما أعادته check_availability دون أي تعديل',
         },
         customerName: { type: 'string' },
-        customerPhone: { type: 'string', description: 'رقم الجوال كما أملاه المتصل' },
+        customerPhone: {
+          type: 'string',
+          description:
+            'اختياري. استخدم رقم الاتصال الموثوق الموجود في سياق الجلسة، ولا تمرر رقمًا آخر إلا إذا طلب المتصل ذلك صراحةً.',
+        },
         branch: { type: 'string' },
         notes: { type: 'string' },
       },
-      required: ['service', 'slot', 'customerName', 'customerPhone', 'availabilityToken'],
+      required: ['service', 'slot', 'customerName', 'availabilityToken'],
       additionalProperties: false,
     },
   },
@@ -138,7 +143,7 @@ const TOOL_DEFINITIONS = [
         customerPhone: { type: 'string' },
         reason: { type: 'string', description: 'سبب الطلب بلغة العمل، لا بلغة تقنية' },
       },
-      required: ['customerPhone', 'reason'],
+      required: ['reason'],
       additionalProperties: false,
     },
   },
@@ -152,6 +157,20 @@ const TOOL_DEFINITIONS = [
       properties: {
         reason: { type: 'string' },
         department: { type: 'string' },
+      },
+      required: ['reason'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function' as const,
+    name: 'end_call',
+    description:
+      'ينهي المكالمة بعد جملة وداع قصيرة. استدعه فقط عندما يؤكد المتصل أنه لا يحتاج شيئًا آخر أو يطلب إنهاء المكالمة. لا تستدعه أثناء طلب غير مكتمل.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'سبب مهني مختصر لإنهاء المكالمة' },
       },
       required: ['reason'],
       additionalProperties: false,
@@ -182,10 +201,12 @@ export function toolsFor(
    * The sideband executes only tools explicitly bound to the published version.
    * An unbound version therefore remains conversation-only by construction.
    */
-  if (active.length === 0) return []
+  if (active.length === 0) {
+    return TOOL_DEFINITIONS.filter((tool) => tool.name === 'end_call')
+  }
 
   const has = (p: string) => active.some((b) => b.includes(p))
-  const enabled = new Set<ToolName>(['create_callback', 'transfer_to_human'])
+  const enabled = new Set<ToolName>(['create_callback', 'transfer_to_human', 'end_call'])
 
   // `rest_api`/`generic_api` carry the same capability set as a branded
   // provider (lib/integrations.ts) and findIntegration() already falls back

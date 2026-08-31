@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
 import { enqueueCallIntelligence } from '@/server/calls/intelligence'
@@ -28,6 +28,8 @@ import type { ToolResult } from '@/server/voice/tools'
 const REALTIME_WS = 'wss://api.openai.com/v1/realtime'
 const OPENAI_API = 'https://api.openai.com/v1'
 const CONNECT_TIMEOUT_MS = 10_000
+const SIDEBAND_LEASE_MS = 120_000
+const HANGUP_FALLBACK_MS = 15_000
 const NORMAL_CLOSE_CODES = new Set([1000, 1005])
 
 type SidebandContext = {
@@ -45,6 +47,13 @@ type SessionState = {
   seenToolCalls: Set<string>
   inputTokens: number
   outputTokens: number
+  activeResponse: boolean
+  pendingResponseInstructions: string | null
+  pendingHangup: boolean
+  hangupResponseStarted: boolean
+  hangupRequested: boolean
+  hangupSucceeded: boolean
+  hasConversation: boolean
 }
 
 function stableId(prefix: string, ...parts: string[]) {
@@ -56,7 +65,7 @@ function sidebandJobId(externalCallId: string) {
   return stableId('job', 'sideband', externalCallId)
 }
 
-async function claimSideband(ctx: SidebandContext) {
+async function claimSideband(ctx: SidebandContext, leaseOwner: string) {
   const now = new Date()
   const id = sidebandJobId(ctx.externalCallId)
   const [inserted] = await db
@@ -72,6 +81,7 @@ async function claimSideband(ctx: SidebandContext) {
         callerNumberProtected: ctx.callerNumber ? protectString(ctx.callerNumber) : null,
         transferToProtected: ctx.transferTo ? protectString(ctx.transferTo) : null,
         startedAt: ctx.startedAt.toISOString(),
+        leaseOwner,
       },
       status: 'running',
       attempts: 1,
@@ -84,13 +94,15 @@ async function claimSideband(ctx: SidebandContext) {
     .returning({ id: backgroundJob.id })
   if (inserted) return true
 
-  const staleBefore = new Date(now.getTime() - 45_000)
+  const staleBefore = new Date(now.getTime() - SIDEBAND_LEASE_MS)
   const [reclaimed] = await db
     .update(backgroundJob)
     .set({
       status: 'running',
       lockedAt: now,
       attempts: sql`${backgroundJob.attempts} + 1`,
+      payload: sql`${backgroundJob.payload} || ${JSON.stringify({ leaseOwner })}::jsonb`,
+      completedAt: null,
       updatedAt: now,
     })
     .where(
@@ -106,7 +118,12 @@ async function claimSideband(ctx: SidebandContext) {
   return Boolean(reclaimed)
 }
 
-async function finishSidebandJob(ctx: SidebandContext, normal: boolean, reason: string | null) {
+async function finishSidebandJob(
+  ctx: SidebandContext,
+  leaseOwner: string,
+  normal: boolean,
+  reason: string | null,
+) {
   await db
     .update(backgroundJob)
     .set({
@@ -115,7 +132,12 @@ async function finishSidebandJob(ctx: SidebandContext, normal: boolean, reason: 
       lastError: normal ? null : reason,
       updatedAt: new Date(),
     })
-    .where(eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)))
+    .where(
+      and(
+        eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)),
+        sql`${backgroundJob.payload}->>'leaseOwner' = ${leaseOwner}`,
+      ),
+    )
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -180,6 +202,7 @@ async function appendTranscript(
 ) {
   const cleanText = action.text.replace(/\s+/g, ' ').trim().slice(0, 4_000)
   if (!cleanText) return
+  state.hasConversation = true
 
   const turnId = stableId('turn', ctx.callRecordId, action.role, action.sourceId)
   const at = Math.max(0, (Date.now() - ctx.startedAt.getTime()) / 1000)
@@ -219,6 +242,15 @@ async function referCall(externalCallId: string, destination: string): Promise<b
   return Boolean(response?.ok)
 }
 
+async function hangupCall(externalCallId: string): Promise<boolean> {
+  const response = await fetch(`${OPENAI_API}/realtime/calls/${externalCallId}/hangup`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    signal: AbortSignal.timeout(8_000),
+  }).catch(() => null)
+  return Boolean(response?.ok)
+}
+
 async function recordInvalidArguments(
   ctx: SidebandContext,
   action: RealtimeToolAction,
@@ -248,6 +280,22 @@ async function recordInvalidArguments(
   return result
 }
 
+function requestResponse(ws: WebSocket, state: SessionState, instructions?: string) {
+  if (ws.readyState !== WebSocket.OPEN) return
+  if (state.activeResponse) {
+    state.pendingResponseInstructions = instructions ?? state.pendingResponseInstructions ?? ''
+    return
+  }
+
+  state.activeResponse = true
+  ws.send(
+    JSON.stringify({
+      type: 'response.create',
+      ...(instructions ? { response: { instructions } } : {}),
+    }),
+  )
+}
+
 function sendToolOutput(ws: WebSocket, action: RealtimeToolAction, result: ToolResult) {
   if (ws.readyState !== WebSocket.OPEN) return
 
@@ -261,10 +309,15 @@ function sendToolOutput(ws: WebSocket, action: RealtimeToolAction, result: ToolR
       },
     }),
   )
-  ws.send(JSON.stringify({ type: 'response.create' }))
 }
 
-async function handleToolCall(ws: WebSocket, ctx: SidebandContext, action: RealtimeToolAction) {
+async function handleToolCall(
+  ws: WebSocket,
+  ctx: SidebandContext,
+  action: RealtimeToolAction,
+  state: SessionState,
+  scheduleHangupFallback: () => void,
+) {
   const args = parseArguments(action.argumentsJson)
   voiceLog('TOOL_CALL_STARTED', {
     callId: maskIdentifier(ctx.externalCallId),
@@ -306,9 +359,26 @@ async function handleToolCall(ws: WebSocket, ctx: SidebandContext, action: Realt
     success: result.ok,
   })
   sendToolOutput(ws, action, result)
+  if (action.name === 'end_call' && result.ok) {
+    state.pendingHangup = true
+    requestResponse(
+      ws,
+      state,
+      'قل جملة وداع عربية قصيرة ومهنية واحدة فقط، ولا تسأل سؤالًا جديدًا. ستنتهي المكالمة بعد اكتمال صوتك.',
+    )
+    scheduleHangupFallback()
+    return
+  }
+  requestResponse(ws, state)
 }
 
-async function handleAction(ctx: SidebandContext, action: RealtimeAction, state: SessionState) {
+async function handleAction(
+  ws: WebSocket,
+  ctx: SidebandContext,
+  action: RealtimeAction,
+  state: SessionState,
+  requestHangup: () => Promise<void>,
+) {
   if (action.kind === 'transcript') {
     await appendTranscript(ctx, action, state)
     return
@@ -319,6 +389,25 @@ async function handleAction(ctx: SidebandContext, action: RealtimeAction, state:
 
   if (action.kind === 'lifecycle') {
     if (action.state === 'speech_stopped') state.lastCallerSpeechStoppedAt = Date.now()
+    if (action.state === 'response_started') state.activeResponse = true
+    if (action.state === 'response_started' && state.pendingHangup) {
+      state.hangupResponseStarted = true
+    }
+    if (action.state === 'response_finished') {
+      state.activeResponse = false
+      if (state.pendingResponseInstructions !== null) {
+        const instructions = state.pendingResponseInstructions || undefined
+        state.pendingResponseInstructions = null
+        requestResponse(ws, state, instructions)
+      }
+    }
+    if (
+      action.state === 'output_audio_stopped' &&
+      state.pendingHangup &&
+      state.hangupResponseStarted
+    ) {
+      await requestHangup()
+    }
     if (action.state === 'connected') {
       await updateSidebandMetadata(ctx, {
         state: 'connected',
@@ -355,6 +444,7 @@ async function handleMessage(
   state: SessionState,
   recording: RealtimeRecordingCapture | null,
   scheduleToolCall: (action: RealtimeToolAction) => void,
+  requestHangup: () => Promise<void>,
 ) {
   let event: unknown
   try {
@@ -382,7 +472,7 @@ async function handleMessage(
       scheduleToolCall(action)
       continue
     }
-    await handleAction(ctx, action, state)
+    await handleAction(ws, ctx, action, state, requestHangup)
   }
 }
 
@@ -392,6 +482,7 @@ async function finalizeCall(
   reason: Buffer,
   state: SessionState,
   socketError: string | null,
+  leaseOwner: string,
 ) {
   await compactCallTranscript(ctx.callRecordId)
   const endedAt = new Date()
@@ -418,7 +509,9 @@ async function finalizeCall(
   })
   const closeReason = diagnostic.closeReason
   const previousSideband = asRecord(row.metadata?.sideband) ?? {}
-  const status = normalClose ? 'completed' : 'failed'
+  const completedMedia = normalClose || state.hangupSucceeded || state.hasConversation
+  const cleanEnd = normalClose || state.hangupSucceeded
+  const status = cleanEnd ? 'completed' : completedMedia ? 'completed_no_transcript' : 'failed'
 
   await db
     .update(call)
@@ -432,7 +525,7 @@ async function finalizeCall(
         ...(row.metadata ?? {}),
         sideband: {
           ...previousSideband,
-          state: normalClose ? 'ended' : 'disconnected',
+          state: cleanEnd ? 'ended' : 'disconnected',
           closedAt: endedAt.toISOString(),
           closeCode: code,
           closeReason,
@@ -443,21 +536,21 @@ async function finalizeCall(
     .where(eq(call.id, ctx.callRecordId))
 
   await recordEvent(ctx, 'sideband_closed', `close:${code}:${endedAt.toISOString()}`, {
-    normal: normalClose,
+    normal: cleanEnd,
     code,
   })
   voiceLog('SIDEBAND_CLOSED', {
     callId: maskIdentifier(ctx.externalCallId),
-    normal: normalClose,
+    normal: cleanEnd,
     code,
   })
-  await finishSidebandJob(ctx, normalClose, closeReason)
+  await finishSidebandJob(ctx, leaseOwner, completedMedia, closeReason)
 
   // This stays behind the already-finished call. The caller is never kept on
   // the line while the operational summary is produced.
-  if (normalClose) await enqueueCallIntelligence(ctx.callRecordId)
+  if (completedMedia) await enqueueCallIntelligence(ctx.callRecordId)
 
-  if (!normalClose) {
+  if (!completedMedia) {
     await tryNotify(async () => {
       await Promise.all([
         notifyOperators({
@@ -489,7 +582,7 @@ async function finalizeCall(
   }
 }
 
-async function runSideband(ctx: SidebandContext) {
+async function runSideband(ctx: SidebandContext, leaseOwner: string) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     voiceError('SIDEBAND_ERROR', 'OPENAI_API_KEY is not configured')
@@ -519,21 +612,59 @@ async function runSideband(ctx: SidebandContext) {
     seenToolCalls: new Set(),
     inputTokens: 0,
     outputTokens: 0,
+    activeResponse: false,
+    pendingResponseInstructions: null,
+    pendingHangup: false,
+    hangupResponseStarted: false,
+    hangupRequested: false,
+    hangupSucceeded: false,
+    hasConversation: false,
   }
   let queue = Promise.resolve()
   let toolQueue = Promise.resolve()
+  let hangupFallback: ReturnType<typeof setTimeout> | null = null
+
+  const requestHangup = async () => {
+    if (state.hangupRequested || !state.pendingHangup) return
+    state.hangupRequested = true
+    const succeeded = await hangupCall(ctx.externalCallId)
+    state.hangupSucceeded = succeeded
+    await recordEvent(ctx, succeeded ? 'call_hangup_requested' : 'call_hangup_failed', 'end_call', {
+      success: succeeded,
+    })
+    voiceLog(succeeded ? 'CALL_HANGUP_REQUESTED' : 'CALL_HANGUP_FAILED', {
+      callId: maskIdentifier(ctx.externalCallId),
+    })
+    if (!succeeded) state.hangupRequested = false
+  }
+  const scheduleHangupFallback = () => {
+    if (hangupFallback) clearTimeout(hangupFallback)
+    hangupFallback = setTimeout(() => void requestHangup(), HANGUP_FALLBACK_MS)
+    hangupFallback.unref()
+  }
   const scheduleToolCall = (action: RealtimeToolAction) => {
     if (state.seenToolCalls.has(action.toolCallId)) return
     state.seenToolCalls.add(action.toolCallId)
     toolQueue = toolQueue
-      .then(() => handleToolCall(ws, ctx, action))
+      .then(() => handleToolCall(ws, ctx, action, state, scheduleHangupFallback))
       .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
   }
   const heartbeat = setInterval(() => {
     void db
       .update(backgroundJob)
       .set({ lockedAt: new Date(), updatedAt: new Date() })
-      .where(eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)))
+      .where(
+        and(
+          eq(backgroundJob.id, sidebandJobId(ctx.externalCallId)),
+          sql`${backgroundJob.payload}->>'leaseOwner' = ${leaseOwner}`,
+        ),
+      )
+      .catch(() =>
+        voiceError('SIDEBAND_ERROR', {
+          callId: maskIdentifier(ctx.externalCallId),
+          message: 'sideband lease heartbeat failed',
+        }),
+      )
     // Recurring production evidence (code 1006, no close frame, no socket
     // error — durations from 22s to 244s, first seen 2026-08-22) points at an
     // idle/unresponsive connection being reaped somewhere between this
@@ -556,6 +687,7 @@ async function runSideband(ctx: SidebandContext) {
       clearTimeout(timeout)
       voiceLog('SIDEBAND_CONNECTED', { callId: maskIdentifier(ctx.externalCallId) })
       ws.send(JSON.stringify(initialGreetingEvent()))
+      state.activeResponse = true
       voiceLog('GREETING_REQUESTED', { callId: maskIdentifier(ctx.externalCallId) })
     })
 
@@ -569,7 +701,7 @@ async function runSideband(ctx: SidebandContext) {
         })
       }
       queue = queue
-        .then(() => handleMessage(ws, ctx, data, state, recording, scheduleToolCall))
+        .then(() => handleMessage(ws, ctx, data, state, recording, scheduleToolCall, requestHangup))
         .catch((error) => {
           voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error)))
         })
@@ -586,9 +718,10 @@ async function runSideband(ctx: SidebandContext) {
     ws.on('close', (code, reason) => {
       clearTimeout(timeout)
       clearInterval(heartbeat)
+      if (hangupFallback) clearTimeout(hangupFallback)
       queue = queue
         .then(() => toolQueue)
-        .then(() => finalizeCall(ctx, code, reason, state, socketError))
+        .then(() => finalizeCall(ctx, code, reason, state, socketError, leaseOwner))
         .then(() => recording?.finalize())
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
         .finally(resolve)
@@ -602,18 +735,19 @@ async function runSideband(ctx: SidebandContext) {
  * this monitoring socket also persists the Realtime audio representations.
  */
 export async function startRealtimeSideband(ctx: SidebandContext): Promise<boolean> {
-  if (!(await claimSideband(ctx))) return false
+  const leaseOwner = randomUUID()
+  if (!(await claimSideband(ctx, leaseOwner))) return false
 
-  void runSideband(ctx).catch(async (error) => {
+  void runSideband(ctx, leaseOwner).catch(async (error) => {
     const message = sanitizeLogText(String(error))
     voiceError('SIDEBAND_ERROR', message)
-    await finishSidebandJob(ctx, false, message)
+    await finishSidebandJob(ctx, leaseOwner, false, message)
   })
   return true
 }
 
 export async function recoverStaleSidebands(limit = 2) {
-  const staleBefore = new Date(Date.now() - 45_000)
+  const staleBefore = new Date(Date.now() - SIDEBAND_LEASE_MS)
   const jobs = await db
     .select({ payload: backgroundJob.payload })
     .from(backgroundJob)

@@ -2,15 +2,7 @@ import type { Metadata } from 'next'
 import { LiveRefreshIndicator } from '@/components/console/live-refresh'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
-import {
-  CALL_STATUS_LABEL,
-  clock,
-  duration,
-  EVENT_LABEL,
-  maskPhone,
-  num,
-  statusTone,
-} from '@/lib/format'
+import { CALL_STATUS_LABEL, clock, duration, EVENT_LABEL, num, statusTone } from '@/lib/format'
 import { getLiveCalls, getOperationsSummary } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'المباشر' }
@@ -74,7 +66,7 @@ export default async function LivePage() {
                   )
                   return (
                     <tr key={c.id}>
-                      <td className="mono">{maskPhone(c.callerNumber)}</td>
+                      <td className="mono">{c.callerNumber ?? '—'}</td>
                       <td>{c.workspaceName}</td>
                       <td>{c.agentName ?? '—'}</td>
                       <td>

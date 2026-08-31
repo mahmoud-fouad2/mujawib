@@ -56,6 +56,7 @@ export type ResolvedAgent = {
   /** null = unlimited. */
   monthlyCallLimit: number | null
   concurrentCallLimit: number
+  crmEnabled: boolean
 }
 
 /**
@@ -136,6 +137,7 @@ async function resolveAgentForNumber(
     recordingDisclosureMode: row.ws.recordingDisclosureMode,
     monthlyCallLimit: row.ws.monthlyCallLimit,
     concurrentCallLimit: row.ws.concurrentCallLimit,
+    crmEnabled: row.ws.crmEnabled,
   }
 }
 
@@ -164,7 +166,11 @@ export async function resolveAgentFromCandidates(
  * sentence more than the default 500ms allows, and cutting them off is the
  * fastest way to make an agent feel robotic.
  */
-export function buildAcceptPayload(resolved: ResolvedAgent, model = VOICE_MODEL) {
+export function buildAcceptPayload(
+  resolved: ResolvedAgent,
+  model = VOICE_MODEL,
+  callerNumber: string | null = null,
+) {
   // Tools are omitted entirely rather than sent as an empty array: a version
   // with no bindings is conversation-only, and an empty list plus
   // `tool_choice: auto` is a contradiction to hand a strict validator.
@@ -180,13 +186,21 @@ export function buildAcceptPayload(resolved: ResolvedAgent, model = VOICE_MODEL)
       : {}
 
   const disclosureInstruction = recordingDisclosureInstruction(resolved.recordingDisclosureMode)
+  const callerInstruction = callerNumber
+    ? `رقم الاتصال الموثوق لهذه المكالمة هو ${callerNumber}.
+- لا تطلب من المتصل إملاء رقمه افتراضيًا؛ أكّد له آخر أربعة أرقام فقط، ثم اسأله هل يستخدم هذا الرقم للموعد أو المتابعة.
+- استخدم هذا الرقم في create_booking وcreate_callback وsend_confirmation ما لم يطلب المتصل صراحةً رقمًا مختلفًا.
+- إذا طلب المتصل سماع الرقم كاملًا، انطقه رقمًا رقمًا بلا حذف أي أرقام من الوسط.
+- لا تعرض الرقم في أي سجل أو رسالة تقنية.`
+    : `لم يصل رقم موثوق للمتصل. اطلب رقم الجوال مرة واحدة فقط عند الحاجة إلى حجز أو متابعة.`
+  const instructions = [disclosureInstruction, callerInstruction, resolved.instructions]
+    .filter(Boolean)
+    .join('\n\n')
 
   return {
     type: 'realtime',
     model,
-    instructions: disclosureInstruction
-      ? `${disclosureInstruction}\n\n${resolved.instructions}`
-      : resolved.instructions,
+    instructions,
     audio: {
       input: {
         format: { type: 'audio/pcmu' },
@@ -202,6 +216,7 @@ export function buildAcceptPayload(resolved: ResolvedAgent, model = VOICE_MODEL)
           threshold: 0.55,
           prefix_padding_ms: 300,
           silence_duration_ms: 700,
+          idle_timeout_ms: 12_000,
           interrupt_response: true,
         },
       },

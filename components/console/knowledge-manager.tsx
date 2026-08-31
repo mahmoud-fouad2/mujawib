@@ -22,12 +22,77 @@ type KnowledgeItemRow = {
 
 const CATEGORIES = [
   { id: 'all', label: 'الكل' },
-  { id: 'service', label: 'الخدمات والأسعار' },
-  { id: 'branch', label: 'الفروع' },
-  { id: 'staff', label: 'فريق العمل / الأطباء' },
+  { id: 'service', label: 'الخدمات / المنتجات' },
+  { id: 'branch', label: 'الفروع والمواقع' },
+  { id: 'staff', label: 'الفريق والمختصون' },
   { id: 'policy', label: 'السياسات والشروط' },
   { id: 'faq', label: 'الأسئلة المتكررة' },
 ] as const
+
+const EXTRA_FIELDS = {
+  service: [
+    ['suitableFor', 'لمن تناسب', 'الشريحة أو الحالة أو الهدف المناسب'],
+    ['requirements', 'المتطلبات قبل التنفيذ', 'مستندات، مقاسات، موافقات، أو شروط مسبقة'],
+    ['preparation', 'التحضير قبل الخدمة', 'تعليمات التحضير أو التجهيز المعتمدة'],
+    ['aftercare', 'ما بعد الخدمة', 'خطوات المتابعة أو التسليم أو الدعم'],
+    ['outcome', 'النتيجة المتوقعة', 'ما يحصل عليه العميل بعد التنفيذ'],
+    ['availability', 'التوفر', 'الأيام، الفروع، أو الحالات التي تتوفر فيها'],
+    ['owner', 'المسؤول أو المختص', 'اسم الفريق أو الشخص المسؤول'],
+    ['branch', 'الفروع المتاحة', 'مثال: فرع الرياض'],
+  ],
+  staff: [
+    ['specialty', 'التخصص الدقيق', 'مثال: مبيعات، دعم، طب تجميلي، صيانة'],
+    ['role', 'المسمى المهني', 'استشاري، مدير حساب، فني، أخصائي أول…'],
+    ['qualifications', 'المؤهلات والاعتمادات', 'البورد والزمالات المعتمدة'],
+    ['experience', 'الخبرة', 'مثال: 12 سنة'],
+    ['services', 'الخدمات أو المهام', 'افصل بين الخدمات بفاصلة'],
+    ['languages', 'اللغات', 'العربية، الإنجليزية'],
+    ['branch', 'الفرع أو الموقع', 'مكان عمل عضو الفريق'],
+  ],
+  branch: [
+    ['address', 'العنوان الكامل', 'الحي، الشارع، العلامة المميزة'],
+    ['hours', 'ساعات العمل', 'الأيام والساعات'],
+    ['phone', 'رقم التواصل', 'مع رمز الدولة'],
+  ],
+  policy: [
+    ['scope', 'نطاق السياسة', 'على أي خدمة أو عميل أو حالة تنطبق'],
+    ['exceptions', 'الاستثناءات', 'متى لا تنطبق هذه السياسة'],
+    ['escalation', 'متى يتم التصعيد', 'متى يحول الموظف الصوتي الطلب للفريق'],
+  ],
+  faq: [['relatedService', 'مرتبط بـ', 'الخدمة أو المنتج أو الفرع المرتبط بالسؤال']],
+} as const
+
+function ExtraKnowledgeFields({
+  category,
+  prefix,
+  values,
+  onChange,
+}: {
+  category: 'service' | 'branch' | 'staff' | 'policy' | 'faq'
+  prefix: string
+  values: Record<string, string>
+  onChange: (key: string, value: string) => void
+}) {
+  const fields = category in EXTRA_FIELDS ? EXTRA_FIELDS[category as keyof typeof EXTRA_FIELDS] : []
+  if (!fields.length) return null
+
+  return (
+    <div className="stack" style={{ gap: 'var(--s-3)' }}>
+      {fields.map(([key, label, placeholder]) => (
+        <div className="field" key={key}>
+          <label htmlFor={`${prefix}-${key}`}>{label}</label>
+          <input
+            id={`${prefix}-${key}`}
+            className="input"
+            value={values[key] ?? ''}
+            onChange={(event) => onChange(key, event.target.value)}
+            placeholder={placeholder}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export function KnowledgeManager({
   workspaceId,
@@ -49,6 +114,7 @@ export function KnowledgeManager({
   const [price, setPrice] = useState('')
   const [duration, setDuration] = useState('')
   const [details, setDetails] = useState('')
+  const [extra, setExtra] = useState<Record<string, string>>({})
 
   const { run, pending } = useAction()
 
@@ -57,6 +123,7 @@ export function KnowledgeManager({
     setPrice('')
     setDuration('')
     setDetails('')
+    setExtra({})
     setCategory('service')
     setAddOpen(true)
   }
@@ -74,13 +141,64 @@ export function KnowledgeManager({
           ? item.content.description
           : '',
     )
+    setExtra(
+      Object.fromEntries(
+        Object.entries(item.content).filter(
+          ([key, value]) =>
+            !['price', 'duration', 'body', 'description'].includes(key) &&
+            typeof value === 'string',
+        ),
+      ) as Record<string, string>,
+    )
+  }
+
+  const buildContent = (base: Record<string, unknown> = {}) => {
+    const content = { ...base }
+    for (const key of [
+      'price',
+      'duration',
+      'body',
+      'suitableFor',
+      'preparation',
+      'aftercare',
+      'doctor',
+      'owner',
+      'branch',
+      'requirements',
+      'outcome',
+      'availability',
+      'specialty',
+      'role',
+      'qualifications',
+      'experience',
+      'services',
+      'languages',
+      'address',
+      'hours',
+      'phone',
+      'scope',
+      'exceptions',
+      'escalation',
+      'relatedService',
+    ]) {
+      delete content[key]
+    }
+    if (category === 'service' && price.trim()) content.price = price.trim()
+    if (category === 'service' && duration.trim()) content.duration = duration.trim()
+    if (details.trim()) content.body = details.trim()
+    const allowedExtraKeys = new Set<string>(
+      category in EXTRA_FIELDS
+        ? EXTRA_FIELDS[category as keyof typeof EXTRA_FIELDS].map(([key]) => key)
+        : [],
+    )
+    for (const [key, value] of Object.entries(extra)) {
+      if (allowedExtraKeys.has(key) && value.trim()) content[key] = value.trim()
+    }
+    return content
   }
 
   const handleCreate = () => {
-    const content: Record<string, unknown> = {}
-    if (price) content.price = price
-    if (duration) content.duration = duration
-    if (details) content.body = details
+    const content = buildContent()
 
     run(
       () =>
@@ -96,10 +214,7 @@ export function KnowledgeManager({
 
   const handleUpdate = () => {
     if (!editingItem) return
-    const content: Record<string, unknown> = { ...editingItem.content }
-    if (price) content.price = price
-    if (duration) content.duration = duration
-    if (details) content.body = details
+    const content = buildContent(editingItem.content)
 
     run(
       () =>
@@ -154,7 +269,7 @@ export function KnowledgeManager({
       {filtered.length === 0 ? (
         <EmptyState
           title="لا توجد عناصر في هذا القسم"
-          body="أضف خدمات، فروع، أو سياسات ليبني الموظف الصوتي ردوده منها حرفيًا."
+          body="أضف خدمات، منتجات، فروع، فريق، أو سياسات ليبني الموظف الصوتي ردوده منها حرفيًا."
         />
       ) : (
         <div className="queue">
@@ -221,7 +336,7 @@ export function KnowledgeManager({
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="إضافة عنصر معرفة جديد"
-        description="الموظف الصوتي يجيب من هذه المعرفة حرفيًا ويمنع هلوسة أي أسعار أو سياسات غير مسجلة هنا."
+        description="الموظف الصوتي يجيب من هذه المعرفة حرفيًا ويمنع اختلاق أي أسعار أو سياسات أو تفاصيل غير مسجلة هنا."
         footer={
           <>
             <Button onClick={() => setAddOpen(false)} disabled={pending}>
@@ -242,9 +357,9 @@ export function KnowledgeManager({
               value={category}
               onChange={(e) => setCategory(e.target.value as typeof category)}
             >
-              <option value="service">خدمة وسعر</option>
+              <option value="service">خدمة / منتج / عرض</option>
               <option value="branch">فرع أو موقع</option>
-              <option value="staff">طبيب / موظف مختص</option>
+              <option value="staff">عضو فريق / مختص</option>
               <option value="policy">سياسة أو شرط</option>
               <option value="faq">سؤال متكرر وإجابته</option>
             </select>
@@ -253,11 +368,11 @@ export function KnowledgeManager({
           <div className="field">
             <label htmlFor="item-title">
               {category === 'service'
-                ? 'اسم الخدمة'
+                ? 'اسم الخدمة أو المنتج'
                 : category === 'branch'
                   ? 'اسم الفرع أو المنطقة'
                   : category === 'staff'
-                    ? 'اسم الطبيب / الموظف والتخصص'
+                    ? 'اسم عضو الفريق / المختص'
                     : category === 'faq'
                       ? 'السؤال'
                       : 'عنوان السياسة'}
@@ -296,9 +411,16 @@ export function KnowledgeManager({
             </div>
           ) : null}
 
+          <ExtraKnowledgeFields
+            category={category}
+            prefix="item"
+            values={extra}
+            onChange={(key, value) => setExtra((current) => ({ ...current, [key]: value }))}
+          />
+
           <div className="field">
             <label htmlFor="item-details">
-              {category === 'faq' ? 'الإجابة المعتمدة' : 'تفاصيل إضافية أو شروط الخدمة'}
+              {category === 'faq' ? 'الإجابة المعتمدة' : 'شرح معتمد وتفاصيل مهمة'}
             </label>
             <textarea
               id="item-details"
@@ -306,7 +428,7 @@ export function KnowledgeManager({
               rows={3}
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="اكتب التفاصيل التي ينبغي للموظف الصوتي قولها عند السؤال…"
+              placeholder="اكتب التفاصيل التي ينبغي للموظف الصوتي قولها عند السؤال، بدون وعود غير مؤكدة…"
             />
           </div>
         </div>
@@ -317,7 +439,7 @@ export function KnowledgeManager({
         open={Boolean(editingItem)}
         onClose={() => setEditingItem(null)}
         title="تعديل عنصر المعرفة"
-        description="تحديث البيانات يطبق تلقائيًا على المسودة التالية للموظف الصوتي."
+        description="تحديث المعرفة يصبح متاحًا للموظف الصوتي في المكالمة التالية."
         footer={
           <>
             <Button onClick={() => setEditingItem(null)} disabled={pending}>
@@ -338,9 +460,9 @@ export function KnowledgeManager({
               value={category}
               onChange={(e) => setCategory(e.target.value as typeof category)}
             >
-              <option value="service">خدمة وسعر</option>
+              <option value="service">خدمة / منتج / عرض</option>
               <option value="branch">فرع أو موقع</option>
-              <option value="staff">طبيب / موظف مختص</option>
+              <option value="staff">عضو فريق / مختص</option>
               <option value="policy">سياسة أو شرط</option>
               <option value="faq">سؤال متكرر وإجابته</option>
             </select>
@@ -378,6 +500,13 @@ export function KnowledgeManager({
               </div>
             </div>
           ) : null}
+
+          <ExtraKnowledgeFields
+            category={category}
+            prefix="edit"
+            values={extra}
+            onChange={(key, value) => setExtra((current) => ({ ...current, [key]: value }))}
+          />
 
           <div className="field">
             <label htmlFor="edit-details">التفاصيل / الإجابة</label>

@@ -25,17 +25,23 @@ function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
     recordingDisclosureMode: 'none',
     monthlyCallLimit: null,
     concurrentCallLimit: 10,
+    crmEnabled: false,
   }
 }
 
-const conversationOnly = buildAcceptPayload(resolved([]))
+const conversationOnly = buildAcceptPayload(resolved(toolsFor([])))
 assert.equal(conversationOnly.model, VOICE_MODEL)
 assert.equal(conversationOnly.audio.input.format.type, 'audio/pcmu')
 assert.equal(conversationOnly.audio.output.voice, 'cedar')
 assert.equal(conversationOnly.audio.input.transcription.model, 'gpt-4o-transcribe')
 assert.equal(conversationOnly.audio.input.transcription.language, 'ar')
-assert.equal('tools' in conversationOnly, false)
-assert.equal('tool_choice' in conversationOnly, false)
+assert.equal(conversationOnly.tools?.length, 1)
+assert.equal(conversationOnly.tools?.[0]?.name, 'end_call')
+assert.equal(conversationOnly.tool_choice, 'auto')
+
+const withCaller = buildAcceptPayload(resolved(toolsFor([])), VOICE_MODEL, '+966530047640')
+assert.match(withCaller.instructions, /\+966530047640/)
+assert.match(withCaller.instructions, /آخر أربعة أرقام/)
 
 const withRecordingDisclosure = buildAcceptPayload({
   ...resolved([]),

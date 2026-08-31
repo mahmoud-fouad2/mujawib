@@ -12,7 +12,7 @@ describe('agent blueprints', () => {
       toolBindings: ['google_calendar', 'rest_api'],
     })
 
-    expect(blueprint.scenarios).toHaveLength(6)
+    expect(blueprint.scenarios).toHaveLength(7)
     expect(blueprint.scenarios.every((scenario) => scenario.isCritical)).toBe(true)
     expect(blueprint.identity.restricted).toContain('لا يقدم تشخيصًا أو استشارة طبية')
     expect(

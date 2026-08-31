@@ -53,10 +53,43 @@ const identitySchema = z
 const languagePolicySchema = z.object({ switchToEnglish: z.string().optional() }).catch({})
 
 const serviceContentSchema = z
-  .object({ price: z.string().optional(), duration: z.string().optional() })
+  .object({
+    price: z.string().optional(),
+    duration: z.string().optional(),
+    body: z.string().optional(),
+    suitableFor: z.string().optional(),
+    preparation: z.string().optional(),
+    aftercare: z.string().optional(),
+    doctor: z.string().optional(),
+    owner: z.string().optional(),
+    requirements: z.string().optional(),
+    outcome: z.string().optional(),
+    availability: z.string().optional(),
+    branch: z.string().optional(),
+  })
   .catch({})
 
 const bodyContentSchema = z.object({ body: z.string().optional() }).catch({})
+const staffContentSchema = z
+  .object({
+    body: z.string().optional(),
+    specialty: z.string().optional(),
+    role: z.string().optional(),
+    qualifications: z.string().optional(),
+    experience: z.string().optional(),
+    languages: z.string().optional(),
+    services: z.string().optional(),
+    branch: z.string().optional(),
+  })
+  .catch({})
+const branchContentSchema = z
+  .object({
+    body: z.string().optional(),
+    address: z.string().optional(),
+    phone: z.string().optional(),
+    hours: z.string().optional(),
+  })
+  .catch({})
 
 const flowFallbackSchema = z.object({ onFailure: z.string().optional() }).nullable().catch(null)
 
@@ -174,6 +207,7 @@ const BASE = `
 - انطق العملة كما يقولها المتحدث العادي: «مية وخمسين ريال»، لا «SAR» ولا «150 SAR». حتى إن كان السعر مكتوبًا في معرفتك بالرمز اللاتيني، اقرأه ريالًا سعوديًا.
 - لا تذكر أنك ذكاء اصطناعي إلا إذا سأل المتصل مباشرة، وحينها أجب بوضوح وباختصار.
 - لا تخترع معلومة. ما ليس في معرفتك، حوّله أو سجّل معاودة اتصال.
+- عندما ينتهي طلب المتصل، اسأله مرة واحدة فقط هل يحتاج شيئًا آخر. إذا قال لا أو ودّعك، استدع end_call؛ لا تترك الخط مفتوحًا.
 
 إذا أعطاك المتصل عدة معلومات في جملة واحدة، لا تعد سؤاله عنها.
 `
@@ -261,18 +295,60 @@ ${
 
 ${
   services.length
-    ? `الخدمات والأسعار — أجب منها حرفيًا ولا تقدّر سعرًا غير مذكور:
+    ? `الخدمات والمنتجات والأسعار — أجب منها حرفيًا ولا تقدّر سعرًا أو شرطًا غير مذكور:
 ${services
   .map((s) => {
     const c = serviceContentSchema.parse(s.content)
-    return `- ${s.title}${c.price ? ` — ${c.price}` : ''}${c.duration ? ` (${c.duration})` : ''}`
+    const details = [
+      c.body,
+      c.suitableFor ? `مناسبة لـ: ${c.suitableFor}` : '',
+      c.requirements ? `المتطلبات: ${c.requirements}` : '',
+      c.preparation ? `التحضير: ${c.preparation}` : '',
+      c.aftercare ? `ما بعد الخدمة: ${c.aftercare}` : '',
+      c.outcome ? `النتيجة المتوقعة: ${c.outcome}` : '',
+      c.availability ? `التوفر: ${c.availability}` : '',
+      c.owner || c.doctor ? `المسؤول/المختص: ${c.owner ?? c.doctor}` : '',
+      c.branch ? `متاحة في: ${c.branch}` : '',
+    ].filter(Boolean)
+    return `- ${s.title}${c.price ? ` — ${c.price}` : ''}${c.duration ? ` (${c.duration})` : ''}${details.length ? `\n  ${details.join(' · ')}` : ''}`
   })
   .join('\n')}`
-    : 'لا توجد خدمات مسجّلة. أي سؤال عن خدمة أو سعر: حوّل للفريق.'
+    : 'لا توجد خدمات أو منتجات مسجّلة. أي سؤال عن خدمة أو سعر أو عرض: حوّل للفريق.'
 }
 
-${branches.length ? `الفروع:\n${branches.map((b) => `- ${b.title}`).join('\n')}` : ''}
-${staff.length ? `\nالفريق:\n${staff.map((s) => `- ${s.title}`).join('\n')}` : ''}
+${
+  branches.length
+    ? `الفروع:\n${branches
+        .map((b) => {
+          const c = branchContentSchema.parse(b.content)
+          const details = [c.address, c.hours ? `الساعات: ${c.hours}` : '', c.phone, c.body].filter(
+            Boolean,
+          )
+          return `- ${b.title}${details.length ? ` — ${details.join(' · ')}` : ''}`
+        })
+        .join('\n')}`
+    : ''
+}
+${
+  staff.length
+    ? `\nالفريق والمختصون — عند السؤال عن شخص أو تخصص اشرح دوره وخبرته من المسجل هنا:\n${staff
+        .map((s) => {
+          const c = staffContentSchema.parse(s.content)
+          const details = [
+            c.specialty ? `التخصص: ${c.specialty}` : '',
+            c.role,
+            c.qualifications ? `المؤهلات: ${c.qualifications}` : '',
+            c.experience ? `الخبرة: ${c.experience}` : '',
+            c.services ? `الخدمات: ${c.services}` : '',
+            c.languages ? `اللغات: ${c.languages}` : '',
+            c.branch ? `الفرع: ${c.branch}` : '',
+            c.body,
+          ].filter(Boolean)
+          return `- ${s.title}${details.length ? ` — ${details.join(' · ')}` : ''}`
+        })
+        .join('\n')}`
+    : ''
+}
 ${policies.length ? `\nالسياسات:\n${policies.map((p) => `- ${p.title}: ${bodyContentSchema.parse(p.content).body ?? ''}`).join('\n')}` : ''}
 ${
   faqs.length
@@ -296,7 +372,7 @@ ${
 
 ${flowLines.join('\n')}
 
-اعرض خيارين للموعد لا أكثر. أكّد الاسم والرقم بإعادتهما على المتصل قبل التثبيت.`,
+اعرض خيارين للموعد لا أكثر. أكّد الاسم وآخر أربعة أرقام من رقم الاتصال الموثوق قبل التثبيت، ولا تطلب الرقم كاملًا إلا إذا اختار المتصل رقمًا مختلفًا.`,
       ),
     )
   } else if (flows.length) {
@@ -306,8 +382,8 @@ ${flowLines.join('\n')}
         'المسارات',
         `المسارات التي تتقنها: ${flows.join('، ')}.
 
-لمسار الحجز، اجمع بالترتيب: الخدمة، ثم اليوم والوقت المفضّل، ثم الاسم، ثم رقم الجوال.
-اعرض خيارين للموعد لا أكثر. أكّد الاسم والرقم بإعادتهما على المتصل قبل التثبيت.`,
+لمسار الحجز أو الطلب، اجمع بالترتيب: الخدمة أو المنتج، ثم اليوم والوقت المفضّل عند الحاجة، ثم الاسم، ثم رقم التواصل إن لم يكن موثوقًا لديك.
+اعرض خيارين للموعد لا أكثر. أكّد الاسم وآخر أربعة أرقام من رقم الاتصال الموثوق قبل التثبيت، ولا تطلب الرقم كاملًا إلا إذا اختار المتصل رقمًا مختلفًا.`,
       ),
     )
   }

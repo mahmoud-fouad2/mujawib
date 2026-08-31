@@ -83,7 +83,7 @@ export function PortalShell({
         <div className="operator-view-bar" role="status">
           <Eye size={14} aria-hidden="true" />
           <span>
-            تعرض بوابة <strong>{workspaceName}</strong> بصفتك فريق مُجاوِب — قراءة فقط.
+            تعرض بوابة <strong>{workspaceName}</strong> بصفتك فريق مُجاوِب — تحكم بإشراف المنصة.
           </span>
           <Link href="/console/clients">عودة إلى لوحة التشغيل</Link>
         </div>

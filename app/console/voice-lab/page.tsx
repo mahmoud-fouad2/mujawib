@@ -27,7 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   person: 'شخص',
   area: 'منطقة',
   service: 'خدمة',
-  medicine: 'دواء',
+  medicine: 'مصطلح متخصص / دواء',
 }
 
 export default async function VoiceLabPage() {
@@ -146,7 +146,7 @@ export default async function VoiceLabPage() {
         {words.length === 0 ? (
           <EmptyState
             title="القاموس فارغ"
-            body="أضف الكلمات التي يخطئ المُجاوِب في نطقها — أسماء الأطباء، الفروع، والعلامات التجارية."
+            body="أضف الكلمات التي يخطئ المُجاوِب في نطقها — أسماء المختصين، الفروع، والعلامات التجارية."
           />
         ) : (
           <div className="table-scroll">

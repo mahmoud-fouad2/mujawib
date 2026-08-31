@@ -7,7 +7,6 @@ import {
   CALL_OUTCOME_LABEL,
   CHANGE_STATUS_LABEL,
   duration,
-  maskPhone,
   num,
   outcomeTone,
   relative,
@@ -163,7 +162,7 @@ export default async function PortalOverviewPage() {
               <tbody>
                 {calls.map((c) => (
                   <tr key={c.id}>
-                    <td className="mono">{maskPhone(c.callerNumber)}</td>
+                    <td className="mono">{c.callerNumber ?? '—'}</td>
                     <td className="muted">{c.intent ?? '—'}</td>
                     <td>
                       <Pill tone={outcomeTone(c.outcome)}>

@@ -41,7 +41,10 @@ const schema = z.object({
   ownerEmail: z.string().trim().email('بريد مسؤول العميل غير صحيح').max(254),
   city: z.string().trim().min(2, 'المدينة مطلوبة').max(80),
   timezone: z.string().trim().min(3).max(60),
-  pack: z.enum(['medical', 'realestate', 'auto', 'reception']),
+  pack: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9_-]{2,80}$/, 'قالب القطاع غير صحيح'),
   agentName: z.string().trim().min(2, 'اسم الموظف الصوتي مطلوب').max(60),
   services: z.array(serviceSchema).min(1, 'أضف خدمة واحدة على الأقل').max(30),
   branches: z
@@ -206,7 +209,11 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
         status: 'draft',
         identity: {
           role: `موظف استقبال صوتي لدى ${data.name}`,
-          goals: ['الإجابة على الاستفسارات', 'إنجاز الحجز', 'التحويل الآمن عند الحاجة'],
+          goals: [
+            'الإجابة على الاستفسارات من المعرفة',
+            'إنجاز الطلب أو الحجز عند توفر الأداة',
+            'التحويل الآمن عند الحاجة',
+          ],
           restricted: ['لا يؤكد سعرًا غير موجود في المعرفة'],
         },
         businessRules: {
@@ -231,7 +238,7 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
             name,
             goal: `إنجاز ${name} بدون تدخل بشري`,
             requiredFields: name.includes('حجز')
-              ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
+              ? ['الخدمة أو المنتج', 'التاريخ والوقت عند الحاجة', 'الاسم', 'تأكيد رقم الاتصال']
               : ['الموضوع'],
             actions: name.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
             fallback: { onFailure: 'callback_or_transfer' },

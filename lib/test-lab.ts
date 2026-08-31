@@ -24,6 +24,7 @@ export const TESTABLE_TOOL_NAMES = [
   'send_confirmation',
   'create_callback',
   'transfer_to_human',
+  'end_call',
 ] as const
 
 export const scenarioInputSchema = z.object({
@@ -36,8 +37,8 @@ export const scenarioExpectationSchema = z
     mustIncludeAll: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
     mustNotInclude: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
     expectedTool: z.enum(TESTABLE_TOOL_NAMES).nullable().default(null),
-    allowedTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(5).default([]),
-    forbiddenTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(5).default([]),
+    allowedTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(6).default([]),
+    forbiddenTools: z.array(z.enum(TESTABLE_TOOL_NAMES)).max(6).default([]),
     language: z.enum(['ar', 'en']).nullable().default(null),
     maxWords: z.number().int().min(3).max(120).nullable().default(null),
   })

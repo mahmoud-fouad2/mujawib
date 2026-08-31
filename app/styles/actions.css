@@ -540,6 +540,40 @@
   margin-inline-start: auto;
 }
 
+@media (max-width: 560px) {
+  .overlay {
+    justify-content: stretch;
+  }
+
+  .sheet {
+    inline-size: 100vw;
+    border-inline-start: 0;
+  }
+
+  .sheet__head,
+  .sheet__body,
+  .sheet__foot {
+    padding-inline: var(--s-4);
+  }
+
+  .sheet__head h2 {
+    font-size: var(--step-1);
+  }
+
+  .sheet__foot {
+    flex-wrap: wrap;
+  }
+
+  .sheet__foot .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  .sheet__foot .btn--primary {
+    margin-inline-start: 0;
+  }
+}
+
 /* ─── confirm ──────────────────────────────────────────────────────────── */
 
 .confirm {
@@ -716,6 +750,35 @@
 
 .summary__spacer {
   margin-inline-start: auto;
+}
+
+@media (max-width: 700px) {
+  .summary {
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--s-3);
+    overflow-x: auto;
+    padding-block-end: var(--s-3);
+    scrollbar-width: none;
+  }
+
+  .summary::-webkit-scrollbar {
+    display: none;
+  }
+
+  .summary__item {
+    flex: 0 0 auto;
+    align-items: center;
+    min-block-size: 44px;
+    padding: 8px var(--s-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    background: var(--surface);
+  }
+
+  .summary__spacer {
+    display: none;
+  }
 }
 
 /* ─── inline form bits used inside sheets ──────────────────────────────── */

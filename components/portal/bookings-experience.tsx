@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { Confirm } from '@/components/ui/overlays'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
-import { CRM_RANGE_LABEL, clock, fullDate, maskPhone } from '@/lib/format'
+import { CRM_RANGE_LABEL, clock, fullDate } from '@/lib/format'
 import { cancelBooking } from '@/server/actions/portal'
 import type { getPortalBookings } from '@/server/data/portal'
 
@@ -185,7 +185,7 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
                 return (
                   <tr key={b.id}>
                     <td style={{ fontWeight: 600 }}>{b.customerName ?? '—'}</td>
-                    <td className="mono">{maskPhone(b.customerPhone)}</td>
+                    <td className="mono">{b.customerPhone ?? '—'}</td>
                     <td className="muted">{b.service ?? '—'}</td>
                     <td className="muted">{fullDate(b.scheduledAt)}</td>
                     <td className="mono">{clock(b.scheduledAt)}</td>

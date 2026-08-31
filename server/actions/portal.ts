@@ -221,6 +221,15 @@ const serviceSchema = z.object({
   title: z.string().trim().min(2, 'اسم الخدمة مطلوب').max(120),
   price: z.string().trim().max(60).optional(),
   duration: z.string().trim().max(60).optional(),
+  body: z.string().trim().max(1200).optional(),
+  suitableFor: z.string().trim().max(400).optional(),
+  requirements: z.string().trim().max(500).optional(),
+  preparation: z.string().trim().max(500).optional(),
+  aftercare: z.string().trim().max(500).optional(),
+  outcome: z.string().trim().max(500).optional(),
+  availability: z.string().trim().max(300).optional(),
+  owner: z.string().trim().max(160).optional(),
+  branch: z.string().trim().max(160).optional(),
 })
 
 export async function addService(input: z.input<typeof serviceSchema>): Promise<ActionResult> {
@@ -233,15 +242,27 @@ export async function addService(input: z.input<typeof serviceSchema>): Promise<
 
   const now = new Date()
   const itemId = id('kn')
+  const content = Object.fromEntries(
+    Object.entries({
+      price: parsed.data.price || 'حسب الحالة',
+      duration: parsed.data.duration || '—',
+      body: parsed.data.body,
+      suitableFor: parsed.data.suitableFor,
+      requirements: parsed.data.requirements,
+      preparation: parsed.data.preparation,
+      aftercare: parsed.data.aftercare,
+      outcome: parsed.data.outcome,
+      availability: parsed.data.availability,
+      owner: parsed.data.owner,
+      branch: parsed.data.branch,
+    }).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
+  )
   await db.insert(knowledgeItem).values({
     id: itemId,
     workspaceId: parsed.data.workspaceId,
     category: 'service',
     title: parsed.data.title,
-    content: {
-      price: parsed.data.price || 'حسب الحالة',
-      duration: parsed.data.duration || '—',
-    },
+    content,
     source: 'client',
     createdAt: now,
     updatedAt: now,
@@ -308,7 +329,7 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
   // endpoint (it's optional — see lib/integrations.ts), so "not attempted"
   // is the common, expected case, not a failure to report.
   let externalSynced = false
-  if (row.externalId) {
+  if (row.externalId && !row.externalId.startsWith('internal:')) {
     const integration = await findIntegration(
       row.workspaceId,
       ['google_calendar', 'microsoft_365'],

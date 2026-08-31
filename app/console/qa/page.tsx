@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { QaRowActions } from '@/components/console/qa-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
-import { CALL_OUTCOME_LABEL, duration, maskPhone, num, outcomeTone, relative } from '@/lib/format'
+import { CALL_OUTCOME_LABEL, duration, num, outcomeTone, relative } from '@/lib/format'
 import { getQaQueue } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الجودة' }
@@ -62,7 +62,7 @@ export default async function QaPage() {
                     <tr key={r.id}>
                       <td>
                         <Link href={`/console/calls?call=${r.callId}`} className="mono">
-                          {maskPhone(r.callerNumber)}
+                          {r.callerNumber ?? '—'}
                         </Link>
                       </td>
                       <td className="muted">{r.workspaceName}</td>

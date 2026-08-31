@@ -261,6 +261,20 @@ const PACKS = [
     flows: ['توجيه', 'رسالة', 'معاودة اتصال', 'عميل محتمل'],
     integrations: ['rest_api', 'whatsapp'],
   },
+  {
+    key: 'hospitality',
+    name: 'الضيافة والمطاعم',
+    version: 'v1',
+    flows: ['حجز أو استعلام', 'تعديل طلب قائم', 'استفسار عن خدمة', 'تحويل للقسم المختص'],
+    integrations: ['google_calendar', 'whatsapp', 'rest_api'],
+  },
+  {
+    key: 'services',
+    name: 'خدمة العملاء العامة',
+    version: 'v1',
+    flows: ['استفسار عن خدمة أو منتج', 'تسجيل طلب متابعة', 'حجز موعد أو زيارة', 'تحويل لموظف'],
+    integrations: ['whatsapp', 'rest_api'],
+  },
 ]
 
 const VOICE_PROFILES = [
@@ -467,7 +481,28 @@ function build() {
       packKey: p.key,
       name: p.name,
       version: p.version,
-      knowledgeSchema: { entities: ['services', 'branches', 'staff', 'policies'] },
+      knowledgeSchema: {
+        entities: ['services', 'branches', 'staff', 'policies', 'faqs'],
+        fields: {
+          service: [
+            'body',
+            'price',
+            'duration',
+            'suitableFor',
+            'requirements',
+            'preparation',
+            'aftercare',
+            'outcome',
+            'availability',
+            'owner',
+            'branch',
+          ],
+          staff: ['body', 'specialty', 'role', 'qualifications', 'experience', 'services'],
+          branch: ['address', 'phone', 'hours', 'body'],
+          policy: ['body', 'scope', 'exceptions', 'escalation'],
+          faq: ['answer', 'relatedService'],
+        },
+      },
       defaultFlows: p.flows,
       defaultIntegrations: p.integrations,
       qaSuite: p.flows.map((f) => `سيناريو ${f}`),

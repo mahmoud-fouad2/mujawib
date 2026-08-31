@@ -2,6 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
+import { upsertCustomerFromContact } from '@/server/crm/upsert'
 import { db } from '@/server/db'
 import { auditLog, call, webhookReceipt } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
@@ -322,7 +323,7 @@ export async function POST(req: NextRequest) {
   if (realtimeModel !== VOICE_MODEL) {
     voiceLog('REALTIME_MODEL_FALLBACK', { configured: VOICE_MODEL, selected: realtimeModel })
   }
-  const payload = buildAcceptPayload(resolved, realtimeModel)
+  const payload = buildAcceptPayload(resolved, realtimeModel, caller)
 
   const now = new Date()
   const proposedId = `call_${randomUUID().replaceAll('-', '').slice(0, 16)}`
@@ -473,6 +474,15 @@ export async function POST(req: NextRequest) {
   }
 
   voiceLog('CALL_RECORDED', { id: callRecord.id, caller: maskNumber(caller) })
+
+  if (resolved.crmEnabled && caller) {
+    await upsertCustomerFromContact({
+      workspaceId: resolved.workspaceId,
+      phone: caller,
+      name: null,
+      when: now,
+    }).catch(() => voiceError('ERROR', 'could not register caller in CRM'))
+  }
 
   // OpenAI keeps SIP audio on its media path. This server-side socket joins
   // the accepted session only for private events, transcript and tool calls.

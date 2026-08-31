@@ -67,10 +67,24 @@ const fallbackTools = actionsFromRealtimeEvent({
     ],
   },
 })
-assert.equal(fallbackTools.length, 1)
+assert.equal(fallbackTools.length, 2)
 assert.equal(
   fallbackTools[0]?.kind === 'tool_call' ? fallbackTools[0].toolCallId : null,
   'call_tool_2',
+)
+assert.deepEqual(fallbackTools[1], {
+  kind: 'lifecycle',
+  state: 'response_finished',
+  sourceId: 'evt_response',
+})
+
+assert.deepEqual(actionsFromRealtimeEvent({ type: 'response.created', event_id: 'evt_started' }), [
+  { kind: 'lifecycle', state: 'response_started', sourceId: 'evt_started' },
+])
+
+assert.deepEqual(
+  actionsFromRealtimeEvent({ type: 'output_audio_buffer.stopped', event_id: 'evt_audio_done' }),
+  [{ kind: 'lifecycle', state: 'output_audio_stopped', sourceId: 'evt_audio_done' }],
 )
 
 const error = actionsFromRealtimeEvent({

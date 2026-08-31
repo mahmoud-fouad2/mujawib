@@ -22,6 +22,8 @@ type VoiceProfileOption = {
   style: string
 }
 
+type BlueprintPreset = 'clinic' | 'realestate' | 'auto' | 'salon' | 'hospitality' | 'services'
+
 export type AgentEditorProps = {
   agentId: string
   agentName: string
@@ -163,20 +165,18 @@ export function AgentEditorSheet({
     setFlows((prev) => prev.filter((f) => f !== target))
   }
 
-  const [pendingBlueprint, setPendingBlueprint] = useState<
-    'clinic' | 'realestate' | 'auto' | 'salon' | null
-  >(null)
+  const [pendingBlueprint, setPendingBlueprint] = useState<BlueprintPreset | null>(null)
   // flows is excluded: an untouched draft already carries a non-empty
   // placeholder list there, so it would read as "customized" even when
   // nothing has actually been written yet.
   const hasCustomization = Boolean(role.trim()) || goals.length > 0 || restricted.length > 0
 
-  const requestBlueprint = (type: 'clinic' | 'realestate' | 'auto' | 'salon') => {
+  const requestBlueprint = (type: BlueprintPreset) => {
     if (hasCustomization) setPendingBlueprint(type)
     else applyBlueprint(type)
   }
 
-  const applyBlueprint = (type: 'clinic' | 'realestate' | 'auto' | 'salon') => {
+  const applyBlueprint = (type: BlueprintPreset) => {
     if (type === 'clinic') {
       setName('سارة — العيادة الطبية')
       setRole(
@@ -238,6 +238,36 @@ export function AgentEditorSheet({
       ])
       setRestricted(['لا تحجز في أوقات محجوزة مسبقاً'])
       setFlows(['حجز موعد خدمة', 'استفسار عن الباقات والعروض', 'تعديل أو إلغاء موعد'])
+    } else if (type === 'hospitality') {
+      setName('محمد — الضيافة')
+      setRole(
+        'موظف استقبال صوتي لقطاع الضيافة، مسؤول عن الرد على الاستفسارات، ترتيب الحجوزات، وتوجيه الطلبات للقسم المناسب.',
+      )
+      setGoals([
+        'معرفة نوع الطلب وعدد الأشخاص أو الغرف والتاريخ المطلوب',
+        'شرح الباقات أو الخدمات المتاحة من المعرفة المسجلة فقط',
+        'تأكيد بيانات التواصل والتصعيد للفريق عند وجود طلب خاص',
+      ])
+      setRestricted([
+        'لا يؤكد توفر حجز أو سعر غير مسجل أو غير متحقق منه',
+        'لا يطلب بيانات دفع أو بطاقة بنكية عبر الهاتف',
+      ])
+      setFlows(['حجز أو استعلام', 'تعديل طلب قائم', 'استفسار عن خدمة', 'تحويل للقسم المختص'])
+    } else if (type === 'services') {
+      setName('ياسمين — خدمة العملاء')
+      setRole(
+        'موظفة خدمة عملاء صوتية، تفهم طلب المتصل، تشرح الخدمات المعتمدة، تسجل الطلبات، وتحوّل الحالات التي تحتاج فريقًا بشريًا.',
+      )
+      setGoals([
+        'تصنيف سبب الاتصال بسرعة وبدون أسئلة مكررة',
+        'شرح الخدمة أو المنتج من المعرفة المسجلة فقط',
+        'تأكيد رقم التواصل المعروف قبل إنشاء طلب متابعة أو موعد',
+      ])
+      setRestricted([
+        'لا تؤكد تنفيذ طلب قبل نجاح الأداة المرتبطة به',
+        'لا تخترع أسعارًا أو مواعيد أو سياسات غير موجودة في المعرفة',
+      ])
+      setFlows(['استفسار عن خدمة أو منتج', 'تسجيل طلب متابعة', 'حجز موعد أو زيارة', 'تحويل لموظف'])
     }
   }
 
@@ -282,7 +312,7 @@ export function AgentEditorSheet({
                 color: 'var(--signal)',
               }}
             >
-              ⚡ تطبيق قالب جاهز بضغطة زر (Auto Blueprint)
+              تطبيق قالب تشغيلي جاهز
             </div>
             <div className="row" style={{ gap: 'var(--s-2)', flexWrap: 'wrap' }}>
               <button
@@ -290,28 +320,42 @@ export function AgentEditorSheet({
                 className="btn btn--quiet btn--sm"
                 onClick={() => requestBlueprint('clinic')}
               >
-                🏥 عيادة طبية
+                عيادات ومراكز طبية
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
                 onClick={() => requestBlueprint('realestate')}
               >
-                🏢 عقارات
+                عقارات
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
                 onClick={() => requestBlueprint('auto')}
               >
-                🚗 صيانة سيارات
+                خدمات سيارات
               </button>
               <button
                 type="button"
                 className="btn btn--quiet btn--sm"
                 onClick={() => requestBlueprint('salon')}
               >
-                ✨ صالون وتجميل
+                تجميل وعناية
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => requestBlueprint('hospitality')}
+              >
+                ضيافة ومطاعم
+              </button>
+              <button
+                type="button"
+                className="btn btn--quiet btn--sm"
+                onClick={() => requestBlueprint('services')}
+              >
+                خدمة عملاء عامة
               </button>
             </div>
           </div>
@@ -347,7 +391,7 @@ export function AgentEditorSheet({
                 rows={3}
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                placeholder="أنت موظف استقبال محترف في عيادة كذا، تستقبل المتصلين وتساعدهم في حجز المواعيد والإجابة عن الخدمات…"
+                placeholder="أنت موظف استقبال محترف لدى المنشأة، تستقبل المتصلين وتساعدهم في الطلبات والمواعيد والاستفسارات…"
               />
             </div>
           </div>
@@ -433,7 +477,7 @@ export function AgentEditorSheet({
                   className="input"
                   value={newRestricted}
                   onChange={(e) => setNewRestricted(e.target.value)}
-                  placeholder="مثال: لا تعطي استشارات طبية مهما طلب المتصل"
+                  placeholder="مثال: لا تؤكد سعرًا أو موعدًا غير مسجل في المعرفة"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()

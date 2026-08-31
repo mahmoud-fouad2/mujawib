@@ -78,6 +78,19 @@ describe('callerFrom', () => {
   it('returns null rather than blocking the call when From is missing', () => {
     expect(callerFrom([{ name: 'To', value: '<sip:x@y>' }])).toBeNull()
   })
+
+  it('prefers the full asserted identity when From is anonymised', () => {
+    expect(
+      callerFrom([
+        { name: 'From', value: '"Anonymous" <sip:anonymous@invalid>' },
+        { name: 'P-Asserted-Identity', value: '<sip:966530047640@provider.example>' },
+      ]),
+    ).toBe('+966530047640')
+  })
+
+  it('does not mistake a destination header for caller identity', () => {
+    expect(callerFrom([{ name: 'To', value: '<sip:+16513711782@provider.example>' }])).toBeNull()
+  })
 })
 
 describe('providerObserved', () => {

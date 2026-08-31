@@ -26,6 +26,7 @@ const TOOL_LABEL: Record<(typeof TESTABLE_TOOL_NAMES)[number], string> = {
   send_confirmation: 'إرسال تأكيد',
   create_callback: 'تسجيل معاودة اتصال',
   transfer_to_human: 'تحويل لموظف',
+  end_call: 'إنهاء المكالمة',
 }
 
 type ScenarioDraft = {

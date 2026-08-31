@@ -49,7 +49,7 @@ export default async function PortalIntegrationsPage() {
               <strong className="integration-card__title">Google Calendar & Cal.com</strong>
             </div>
             <p className="integration-card__desc">
-              قراءة الخانات المتاحة فورياً وتثبيت المواعيد مباشرة في تقويم أطباء وفريق المنشأة دون أي
+              قراءة الخانات المتاحة فورياً وتثبيت المواعيد مباشرة في تقويم الفريق أو الموارد دون أي
               تعارض.
             </p>
             <div className="integration-card__footer">
@@ -81,8 +81,7 @@ export default async function PortalIntegrationsPage() {
               <strong className="integration-card__title">Webhooks & أنظمة الـ CRM</strong>
             </div>
             <p className="integration-card__desc">
-              إرسال ملخص كل مكالمة وبيانات المتصلين تلقائياً إلى نظام إدارة العيادات أو نظام المنشأة
-              الداخلي.
+              إرسال ملخص كل مكالمة وبيانات المتصلين تلقائياً إلى CRM أو نظام المنشأة الداخلي.
             </p>
             <div className="integration-card__footer">
               <Pill tone="good">مدعوم وجاهز</Pill>

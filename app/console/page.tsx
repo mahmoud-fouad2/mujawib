@@ -10,7 +10,6 @@ import {
   dayMonth,
   duration,
   fullDate,
-  maskPhone,
   num,
   outcomeTone,
   relative,
@@ -143,7 +142,7 @@ export default async function ConsoleHomePage() {
                       {a.intent ?? 'مكالمة'} — {a.workspaceName}
                     </div>
                     <div className="queue__meta">
-                      <span className="mono">{maskPhone(a.callerNumber)}</span>
+                      <span className="mono">{a.callerNumber ?? '—'}</span>
                       <span aria-hidden="true">·</span>
                       <span>{relative(a.createdAt)}</span>
                       <span className="queue__flags">
@@ -241,7 +240,7 @@ export default async function ConsoleHomePage() {
                     )
                     return (
                       <tr key={c.id}>
-                        <td className="mono">{maskPhone(c.callerNumber)}</td>
+                        <td className="mono">{c.callerNumber ?? '—'}</td>
                         <td>{c.workspaceName}</td>
                         <td>
                           <span className="live-row">

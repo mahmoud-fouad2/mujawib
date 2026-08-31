@@ -3,7 +3,7 @@
 import { Download, MessageSquare, Phone, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState, Pill } from '@/components/ui/primitives'
-import { clock, fullDate, maskPhone, num, relative } from '@/lib/format'
+import { clock, fullDate, num, relative } from '@/lib/format'
 import type { getPortalCustomers } from '@/server/data/portal'
 
 type CustomerRow = Awaited<ReturnType<typeof getPortalCustomers>>['rows'][number]
@@ -106,7 +106,7 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
                 return (
                   <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.name ?? '—'}</td>
-                    <td className="mono">{maskPhone(c.phone)}</td>
+                    <td className="mono">{c.phone}</td>
                     <td className="mono">{num(c.calls)}</td>
                     <td className="mono">{num(c.bookings)}</td>
                     <td>

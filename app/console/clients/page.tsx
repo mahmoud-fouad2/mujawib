@@ -18,6 +18,9 @@ const PACK_LABEL: Record<string, string> = {
   realestate: 'العقارات',
   auto: 'خدمات السيارات',
   reception: 'خدمة العملاء',
+  hospitality: 'الضيافة والمطاعم',
+  services: 'خدمات عامة',
+  education: 'التعليم والتدريب',
 }
 
 const VALID_STATUSES: WorkspaceStatus[] = ['discovery', 'setup', 'pilot', 'live', 'paused']

@@ -16,7 +16,13 @@ export type RealtimeToolAction = {
 
 type RealtimeLifecycleAction = {
   kind: 'lifecycle'
-  state: 'connected' | 'speech_started' | 'speech_stopped'
+  state:
+    | 'connected'
+    | 'speech_started'
+    | 'speech_stopped'
+    | 'response_started'
+    | 'response_finished'
+    | 'output_audio_stopped'
   sourceId: string
 }
 
@@ -113,6 +119,14 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
     return [{ kind: 'lifecycle', state: 'speech_stopped', sourceId: eventSourceId }]
   }
 
+  if (type === 'response.created') {
+    return [{ kind: 'lifecycle', state: 'response_started', sourceId: eventSourceId }]
+  }
+
+  if (type === 'output_audio_buffer.stopped') {
+    return [{ kind: 'lifecycle', state: 'output_audio_stopped', sourceId: eventSourceId }]
+  }
+
   if (
     type === 'conversation.item.input_audio_transcription.completed' ||
     type === 'input_audio_transcription.completed'
@@ -193,6 +207,7 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
       .filter((action): action is RealtimeToolAction => Boolean(action))
 
     actions.push(...toolActions)
+    actions.push({ kind: 'lifecycle', state: 'response_finished', sourceId: eventSourceId })
     return actions
   }
 

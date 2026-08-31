@@ -19,6 +19,7 @@ import {
   workspace,
 } from '@/server/db/schema'
 import { sqlTimestamp } from '@/server/db/values'
+import { revealString } from '@/server/security/protected-data'
 
 /**
  * Client Portal data — Bible §20. Everything here answers a business question.
@@ -39,6 +40,10 @@ function startOfMonth() {
   return d
 }
 
+function visibleCallerNumber(masked: string | null, encrypted: string | null) {
+  return revealString(encrypted) ?? masked
+}
+
 export type PortalUsage = {
   callsThisMonth: number
   /** null = unlimited. */
@@ -46,7 +51,7 @@ export type PortalUsage = {
   concurrentCallLimit: number
 }
 
-/** Reference/display only — nothing enforces this limit at call-accept time yet. */
+/** Display companion for the enforced call-accept usage guard. */
 export async function getPortalMonthlyUsage(workspaceId: string): Promise<PortalUsage> {
   const [ws] = await db
     .select({
@@ -255,10 +260,11 @@ export async function getPortalInsights(workspaceId: string) {
 }
 
 export async function getPortalCalls(workspaceId: string, limit = 40) {
-  return db
+  const rows = await db
     .select({
       id: call.id,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       intent: call.intent,
       outcome: call.outcome,
       status: call.status,
@@ -270,6 +276,11 @@ export async function getPortalCalls(workspaceId: string, limit = 40) {
     .where(and(eq(call.workspaceId, workspaceId), eq(call.origin, 'live')))
     .orderBy(desc(call.startedAt))
     .limit(limit)
+
+  return rows.map(({ callerNumberEncrypted, ...row }) => ({
+    ...row,
+    callerNumber: visibleCallerNumber(row.callerNumber, callerNumberEncrypted),
+  }))
 }
 
 /** Client-safe detail: business result and conversation, never provider internals. */
@@ -278,6 +289,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
     .select({
       id: call.id,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       intent: call.intent,
       outcome: call.outcome,
       status: call.status,
@@ -310,7 +322,7 @@ export async function getPortalCallDetail(workspaceId: string, callId: string) {
 
   return {
     id: row.id,
-    callerNumber: row.callerNumber,
+    callerNumber: visibleCallerNumber(row.callerNumber, row.callerNumberEncrypted),
     intent: row.intent,
     outcome: row.outcome,
     status: row.status,

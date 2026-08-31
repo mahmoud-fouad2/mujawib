@@ -145,6 +145,7 @@ export const TOOL_LABEL: Record<string, string> = {
   reschedule_booking: 'تعديل موعد حجز',
   create_callback: 'تسجيل معاودة اتصال',
   transfer_to_human: 'تحويل لموظف',
+  end_call: 'إنهاء المكالمة',
   find_customer: 'البحث عن العميل',
   create_lead: 'تسجيل عميل محتمل',
 }

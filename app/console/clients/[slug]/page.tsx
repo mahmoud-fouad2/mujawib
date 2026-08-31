@@ -1,4 +1,15 @@
-import { ArrowLeft, Check, CircleAlert, CircleDashed } from 'lucide-react'
+import {
+  ArrowLeft,
+  Building2,
+  Check,
+  CircleAlert,
+  CircleDashed,
+  FileText,
+  LayoutGrid,
+  Phone,
+  Plug,
+  Radio,
+} from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -8,6 +19,7 @@ import {
   CrmFeatureToggle,
   RecordingPolicyControl,
 } from '@/components/console/client-actions'
+import { KnowledgeManager } from '@/components/console/knowledge-manager'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
@@ -20,7 +32,6 @@ import {
   duration,
   HEALTH_LABEL,
   healthTone,
-  maskPhone,
   num,
   outcomeTone,
   relative,
@@ -71,6 +82,7 @@ export default async function ClientDetailPage({ params }: Props) {
     integrations,
     requests,
     knowledge,
+    knowledgeItems,
     readiness,
   } = detail
   const info = (ws.businessInfo ?? {}) as ClientBusinessInfo & { branches?: string[] }
@@ -132,6 +144,47 @@ export default async function ClientDetailPage({ params }: Props) {
             : []),
         ]}
       />
+
+      <nav className="client-command-bar" aria-label="تحكمات العميل السريعة">
+        <LinkButton href="#client-knowledge" size="sm" leading={<FileText size={14} />}>
+          المعرفة والخدمات
+        </LinkButton>
+        <LinkButton
+          href={`/console/agents?client=${ws.slug}`}
+          size="sm"
+          leading={<LayoutGrid size={14} />}
+        >
+          الموظفون الصوتيون
+        </LinkButton>
+        <LinkButton
+          href={`/console/phone?client=${ws.slug}`}
+          size="sm"
+          leading={<Phone size={14} />}
+        >
+          الأرقام والتوجيه
+        </LinkButton>
+        <LinkButton
+          href={`/console/calls?client=${ws.slug}`}
+          size="sm"
+          leading={<Radio size={14} />}
+        >
+          المكالمات
+        </LinkButton>
+        <LinkButton
+          href={`/console/integrations?client=${ws.slug}`}
+          size="sm"
+          leading={<Plug size={14} />}
+        >
+          الربط
+        </LinkButton>
+        <LinkButton
+          href={`/portal/switch?client=${ws.slug}`}
+          size="sm"
+          leading={<Building2 size={14} />}
+        >
+          بوابة العميل
+        </LinkButton>
+      </nav>
 
       {readiness ? (
         <div className="setup-block">
@@ -333,6 +386,23 @@ export default async function ClientDetailPage({ params }: Props) {
       </div>
 
       <Section
+        title="معرفة العمل والخدمات والسياسات"
+        meta={`${num(knowledgeItems.length)} عنصر قابل للتعديل من ملف العميل`}
+      >
+        <div id="client-knowledge" />
+        <KnowledgeManager
+          workspaceId={ws.id}
+          items={knowledgeItems.map((k) => ({
+            id: k.id,
+            category: k.category,
+            title: k.title,
+            content: k.content as Record<string, unknown>,
+            createdAt: k.createdAt,
+          }))}
+        />
+      </Section>
+
+      <Section
         title="آخر المكالمات"
         action={
           <Link href="/console/calls" className="btn btn--quiet btn--sm">
@@ -360,7 +430,7 @@ export default async function ClientDetailPage({ params }: Props) {
                   <tr key={c.id}>
                     <td>
                       <Link href={`/console/calls?call=${c.id}`} className="mono">
-                        {maskPhone(c.callerNumber)}
+                        {c.callerNumber ?? '—'}
                       </Link>
                     </td>
                     <td className="muted">{c.intent ?? '—'}</td>

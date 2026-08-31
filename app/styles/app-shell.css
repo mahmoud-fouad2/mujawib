@@ -697,6 +697,27 @@
   flex-wrap: wrap;
 }
 
+@media (max-width: 700px) {
+  .page-head {
+    align-items: stretch;
+    gap: var(--s-3);
+  }
+
+  .page-head > div:first-child,
+  .page-head__actions {
+    inline-size: 100%;
+  }
+
+  .page-head h1 {
+    font-size: var(--step-2);
+  }
+
+  .page-head__actions .btn {
+    flex: 1 1 150px;
+    justify-content: center;
+  }
+}
+
 /* ─── status strip (only rendered when something is wrong) ─────────────── */
 
 .status-strip {
@@ -2443,6 +2464,56 @@
   min-inline-size: 140px;
 }
 
+.console-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding-block: var(--s-3);
+}
+
+.console-table-toolbar__search {
+  position: relative;
+  flex: 1;
+  min-inline-size: 220px;
+}
+
+.console-table-toolbar__search svg {
+  position: absolute;
+  inset-inline-start: 10px;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.console-table-toolbar__search .input {
+  inline-size: 100%;
+  padding-inline-start: 32px;
+}
+
+.console-table-toolbar select.input {
+  min-inline-size: 150px;
+}
+
+.console-table-toolbar .btn {
+  white-space: nowrap;
+}
+
+.client-command-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-block: calc(var(--s-2) * -1) var(--s-5);
+  padding-block-end: var(--s-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.client-command-bar .btn {
+  flex: 0 0 auto;
+}
+
 /* CRM table toolbar (components/portal/crm-table.tsx) — a flatter row than
    .portal-toolbar above, so it gets its own minimal rule rather than reusing
    that BEM structure's __row/__search nesting. */
@@ -2461,6 +2532,180 @@
 
 .crm-toolbar select.input {
   min-inline-size: 160px;
+}
+
+@media (max-width: 700px) {
+  .portal-toolbar,
+  .console-table-toolbar,
+  .crm-toolbar,
+  .clients-toolbar {
+    gap: var(--s-2);
+  }
+
+  .portal-toolbar__row,
+  .console-table-toolbar,
+  .crm-toolbar,
+  .clients-toolbar {
+    align-items: stretch;
+  }
+
+  .portal-toolbar__search,
+  .console-table-toolbar__search,
+  .crm-toolbar input[type="search"],
+  .clients-toolbar__search {
+    min-inline-size: 100%;
+    inline-size: 100%;
+  }
+
+  .portal-toolbar__row > .input,
+  .portal-toolbar__row > .btn,
+  .console-table-toolbar > .input,
+  .console-table-toolbar > .btn,
+  .client-command-bar > .btn,
+  .crm-toolbar > .input,
+  .crm-toolbar > .btn,
+  .crm-toolbar > .row-actions,
+  .clients-toolbar > .input {
+    flex: 1 1 140px;
+  }
+
+  .topbar__right {
+    gap: var(--s-1);
+  }
+}
+
+/* ─── mobile operations polish ─────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .workbench {
+    min-block-size: 0;
+    margin-inline: calc(var(--s-4) * -1);
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .workbench__list {
+    max-block-size: 300px;
+  }
+
+  .workbench__detail {
+    max-block-size: none;
+  }
+
+  .detail-head {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    padding-inline: var(--s-4);
+  }
+
+  .detail-head__status {
+    margin-inline-start: 0;
+  }
+
+  .call-brief {
+    padding-inline: var(--s-4);
+  }
+
+  .call-brief__head {
+    display: grid;
+  }
+
+  .call-brief__controls {
+    justify-content: flex-start;
+  }
+
+  .call-brief__facts {
+    grid-template-columns: 1fr;
+  }
+
+  .call-brief__facts div {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--line);
+  }
+
+  .call-brief__facts div:last-child {
+    border-block-end: 0;
+  }
+
+  .table-panel {
+    margin-inline: calc(var(--s-4) * -1);
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .table-panel__head {
+    align-items: stretch;
+    padding-inline: var(--s-4);
+  }
+
+  .table-panel__head > .btn,
+  .table-panel__head > .input,
+  .table-panel__head > select {
+    flex: 1 1 150px;
+  }
+
+  .table-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll > .table {
+    min-inline-size: 760px;
+  }
+
+  .queue__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-3);
+    padding-inline: var(--s-4);
+  }
+
+  .queue__row > .row,
+  .queue__row > .row-actions {
+    justify-self: stretch;
+  }
+
+  .queue__row .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  .client-command-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .client-command-bar .btn {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  .setup-block {
+    margin-inline: calc(var(--s-4) * -1);
+    padding-inline: var(--s-4);
+    border-block: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .setup-step {
+    min-block-size: auto;
+    padding-block: var(--s-4);
+  }
+
+  .setup-step__owner {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 420px) {
+  .client-command-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .table-scroll > .table {
+    min-inline-size: 680px;
+  }
 }
 
 .welcome-hero {

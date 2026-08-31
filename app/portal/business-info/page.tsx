@@ -15,9 +15,9 @@ export const metadata: Metadata = { title: 'بيانات النشاط' }
 export const dynamic = 'force-dynamic'
 
 const CATEGORY_LABEL: Record<string, string> = {
-  service: 'الخدمات',
-  branch: 'الفروع',
-  staff: 'الفريق',
+  service: 'الخدمات والمنتجات',
+  branch: 'الفروع والمواقع',
+  staff: 'الفريق والمختصون',
   policy: 'السياسات',
   faq: 'أسئلة شائعة',
   document: 'مستندات',
@@ -127,9 +127,10 @@ export default async function PortalBusinessInfoPage() {
             <table className="table table--rows">
               <thead>
                 <tr>
-                  <th>الخدمة</th>
+                  <th>الخدمة / المنتج</th>
                   <th>السعر</th>
                   <th>المدة</th>
+                  <th>التفاصيل المعتمدة</th>
                   <th aria-label="إجراءات" />
                 </tr>
               </thead>
@@ -141,6 +142,19 @@ export default async function PortalBusinessInfoPage() {
                       <td style={{ fontWeight: 500 }}>{item.title}</td>
                       <td className="muted">{content.price ?? '—'}</td>
                       <td className="muted">{content.duration ?? '—'}</td>
+                      <td className="muted">
+                        {[
+                          content.body,
+                          content.suitableFor ? `لمن تناسب: ${content.suitableFor}` : '',
+                          content.requirements ? `المتطلبات: ${content.requirements}` : '',
+                          content.outcome ? `النتيجة: ${content.outcome}` : '',
+                          content.availability ? `التوفر: ${content.availability}` : '',
+                          content.owner ? `المسؤول: ${content.owner}` : '',
+                          content.branch ? `الموقع: ${content.branch}` : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </td>
                       <td>
                         {canManage ? <ServiceRowActions id={item.id} title={item.title} /> : null}
                       </td>

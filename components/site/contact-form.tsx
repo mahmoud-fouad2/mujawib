@@ -174,7 +174,7 @@ export function ContactForm({
         </div>
         <div className="field">
           <label htmlFor={`${locale}-contact-company`}>
-            {ar ? 'اسم المنشأة / العيادة' : 'Company / Clinic name'}
+            {ar ? 'اسم الشركة / المنشأة' : 'Company / organization name'}
           </label>
           <input
             id={`${locale}-contact-company`}
@@ -183,7 +183,7 @@ export function ContactForm({
             autoComplete="organization"
             required
             minLength={2}
-            placeholder={ar ? 'مجمع النخبة الطبي' : 'Acme Healthcare'}
+            placeholder={ar ? 'شركة المثال' : 'Acme Services'}
           />
         </div>
         <div className="field">
@@ -252,8 +252,8 @@ export function ContactForm({
             rows={3}
             placeholder={
               ar
-                ? 'مثال: حجز وتعديل مواعيد المرضى في العيادة، أو الاستفسارات المتكررة خارج أوقات الدوام الرسمي.'
-                : 'Example: automate patient appointment booking for clinic, or handling out-of-hours inquiries.'
+                ? 'مثال: حجز المواعيد، متابعة الطلبات، أو الرد على الاستفسارات المتكررة خارج أوقات الدوام.'
+                : 'Example: automate bookings, order follow-ups, or recurring after-hours inquiries.'
             }
           />
         </div>

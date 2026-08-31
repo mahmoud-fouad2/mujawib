@@ -10,6 +10,7 @@ import {
   normalizeIntegrationConfig,
   optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
+import { normalizePhoneE164 } from '@/lib/voice-normalization'
 import { buildCallSummary } from '@/server/calls/presentation'
 import { readCallTranscript } from '@/server/calls/transcript'
 import { db } from '@/server/db'
@@ -41,7 +42,7 @@ import {
 } from '@/server/db/schema'
 import { sqlTimestamp } from '@/server/db/values'
 import { getClientReadinessById } from '@/server/operations/client-readiness'
-import { revealJson } from '@/server/security/protected-data'
+import { protectedLookup, revealJson, revealString } from '@/server/security/protected-data'
 import { getVersionTestGate, getVersionTestGates } from '@/server/test-lab/gate'
 
 /** Calls that are on the wire right now. */
@@ -91,6 +92,20 @@ function startOfMonth() {
 
 function liveCutoff() {
   return new Date(Date.now() - 2 * 60 * 60 * 1000)
+}
+
+function visibleCallerNumber(masked: string | null, encrypted: string | null) {
+  return revealString(encrypted) ?? masked
+}
+
+function callerSearchHash(value: string | undefined) {
+  const normalized = normalizePhoneE164(value)
+  if (!normalized) return null
+  try {
+    return protectedLookup(normalized)
+  } catch {
+    return null
+  }
 }
 
 /* ─── Sidebar counts ─────────────────────────────────────────────────────── */
@@ -214,6 +229,7 @@ export async function getLiveCalls(): Promise<LiveCall[]> {
     .select({
       id: call.id,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       workspaceName: workspace.name,
       status: call.status,
       intent: call.intent,
@@ -254,7 +270,11 @@ export async function getLiveCalls(): Promise<LiveCall[]> {
   const latest = new Map<string, string>()
   for (const e of events) if (!latest.has(e.callId)) latest.set(e.callId, e.type)
 
-  return rows.map((r) => ({ ...r, lastEvent: latest.get(r.id) ?? null }))
+  return rows.map(({ callerNumberEncrypted, ...r }) => ({
+    ...r,
+    callerNumber: visibleCallerNumber(r.callerNumber, callerNumberEncrypted),
+    lastEvent: latest.get(r.id) ?? null,
+  }))
 }
 
 export type AttentionItem = {
@@ -270,12 +290,13 @@ export type AttentionItem = {
 }
 
 export async function getNeedsAttention(limit = 8): Promise<AttentionItem[]> {
-  return db
+  const rows = await db
     .select({
       callId: call.id,
       workspaceName: workspace.name,
       workspaceSlug: workspace.slug,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       intent: call.intent,
       outcome: call.outcome,
       score: qaResult.score,
@@ -287,7 +308,13 @@ export async function getNeedsAttention(limit = 8): Promise<AttentionItem[]> {
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
     .where(and(sql`${qaResult.reviewerId} is null`, eq(call.origin, 'live')))
     .orderBy(desc(qaResult.createdAt))
-    .limit(limit) as Promise<AttentionItem[]>
+    .limit(limit)
+
+  return rows.map(({ callerNumberEncrypted, ...row }) => ({
+    ...row,
+    callerNumber: visibleCallerNumber(row.callerNumber, callerNumberEncrypted),
+    flags: row.flags ?? [],
+  }))
 }
 
 export type ClientRisk = {
@@ -644,6 +671,7 @@ export async function getClientDetail(slug: string) {
     integrations,
     requests,
     knowledge,
+    knowledgeItems,
     recentCalls,
     trend,
     readiness,
@@ -689,9 +717,15 @@ export async function getClientDetail(slug: string) {
       .where(eq(knowledgeItem.workspaceId, ws.id))
       .groupBy(knowledgeItem.category),
     db
+      .select()
+      .from(knowledgeItem)
+      .where(eq(knowledgeItem.workspaceId, ws.id))
+      .orderBy(knowledgeItem.category, knowledgeItem.title),
+    db
       .select({
         id: call.id,
         callerNumber: call.callerNumber,
+        callerNumberEncrypted: call.callerNumberEncrypted,
         intent: call.intent,
         outcome: call.outcome,
         status: call.status,
@@ -737,7 +771,11 @@ export async function getClientDetail(slug: string) {
     integrations,
     requests,
     knowledge,
-    recentCalls,
+    knowledgeItems,
+    recentCalls: recentCalls.map(({ callerNumberEncrypted, ...item }) => ({
+      ...item,
+      callerNumber: visibleCallerNumber(item.callerNumber, callerNumberEncrypted),
+    })),
     trend,
     readiness,
   }
@@ -1011,8 +1049,14 @@ export async function getCalls(options: {
 
   if (search) {
     const like = `%${search}%`
+    const phoneHash = callerSearchHash(search)
     conditions.push(
-      sql`(${call.callerNumber} ilike ${like} or ${call.intent} ilike ${like} or ${call.id} ilike ${like})`,
+      or(
+        sql`${call.callerNumber} ilike ${like}`,
+        sql`${call.intent} ilike ${like}`,
+        sql`${call.id} ilike ${like}`,
+        phoneHash ? eq(call.callerNumberHash, phoneHash) : undefined,
+      ),
     )
   }
 
@@ -1022,10 +1066,11 @@ export async function getCalls(options: {
     )
   }
 
-  return db
+  const rows = await db
     .select({
       id: call.id,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       status: call.status,
       origin: call.origin,
       outcome: call.outcome,
@@ -1044,6 +1089,11 @@ export async function getCalls(options: {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(call.startedAt))
     .limit(limit)
+
+  return rows.map(({ callerNumberEncrypted, ...row }) => ({
+    ...row,
+    callerNumber: visibleCallerNumber(row.callerNumber, callerNumberEncrypted),
+  }))
 }
 
 export async function getCallDetail(id: string) {
@@ -1116,6 +1166,10 @@ export async function getCallDetail(id: string) {
 
   return {
     ...operatorSafeCall,
+    callerNumber: visibleCallerNumber(
+      operatorSafeCall.callerNumber,
+      row.call.callerNumberEncrypted,
+    ),
     workspaceName: row.workspaceName,
     workspaceSlug: row.workspaceSlug,
     agentName: row.agentName,
@@ -1158,6 +1212,7 @@ export async function getQaQueue(limit = 40) {
       reviewerId: qaResult.reviewerId,
       createdAt: qaResult.createdAt,
       callerNumber: call.callerNumber,
+      callerNumberEncrypted: call.callerNumberEncrypted,
       intent: call.intent,
       outcome: call.outcome,
       durationSeconds: call.durationSeconds,
@@ -1195,7 +1250,10 @@ export async function getQaQueue(limit = 40) {
   }
 
   return {
-    rows,
+    rows: rows.map(({ callerNumberEncrypted, ...row }) => ({
+      ...row,
+      callerNumber: visibleCallerNumber(row.callerNumber, callerNumberEncrypted),
+    })),
     totals: totals ?? { open: 0, closed: 0, avgScore: 0 },
     reasons: [...flagCounts.entries()].map(([flag, n]) => ({ flag, n })).sort((a, b) => b.n - a.n),
   }
@@ -1445,6 +1503,7 @@ export async function getPhoneNumberDetail(phoneId: string) {
         status: call.status,
         outcome: call.outcome,
         callerNumber: call.callerNumber,
+        callerNumberEncrypted: call.callerNumberEncrypted,
         origin: call.origin,
         startedAt: call.startedAt,
         endedAt: call.endedAt,
@@ -1467,7 +1526,14 @@ export async function getPhoneNumberDetail(phoneId: string) {
       .orderBy(agent.name),
   ])
 
-  return { ...row, recentCalls, availableAgents }
+  return {
+    ...row,
+    recentCalls: recentCalls.map(({ callerNumberEncrypted, ...item }) => ({
+      ...item,
+      callerNumber: visibleCallerNumber(item.callerNumber, callerNumberEncrypted),
+    })),
+    availableAgents,
+  }
 }
 
 /* ─── System ─────────────────────────────────────────────────────────────── */

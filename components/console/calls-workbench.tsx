@@ -16,7 +16,6 @@ import {
   duration,
   EVENT_LABEL,
   fullDate,
-  maskPhone,
   outcomeTone,
   relative,
   statusTone,
@@ -116,7 +115,7 @@ export function CallsWorkbench({
               className={`list-item${selected?.id === r.id ? ' is-active' : ''}`}
             >
               <div className="list-item__top">
-                <span className="list-item__who">{maskPhone(r.callerNumber)}</span>
+                <span className="list-item__who">{r.callerNumber ?? '—'}</span>
                 <span className="list-item__time">{duration(r.durationSeconds)}</span>
               </div>
               <div className="list-item__meta">
@@ -175,7 +174,7 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
     <>
       <header className="detail-head">
         <div>
-          <h2 className="mono">{maskPhone(call.callerNumber)}</h2>
+          <h2 className="mono">{call.callerNumber ?? '—'}</h2>
           <div className="detail-head__sub">
             {call.workspaceName} · {fullDate(call.startedAt)} · {clock(call.startedAt)}
           </div>

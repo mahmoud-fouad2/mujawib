@@ -34,11 +34,23 @@ const STEPS = [
   { n: '05', title: 'المراجعة' },
 ] as const
 
+const OPERATING_ROADMAP = [
+  { title: 'ملف العميل', body: 'المنشأة، المسؤول، المدينة والمنطقة الزمنية.' },
+  { title: 'القالب والمسارات', body: 'اختيار القطاع واسم الموظف الصوتي.' },
+  { title: 'المعرفة', body: 'الخدمات أو المنتجات والفروع كمصدر موثوق.' },
+  { title: 'الرقم والتصعيد', body: 'ساعات العمل، رقم التحويل، ورقم الاستقبال.' },
+  { title: 'اختبار الصوت', body: 'تشغيل سيناريوهات حقيقية قبل الإطلاق.' },
+  { title: 'النشر والتشغيل', body: 'ربط الرقم بالنسخة المنشورة ومراقبة أول مكالمات.' },
+] as const
+
 const PACK_BLURB: Record<string, string> = {
   medical: 'حجز وتغيير المواعيد، وتقليل الغياب.',
   realestate: 'تأهيل المتصل، وترتيب المعاينات.',
   auto: 'حجوزات الصيانة، ومتابعة حالة السيارة.',
   reception: 'فرز الطلبات، والتوجيه للقسم الصحيح.',
+  hospitality: 'حجوزات واستفسارات وتجارب ضيافة.',
+  services: 'طلبات متابعة وخدمة عملاء عامة.',
+  education: 'استفسارات البرامج والمواعيد والتسجيل.',
 }
 
 const TIMEZONES = [
@@ -60,6 +72,13 @@ let rowSeq = 0
 function newRow(): Row {
   rowSeq += 1
   return { id: `r${rowSeq}`, title: '', price: '' }
+}
+
+function getRoadmapState(index: number, step: number) {
+  const active = Math.min(step, OPERATING_ROADMAP.length - 2)
+  if (index < active) return 'done'
+  if (index === active) return 'current'
+  return 'todo'
 }
 
 export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
@@ -122,7 +141,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         ownerEmail,
         city,
         timezone,
-        pack: pack as 'medical' | 'realestate' | 'auto' | 'reception',
+        pack,
         agentName,
         services: services
           .filter((s) => s.title.trim())
@@ -177,6 +196,31 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
               نسخ الرابط
             </Button>
           </div>
+          <section
+            className="wizard__roadmap wizard__roadmap--done"
+            aria-label="مسار التشغيل التالي"
+          >
+            <div className="wizard__roadmap-head">
+              <strong>المتبقي قبل المكالمة الأولى</strong>
+              <span>تشغيل منضبط بدل نشر عشوائي</span>
+            </div>
+            <ol>
+              {OPERATING_ROADMAP.map((item, index) => {
+                const state = getRoadmapState(index, 4)
+                return (
+                  <li key={item.title} data-state={state}>
+                    <span className="wizard__roadmap-mark" aria-hidden="true">
+                      {state === 'done' ? <Check size={12} /> : index + 1}
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.body}</small>
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
           <div className="row">
             <Link href={`/console/clients/${done.workspaceSlug}`} className="btn btn--primary">
               افتح مساحة العمل
@@ -238,13 +282,13 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
               </div>
               <div className="wizard__fields">
                 <div className="field">
-                  <label htmlFor="w-name">اسم الشركة كما يُنطق في المكالمة</label>
+                  <label htmlFor="w-name">اسم المنشأة كما يُنطق في المكالمة</label>
                   <input
                     id="w-name"
                     className="input"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="عيادات ألفا الطبية"
+                    placeholder="مركز ريجوفيرا / شركة المثال"
                   />
                 </div>
                 <div className="field">
@@ -337,14 +381,14 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
               <div>
                 <h1 className="wizard__title">ما الذي يجب أن يعرفه عن عملك؟</h1>
                 <p className="wizard__lead">
-                  الخدمات والفروع تُحفظ كمعرفة منظّمة — الموظف الصوتي يقرأ منها مباشرة، ولا يخمّن سعرًا
-                  أو موقعًا غير مذكور هنا.
+                  الخدمات أو المنتجات والفروع تُحفظ كمعرفة منظّمة — الموظف الصوتي يقرأ منها مباشرة،
+                  ولا يخمّن سعرًا أو موقعًا غير مذكور هنا.
                 </p>
               </div>
 
               <div className="wizard__fields">
                 <div className="field">
-                  <span className="field__group-label">الخدمات وأسعارها</span>
+                  <span className="field__group-label">الخدمات أو المنتجات وأسعارها</span>
                   {services.map((s, i) => (
                     <div key={s.id} className="repeat-row">
                       <input
@@ -355,7 +399,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
                             prev.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)),
                           )
                         }
-                        placeholder="كشف أسنان عام"
+                        placeholder="استشارة أولية / باقة صيانة / خدمة زيارة"
                         aria-label={`اسم الخدمة ${i + 1}`}
                       />
                       <input
@@ -604,6 +648,28 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
               </dd>
             </div>
           </dl>
+          <section className="wizard__roadmap" aria-label="مسار الوصول للتشغيل">
+            <div className="wizard__roadmap-head">
+              <strong>من التسجيل إلى التشغيل</strong>
+              <span>الخطوة التالية تظهر هنا لحظة بلحظة</span>
+            </div>
+            <ol>
+              {OPERATING_ROADMAP.map((item, index) => {
+                const state = getRoadmapState(index, step)
+                return (
+                  <li key={item.title} data-state={state}>
+                    <span className="wizard__roadmap-mark" aria-hidden="true">
+                      {state === 'done' ? <Check size={12} /> : index + 1}
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{item.body}</small>
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
         </aside>
       </div>
     </div>

@@ -16,7 +16,7 @@ const CATEGORIES = [
   { value: 'person', label: 'اسم شخص' },
   { value: 'area', label: 'منطقة أو فرع' },
   { value: 'service', label: 'خدمة' },
-  { value: 'medicine', label: 'دواء' },
+  { value: 'medicine', label: 'مصطلح متخصص / دواء' },
 ] as const
 
 /* ─── add ────────────────────────────────────────────────────────────────── */
@@ -51,7 +51,7 @@ export function AddPronunciation({ workspaces }: { workspaces: { id: string; nam
         open={open}
         onClose={() => setOpen(false)}
         title="إضافة مدخل نطق"
-        description="الكلمات التي يخطئ المُجاوِب في نطقها — أسماء الأطباء، الفروع، والعلامات."
+        description="الكلمات التي يخطئ المُجاوِب في نطقها — أسماء المختصين، الفروع، والعلامات."
         footer={
           <>
             <Button onClick={() => setOpen(false)} disabled={pending}>

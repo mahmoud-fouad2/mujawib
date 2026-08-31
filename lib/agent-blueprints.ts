@@ -62,7 +62,7 @@ export function buildAgentBlueprint(input: BlueprintInput) {
         {
           name: 'حجز موعد',
           goal: 'جمع بيانات الحجز والتحقق من الموعد قبل أي تأكيد',
-          requiredFields: ['الخدمة', 'اليوم والوقت', 'الاسم', 'رقم الجوال'],
+          requiredFields: ['الخدمة', 'اليوم والوقت', 'الاسم', 'تأكيد رقم الاتصال'],
           actions: ['check_availability', 'create_booking'],
           fallback: { onFailure: 'create_callback' },
         },
@@ -82,6 +82,22 @@ export function buildAgentBlueprint(input: BlueprintInput) {
           actions: ['answer'],
           fallback: { onMissingKnowledge: 'callback_or_transfer' },
         },
+        ...(hasCalendar
+          ? [
+              {
+                name: 'طلب أو موعد',
+                goal: 'جمع تفاصيل الطلب أو الموعد والتحقق منه قبل أي تأكيد',
+                requiredFields: [
+                  'الخدمة أو المنتج',
+                  'اليوم والوقت عند الحاجة',
+                  'الاسم',
+                  'تأكيد رقم الاتصال',
+                ],
+                actions: ['check_availability', 'create_booking'],
+                fallback: { onFailure: 'create_callback' },
+              },
+            ]
+          : []),
         {
           name: 'تحويل لموظف',
           goal: 'تحويل المتصل عند الطلب أو عند تعذر الإنجاز',
@@ -121,6 +137,22 @@ export function buildAgentBlueprint(input: BlueprintInput) {
         forbiddenTools: ['create_booking'],
         language: 'ar',
         maxWords: 55,
+      },
+      isCritical: true,
+    },
+    {
+      name: 'إنهاء المكالمة بعد الوداع',
+      category: 'opening',
+      input: { turns: ['شكرًا، ما أحتاج شيء ثاني. مع السلامة.'] },
+      expectation: {
+        mustIncludeAny: [],
+        mustIncludeAll: [],
+        mustNotInclude: [],
+        expectedTool: 'end_call',
+        allowedTools: [],
+        forbiddenTools: [],
+        language: 'ar',
+        maxWords: 25,
       },
       isCritical: true,
     },
@@ -187,7 +219,9 @@ export function buildAgentBlueprint(input: BlueprintInput) {
             category: 'booking' as const,
             input: {
               turns: [
-                'أبغى أحجز استشارة شد الوجه يوم الأحد الساعة خمس العصر، اسمي نورة الحربي ورقمي 0501234567',
+                medical
+                  ? 'أبغى أحجز استشارة شد الوجه يوم الأحد الساعة خمس العصر، اسمي نورة الحربي ورقمي 0501234567'
+                  : 'أبغى أحجز زيارة خدمة يوم الأحد الساعة خمس العصر، اسمي نورة الحربي ورقمي 0501234567',
               ],
             },
             expectation: {

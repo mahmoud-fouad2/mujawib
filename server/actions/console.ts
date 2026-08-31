@@ -24,6 +24,7 @@ import {
   call,
   changeRequest,
   flow,
+  industryTemplate,
   integrationConnection,
   knowledgeItem,
   phoneNumber,
@@ -602,7 +603,12 @@ const knowledgeSchema = z.object({
   workspaceId: z.string().min(1),
   category: z.enum(['service', 'branch', 'staff', 'policy', 'faq']),
   title: z.string().trim().min(2, 'العنوان قصير جدًا').max(160),
-  content: z.record(z.string(), z.unknown()),
+  content: z
+    .record(z.string().max(64), z.unknown())
+    .refine(
+      (content) => Object.keys(content).length <= 30 && JSON.stringify(content).length <= 20_000,
+      'تفاصيل عنصر المعرفة أكبر من الحد المسموح.',
+    ),
 })
 
 export async function createKnowledgeItem(
@@ -655,7 +661,12 @@ const updateKnowledgeSchema = z.object({
   itemId: z.string().min(1),
   category: z.enum(['service', 'branch', 'staff', 'policy', 'faq']),
   title: z.string().trim().min(2, 'العنوان قصير جدًا').max(160),
-  content: z.record(z.string(), z.unknown()),
+  content: z
+    .record(z.string().max(64), z.unknown())
+    .refine(
+      (content) => Object.keys(content).length <= 30 && JSON.stringify(content).length <= 20_000,
+      'تفاصيل عنصر المعرفة أكبر من الحد المسموح.',
+    ),
 })
 
 export async function updateKnowledgeItem(
@@ -1551,6 +1562,135 @@ export async function updateClientRecordingPolicy(
     ok: true,
     message: next.enabled ? `فُعّل التسجيل المعتمد لـ ${row.name}.` : `أُوقف التسجيل لـ ${row.name}.`,
   }
+}
+
+/* ─── Industry templates ────────────────────────────────────────────────── */
+
+const templateTextList = z.array(z.string().trim().min(1).max(120)).max(40)
+
+const industryTemplateSchema = z.object({
+  templateId: z.string().min(1).optional(),
+  packKey: z
+    .string()
+    .trim()
+    .min(2, 'مفتاح القالب مطلوب.')
+    .max(60)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/, 'استخدم أحرفًا لاتينية صغيرة وأرقامًا وشرطات فقط.'),
+  name: z.string().trim().min(2, 'اسم القالب مطلوب.').max(120),
+  version: z.string().trim().min(1, 'رقم النسخة مطلوب.').max(30),
+  serviceFields: templateTextList,
+  staffFields: templateTextList,
+  branchFields: templateTextList,
+  policyFields: templateTextList,
+  faqFields: templateTextList,
+  defaultFlows: templateTextList,
+  defaultIntegrations: templateTextList,
+  qaSuite: templateTextList,
+})
+
+function templateKnowledgeSchema(data: z.infer<typeof industryTemplateSchema>) {
+  return {
+    entities: ['services', 'branches', 'staff', 'policies', 'faqs'],
+    fields: {
+      service: data.serviceFields,
+      staff: data.staffFields,
+      branch: data.branchFields,
+      policy: data.policyFields,
+      faq: data.faqFields,
+    },
+  }
+}
+
+export async function createIndustryTemplate(
+  input: z.input<typeof industryTemplateSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+  const parsed = industryTemplateSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات القالب غير صحيحة.' }
+  }
+
+  const [existing] = await db
+    .select({ id: industryTemplate.id })
+    .from(industryTemplate)
+    .where(eq(industryTemplate.packKey, parsed.data.packKey))
+    .limit(1)
+  if (existing) return { ok: false, error: 'يوجد قالب بنفس المفتاح بالفعل.' }
+
+  const templateId = id('tpl')
+  await db.insert(industryTemplate).values({
+    id: templateId,
+    packKey: parsed.data.packKey,
+    name: parsed.data.name,
+    version: parsed.data.version,
+    knowledgeSchema: templateKnowledgeSchema(parsed.data),
+    defaultFlows: parsed.data.defaultFlows,
+    defaultIntegrations: parsed.data.defaultIntegrations,
+    qaSuite: parsed.data.qaSuite,
+    createdAt: new Date(),
+  })
+
+  await audit({
+    workspaceId: null,
+    action: 'template.create',
+    resourceType: 'industry_template',
+    resourceId: templateId,
+    note: `إنشاء قالب ${parsed.data.name}`,
+  })
+
+  revalidatePath('/console/templates')
+  return { ok: true, message: `أُضيف قالب ${parsed.data.name}.` }
+}
+
+export async function updateIndustryTemplate(
+  input: z.input<typeof industryTemplateSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('client.manage')
+  if (denied) return denied
+  const parsed = industryTemplateSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات القالب غير صحيحة.' }
+  }
+  if (!parsed.data.templateId) return { ok: false, error: 'القالب غير محدد.' }
+
+  const [row] = await db
+    .select()
+    .from(industryTemplate)
+    .where(eq(industryTemplate.id, parsed.data.templateId))
+    .limit(1)
+  if (!row) return { ok: false, error: 'القالب غير موجود.' }
+
+  const [clash] = await db
+    .select({ id: industryTemplate.id })
+    .from(industryTemplate)
+    .where(and(ne(industryTemplate.id, row.id), eq(industryTemplate.packKey, parsed.data.packKey)))
+    .limit(1)
+  if (clash) return { ok: false, error: 'يوجد قالب آخر بنفس المفتاح.' }
+
+  await db
+    .update(industryTemplate)
+    .set({
+      packKey: parsed.data.packKey,
+      name: parsed.data.name,
+      version: parsed.data.version,
+      knowledgeSchema: templateKnowledgeSchema(parsed.data),
+      defaultFlows: parsed.data.defaultFlows,
+      defaultIntegrations: parsed.data.defaultIntegrations,
+      qaSuite: parsed.data.qaSuite,
+    })
+    .where(eq(industryTemplate.id, row.id))
+
+  await audit({
+    workspaceId: null,
+    action: 'template.update',
+    resourceType: 'industry_template',
+    resourceId: row.id,
+    note: `تحديث قالب ${parsed.data.name}`,
+  })
+
+  revalidatePath('/console/templates')
+  return { ok: true, message: `حُدّث قالب ${parsed.data.name}.` }
 }
 
 /* ─── Client lifecycle: archive, restore, delete ─────────────────────────── */
