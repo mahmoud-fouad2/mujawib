@@ -5,10 +5,15 @@ import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
 import { enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { compactCallTranscript } from '@/server/calls/transcript'
-import { db } from '@/server/db'
+// Every query in this file sits on a live call's critical path, so it runs on
+// the dedicated realtime pool rather than the shared application one — a call
+// must never queue behind a server-rendered console page. See server/db/index.ts.
+import { dbRealtime as db } from '@/server/db'
 import { backgroundJob, call, callEvent, toolExecution } from '@/server/db/schema'
 import { notifyOperators, notifyWorkspaceMembers, tryNotify } from '@/server/notifications/service'
+import { registerDrainHook } from '@/server/runtime/lifecycle'
 import { protectJson, protectString, revealString } from '@/server/security/protected-data'
+import { acquireCallSlot, type CallSlot } from '@/server/voice/admission'
 import { executeTool } from '@/server/voice/handlers'
 import { maskIdentifier, sanitizeLogText, voiceError, voiceLog } from '@/server/voice/log'
 import {
@@ -17,19 +22,27 @@ import {
   type RealtimeAction,
   type RealtimeToolAction,
   type RealtimeTranscriptAction,
+  shouldSendInitialGreeting,
 } from '@/server/voice/realtime-events'
 import { type RealtimeRecordingCapture, startRealtimeRecording } from '@/server/voice/recording'
 import {
   type RealtimeSessionError,
   resolveSidebandCloseDiagnostic,
 } from '@/server/voice/sideband-diagnostics'
+import {
+  type CallTimeline,
+  createTimeline,
+  markTimeline,
+  timelineSnapshot,
+  withCallContext,
+} from '@/server/voice/telemetry'
 import type { ToolResult } from '@/server/voice/tools'
 
 const REALTIME_WS = 'wss://api.openai.com/v1/realtime'
 const OPENAI_API = 'https://api.openai.com/v1'
 const CONNECT_TIMEOUT_MS = 10_000
 const SIDEBAND_LEASE_MS = 120_000
-const HANGUP_FALLBACK_MS = 15_000
+const HANGUP_FALLBACK_MS = 5_000
 const NORMAL_CLOSE_CODES = new Set([1000, 1005])
 
 type SidebandContext = {
@@ -39,10 +52,31 @@ type SidebandContext = {
   callerNumber: string | null
   transferTo: string | null
   startedAt: Date
+  /**
+   * True when attaching to a call that is already in progress — the process
+   * that answered it went away and `recoverStaleSidebands` reconnected. Such a
+   * socket must not make the agent greet the caller again.
+   */
+  resumed?: boolean
+  /** Released when the call ends, freeing a process-wide concurrency slot. */
+  slot?: CallSlot | null
+  /** Shared with the inbound webhook so setup and call time are one timeline. */
+  timeline?: CallTimeline | null
 }
 
 type SessionState = {
-  lastCallerSpeechStoppedAt: number | null
+  /**
+   * When the caller stopped speaking, i.e. when the clock on this turn starts.
+   * Consumed by the first audio of the response that answers it, then cleared,
+   * so a follow-up response cannot be credited to the same turn.
+   */
+  turnStartedAt: number | null
+  /**
+   * Measured turn latency per response id, recorded the moment audio starts
+   * playing. The transcript arrives much later and reads its value from here
+   * rather than re-measuring — that re-measurement was the bug.
+   */
+  turnLatencyByResponse: Map<string, number>
   lastRealtimeError: RealtimeSessionError | null
   seenToolCalls: Set<string>
   inputTokens: number
@@ -54,6 +88,91 @@ type SessionState = {
   hangupRequested: boolean
   hangupSucceeded: boolean
   hasConversation: boolean
+  /**
+   * Set when this process is shutting down and has deliberately released the
+   * call to its replacement. The close that follows is a handover, not an end:
+   * the call row stays `live` so the next process can pick it up.
+   */
+  handedOff: boolean
+}
+
+type ActiveSideband = {
+  ws: WebSocket
+  ctx: SidebandContext
+  state: SessionState
+  leaseOwner: string
+}
+
+/**
+ * Every control socket this process currently owns, keyed by the provider's
+ * call id. Exists so shutdown can find them; nothing else reads it.
+ */
+const activeSockets = new Map<string, ActiveSideband>()
+
+/** Close code for a deliberate handover, per RFC 6455 ("going away"). */
+const GOING_AWAY = 1001
+
+export function activeSidebandCount(): number {
+  return activeSockets.size
+}
+
+/**
+ * Hands every still-live call to the process that is replacing this one.
+ *
+ * Releasing the lease is the whole point. On an abrupt kill the row keeps
+ * `status: 'running'` with a stale `lockedAt`, and the replacement cannot
+ * touch it until the 120-second staleness window expires — two minutes during
+ * which the caller is talking to an agent that can no longer run a tool or
+ * hang up. Setting it back to `pending` makes it reclaimable on the very next
+ * maintenance tick instead.
+ *
+ * The call row itself is deliberately left alone: the call has not ended, and
+ * `state.handedOff` stops the close handler from writing an end time.
+ */
+async function handOffActiveSidebands() {
+  const sockets = [...activeSockets.values()]
+  if (sockets.length === 0) return
+
+  await Promise.allSettled(
+    sockets.map(async (entry) => {
+      entry.state.handedOff = true
+      await db
+        .update(backgroundJob)
+        .set({ status: 'pending', lockedAt: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(backgroundJob.id, sidebandJobId(entry.ctx.externalCallId)),
+            sql`${backgroundJob.payload}->>'leaseOwner' = ${entry.leaseOwner}`,
+          ),
+        )
+        .catch(() => undefined)
+      await recordEvent(entry.ctx, 'sideband_handed_off', `drain:${Date.now()}`, {
+        reason: 'process_shutdown',
+      }).catch(() => undefined)
+      try {
+        entry.ws.close(GOING_AWAY, 'draining')
+      } catch {
+        entry.ws.terminate()
+      }
+    }),
+  )
+}
+
+let drainHookRegistered = false
+
+/**
+ * Called once at boot from `instrumentation.ts`. Registration is explicit
+ * rather than a module-load side effect so importing this file from a script
+ * or a test never installs process-wide behaviour.
+ */
+export function registerSidebandDrainHook() {
+  if (drainHookRegistered) return
+  drainHookRegistered = true
+  registerDrainHook({
+    name: 'realtime-sideband',
+    active: activeSidebandCount,
+    handOff: handOffActiveSidebands,
+  })
 }
 
 function stableId(prefix: string, ...parts: string[]) {
@@ -176,23 +295,27 @@ async function recordEvent(
     .onConflictDoNothing()
 }
 
-async function updateSidebandMetadata(ctx: SidebandContext, sideband: Record<string, unknown>) {
-  const [row] = await db
-    .select({ metadata: call.metadata })
-    .from(call)
-    .where(eq(call.id, ctx.callRecordId))
-    .limit(1)
-  if (!row) return
-
+/**
+ * Merges keys into `call.metadata` in one round trip.
+ *
+ * This used to read the row, merge in memory, and write it back — two
+ * sequential queries on a live call, and a lost update whenever anything else
+ * touched the same row in between. `||` on jsonb is a shallow merge performed
+ * by Postgres, which is both atomic and half the latency.
+ */
+async function mergeCallMetadata(ctx: SidebandContext, patch: Record<string, unknown>) {
   await db
     .update(call)
     .set({
-      metadata: {
-        ...(row.metadata ?? {}),
-        sideband,
-      },
+      metadata: sql`coalesce(${call.metadata}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
     })
     .where(eq(call.id, ctx.callRecordId))
+}
+
+/** Persists the call's timing marks under `call.metadata.timeline`. */
+async function persistTimeline(ctx: SidebandContext) {
+  if (!ctx.timeline) return
+  await mergeCallMetadata(ctx, { timeline: timelineSnapshot(ctx.timeline) })
 }
 
 async function appendTranscript(
@@ -206,10 +329,18 @@ async function appendTranscript(
 
   const turnId = stableId('turn', ctx.callRecordId, action.role, action.sourceId)
   const at = Math.max(0, (Date.now() - ctx.startedAt.getTime()) / 1000)
+
+  // Read, never re-measure. This value was captured at `output_audio_started`
+  // — the instant the caller began hearing the reply. Measuring here instead,
+  // as this did before, timed the arrival of the finished transcript, which
+  // lands only after the agent has stopped speaking: an eight-second answer
+  // was being recorded as eight seconds of latency. When the response id is
+  // absent there is simply no number, because a wrong one is worse than none.
   const latencyMs =
-    action.role === 'agent' && state.lastCallerSpeechStoppedAt
-      ? Math.max(0, Date.now() - state.lastCallerSpeechStoppedAt)
+    action.role === 'agent' && action.responseId
+      ? state.turnLatencyByResponse.get(action.responseId)
       : undefined
+  if (action.responseId) state.turnLatencyByResponse.delete(action.responseId)
 
   await recordEvent(
     ctx,
@@ -219,6 +350,7 @@ async function appendTranscript(
       role: action.role,
       characters: cleanText.length,
       sourceEvent: action.eventType,
+      ...(latencyMs === undefined ? {} : { firstAudioMs: latencyMs }),
     },
     latencyMs,
     protectJson({ role: action.role, text: cleanText, at, sourceId: turnId }),
@@ -311,6 +443,20 @@ function sendToolOutput(ws: WebSocket, action: RealtimeToolAction, result: ToolR
   )
 }
 
+/**
+ * Runs a promise the caller does not wait for, without losing its failure.
+ *
+ * Used for writes that exist to drive the operator's screen rather than the
+ * conversation. Awaiting those put database round trips between the model
+ * asking a question and hearing its answer, which the caller experiences as
+ * the agent going silent.
+ */
+function detach(operation: Promise<unknown>, label: string) {
+  void operation.catch((error) =>
+    voiceError('SIDEBAND_ERROR', { op: label, message: sanitizeLogText(String(error)) }),
+  )
+}
+
 async function handleToolCall(
   ws: WebSocket,
   ctx: SidebandContext,
@@ -319,11 +465,17 @@ async function handleToolCall(
   scheduleHangupFallback: () => void,
 ) {
   const args = parseArguments(action.argumentsJson)
-  voiceLog('TOOL_CALL_STARTED', {
-    callId: maskIdentifier(ctx.externalCallId),
-    tool: action.name,
-  })
-  await db.update(call).set({ status: 'waiting_tool' }).where(eq(call.id, ctx.callRecordId))
+  const startedAt = Date.now()
+  markTimeline(ctx.timeline, 'tool_call_started', startedAt)
+  voiceLog('TOOL_CALL_STARTED', { tool: action.name })
+
+  // Nothing in the conversation depends on this status; the console's live
+  // view reads it, and the stale-call reconciler already treats `waiting_tool`
+  // and `live` identically. It does not belong in front of the caller.
+  detach(
+    db.update(call).set({ status: 'waiting_tool' }).where(eq(call.id, ctx.callRecordId)),
+    'status:waiting_tool',
+  )
 
   const result = args
     ? await executeTool(
@@ -340,25 +492,35 @@ async function handleToolCall(
       )
     : await recordInvalidArguments(ctx, action)
 
-  const [current] = await db
-    .select({ status: call.status })
-    .from(call)
-    .where(eq(call.id, ctx.callRecordId))
-    .limit(1)
-  if (current?.status === 'waiting_tool') {
-    await db.update(call).set({ status: 'live' }).where(eq(call.id, ctx.callRecordId))
-  }
-
-  await recordEvent(ctx, 'tool_completed', action.toolCallId, {
-    tool: action.name,
-    success: result.ok,
-  })
-  voiceLog('TOOL_CALL_COMPLETED', {
-    callId: maskIdentifier(ctx.externalCallId),
-    tool: action.name,
-    success: result.ok,
-  })
+  // The model gets its answer here, before any bookkeeping. Everything below
+  // this line used to run first: a status read, a status write, and an event
+  // insert — three more round trips of silence on the line.
   sendToolOutput(ws, action, result)
+  const sentAt = Date.now()
+  markTimeline(ctx.timeline, 'tool_output_sent', sentAt)
+  voiceLog('TOOL_CALL_COMPLETED', {
+    tool: action.name,
+    success: result.ok,
+    toolMs: sentAt - startedAt,
+  })
+
+  // One conditional write replaces the previous read-then-write pair.
+  detach(
+    db
+      .update(call)
+      .set({ status: 'live' })
+      .where(and(eq(call.id, ctx.callRecordId), eq(call.status, 'waiting_tool'))),
+    'status:live',
+  )
+  detach(
+    recordEvent(ctx, 'tool_completed', action.toolCallId, {
+      tool: action.name,
+      success: result.ok,
+      toolMs: sentAt - startedAt,
+    }),
+    'event:tool_completed',
+  )
+
   if (action.name === 'end_call' && result.ok) {
     state.pendingHangup = true
     requestResponse(
@@ -388,11 +550,24 @@ async function handleAction(
   if (action.kind === 'tool_call') return
 
   if (action.kind === 'lifecycle') {
-    if (action.state === 'speech_stopped') state.lastCallerSpeechStoppedAt = Date.now()
+    if (action.state === 'speech_stopped') state.turnStartedAt = Date.now()
     if (action.state === 'response_started') state.activeResponse = true
     if (action.state === 'response_started' && state.pendingHangup) {
       state.hangupResponseStarted = true
     }
+
+    // First audio. This is where a turn's latency is decided, and where the
+    // call's own `first_audio_started` mark comes from.
+    if (action.state === 'output_audio_started') {
+      markTimeline(ctx.timeline, 'first_audio_started')
+      if (state.turnStartedAt !== null) {
+        const latencyMs = Math.max(0, Date.now() - state.turnStartedAt)
+        if (action.responseId) state.turnLatencyByResponse.set(action.responseId, latencyMs)
+        state.turnStartedAt = null
+        voiceLog('TURN_LATENCY', { responseId: action.responseId, firstAudioMs: latencyMs })
+      }
+    }
+
     if (action.state === 'response_finished') {
       state.activeResponse = false
       if (state.pendingResponseInstructions !== null) {
@@ -409,9 +584,12 @@ async function handleAction(
       await requestHangup()
     }
     if (action.state === 'connected') {
-      await updateSidebandMetadata(ctx, {
-        state: 'connected',
-        connectedAt: new Date().toISOString(),
+      await mergeCallMetadata(ctx, {
+        sideband: {
+          state: 'connected',
+          connectedAt: new Date().toISOString(),
+          ...(ctx.resumed ? { resumed: true } : {}),
+        },
       })
       await recordEvent(ctx, 'sideband_connected', action.sourceId)
     }
@@ -484,6 +662,18 @@ async function finalizeCall(
   socketError: string | null,
   leaseOwner: string,
 ) {
+  markTimeline(ctx.timeline, 'sideband_closed')
+
+  // A handover is not an ending. This process is being replaced while the
+  // caller is still on the line: the lease has already been released so the
+  // next process can reclaim the call immediately, and writing an end time or
+  // a final status here would close a call that is still happening.
+  if (state.handedOff) {
+    voiceLog('SIDEBAND_CLOSED', { code, handedOff: true })
+    await persistTimeline(ctx).catch(() => undefined)
+    return
+  }
+
   await compactCallTranscript(ctx.callRecordId)
   const endedAt = new Date()
   const normalClose = NORMAL_CLOSE_CODES.has(code)
@@ -523,6 +713,7 @@ async function finalizeCall(
       outputTokens: state.outputTokens > 0 ? state.outputTokens : null,
       metadata: {
         ...(row.metadata ?? {}),
+        ...(ctx.timeline ? { timeline: timelineSnapshot(ctx.timeline) } : {}),
         sideband: {
           ...previousSideband,
           state: cleanEnd ? 'ended' : 'disconnected',
@@ -539,10 +730,15 @@ async function finalizeCall(
     normal: cleanEnd,
     code,
   })
+  // `closeCode` is emitted as its own field so the rate of abnormal closures
+  // — the 1006s the ping in `runSideband` was added to chase — can finally be
+  // counted from the log stream instead of guessed at.
   voiceLog('SIDEBAND_CLOSED', {
-    callId: maskIdentifier(ctx.externalCallId),
     normal: cleanEnd,
-    code,
+    closeCode: code,
+    closeReason,
+    durationSeconds,
+    ...(ctx.timeline ? { timeline: timelineSnapshot(ctx.timeline) } : {}),
   })
   await finishSidebandJob(ctx, leaseOwner, completedMedia, closeReason)
 
@@ -589,25 +785,26 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
     return
   }
 
-  voiceLog('SIDEBAND_CONNECTING', { callId: maskIdentifier(ctx.externalCallId) })
-  const recording = await startRealtimeRecording({
-    callRecordId: ctx.callRecordId,
-    externalCallId: ctx.externalCallId,
-    workspaceId: ctx.workspaceId,
-    startedAt: ctx.startedAt,
-  }).catch(() => {
-    voiceError('RECORDING_FAILED', {
-      callId: maskIdentifier(ctx.externalCallId),
-      code: 'recording_start_failed',
-    })
-    return null
-  })
+  voiceLog('SIDEBAND_CONNECTING', { resumed: Boolean(ctx.resumed) })
+
+  // The socket is opened first and nothing is awaited before it.
+  //
+  // Recording preparation used to run here — a `workspace` select and a `call`
+  // update — and it ran *before* `new WebSocket`, so two database round trips
+  // sat between OpenAI answering the call and this process being able to ask
+  // for the greeting. The caller heard every millisecond of that as silence.
+  // It is now started after the greeting has been requested, and the message
+  // handler waits on the promise instead: because handlers run on a serialised
+  // queue, no event can overtake it and nothing is dropped.
   const url = `${REALTIME_WS}?call_id=${encodeURIComponent(ctx.externalCallId)}`
   const connectStartTime = Date.now()
   let ttfbMeasured = false
+  let recordingPromise: Promise<RealtimeRecordingCapture | null> | null = null
   const ws = new WebSocket(url, { headers: { Authorization: `Bearer ${apiKey}` } })
   const state: SessionState = {
-    lastCallerSpeechStoppedAt: null,
+    turnStartedAt: null,
+    turnLatencyByResponse: new Map(),
+    handedOff: false,
     lastRealtimeError: null,
     seenToolCalls: new Set(),
     inputTokens: 0,
@@ -685,23 +882,45 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
 
     ws.on('open', () => {
       clearTimeout(timeout)
-      voiceLog('SIDEBAND_CONNECTED', { callId: maskIdentifier(ctx.externalCallId) })
-      ws.send(JSON.stringify(initialGreetingEvent()))
-      state.activeResponse = true
-      voiceLog('GREETING_REQUESTED', { callId: maskIdentifier(ctx.externalCallId) })
+      markTimeline(ctx.timeline, 'sideband_ws_opened')
+      voiceLog('SIDEBAND_CONNECTED', { wsConnectMs: Date.now() - connectStartTime })
+      activeSockets.set(ctx.externalCallId, { ws, ctx, state, leaseOwner })
+
+      if (shouldSendInitialGreeting(ctx)) {
+        ws.send(JSON.stringify(initialGreetingEvent()))
+        state.activeResponse = true
+        markTimeline(ctx.timeline, 'greeting_response_created')
+        voiceLog('GREETING_REQUESTED')
+      } else {
+        // Reattaching to a conversation already under way. Asking for a
+        // response here made the agent repeat its opening line mid-call.
+        voiceLog('SIDEBAND_RESUMED', { greetingSuppressed: true })
+      }
+
+      // Only now, with the greeting already on the wire.
+      recordingPromise = startRealtimeRecording({
+        callRecordId: ctx.callRecordId,
+        externalCallId: ctx.externalCallId,
+        workspaceId: ctx.workspaceId,
+        startedAt: ctx.startedAt,
+      }).catch(() => {
+        voiceError('RECORDING_FAILED', { code: 'recording_start_failed' })
+        return null
+      })
+
+      detach(persistTimeline(ctx), 'timeline:opened')
     })
 
     ws.on('message', (data) => {
       if (!ttfbMeasured) {
         ttfbMeasured = true
-        const latencyMs = Date.now() - connectStartTime
-        voiceLog('LATENCY_MEASURED', {
-          callId: maskIdentifier(ctx.externalCallId),
-          ttfbMs: latencyMs,
-        })
+        voiceLog('LATENCY_MEASURED', { sidebandTtfbMs: Date.now() - connectStartTime })
       }
       queue = queue
-        .then(() => handleMessage(ws, ctx, data, state, recording, scheduleToolCall, requestHangup))
+        .then(async () => {
+          const recording = recordingPromise ? await recordingPromise : null
+          await handleMessage(ws, ctx, data, state, recording, scheduleToolCall, requestHangup)
+        })
         .catch((error) => {
           voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error)))
         })
@@ -719,30 +938,89 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
       clearTimeout(timeout)
       clearInterval(heartbeat)
       if (hangupFallback) clearTimeout(hangupFallback)
+      activeSockets.delete(ctx.externalCallId)
       queue = queue
         .then(() => toolQueue)
         .then(() => finalizeCall(ctx, code, reason, state, socketError, leaseOwner))
-        .then(() => recording?.finalize())
+        .then(async () => {
+          const recording = recordingPromise ? await recordingPromise : null
+          await recording?.finalize()
+        })
         .catch((error) => voiceError('SIDEBAND_ERROR', sanitizeLogText(String(error))))
         .finally(resolve)
     })
   })
 }
 
+export type SidebandClaim = { leaseOwner: string }
+
+/**
+ * Takes the lease for a call's control channel without opening it yet.
+ *
+ * Split out so the inbound webhook can run this concurrently with OpenAI's
+ * accept call. The claim is a database write that does not depend on the
+ * accept's outcome, so making it wait for the accept only added its latency to
+ * the silence the caller hears before the greeting.
+ */
+export async function claimRealtimeSideband(ctx: SidebandContext): Promise<SidebandClaim | null> {
+  const leaseOwner = randomUUID()
+  return (await claimSideband(ctx, leaseOwner)) ? { leaseOwner } : null
+}
+
+/**
+ * Gives back a claim whose call never started — OpenAI refused the accept.
+ *
+ * Closing the job matters: left `running`, it would go stale after two minutes
+ * and `recoverStaleSidebands` would then try to open a control channel for a
+ * call that does not exist.
+ */
+export async function releaseSidebandClaim(ctx: SidebandContext, claim: SidebandClaim) {
+  await finishSidebandJob(ctx, claim.leaseOwner, false, 'accept_failed').catch(() => undefined)
+}
+
 /**
  * Starts one control channel for an accepted SIP call. Media transport stays
  * directly between OpenAI and SIP; when private recording storage is enabled,
  * this monitoring socket also persists the Realtime audio representations.
+ *
+ * Pass a `claim` obtained earlier from `claimRealtimeSideband` to keep this
+ * synchronous up to `new WebSocket`; without one it claims the lease itself,
+ * which is right for recovery but adds a round trip on the answer path.
  */
-export async function startRealtimeSideband(ctx: SidebandContext): Promise<boolean> {
-  const leaseOwner = randomUUID()
-  if (!(await claimSideband(ctx, leaseOwner))) return false
+export async function startRealtimeSideband(
+  ctx: SidebandContext,
+  claim?: SidebandClaim | null,
+): Promise<boolean> {
+  const acquired = claim ?? (await claimRealtimeSideband(ctx))
+  if (!acquired) {
+    // Someone else owns this call. Give the concurrency slot straight back,
+    // otherwise a redelivered webhook would permanently consume capacity.
+    ctx.slot?.release()
+    return false
+  }
+  const leaseOwner = acquired.leaseOwner
 
-  void runSideband(ctx, leaseOwner).catch(async (error) => {
-    const message = sanitizeLogText(String(error))
-    voiceError('SIDEBAND_ERROR', message)
-    await finishSidebandJob(ctx, leaseOwner, false, message)
-  })
+  // Offsets are measured from the webhook's arrival when it handed one over,
+  // and from the call's own start otherwise (recovery, where no webhook ran).
+  ctx.timeline = ctx.timeline ?? createTimeline(ctx.startedAt.getTime())
+
+  // Everything below inherits this call's identity, so every line the socket
+  // logs carries `callId` without the call site passing it.
+  void withCallContext(
+    {
+      callId: ctx.callRecordId,
+      externalCallId: maskIdentifier(ctx.externalCallId),
+      workspaceId: ctx.workspaceId,
+      timeline: ctx.timeline,
+    },
+    () => runSideband(ctx, leaseOwner),
+  )
+    .catch(async (error) => {
+      const message = sanitizeLogText(String(error))
+      voiceError('SIDEBAND_ERROR', message)
+      await finishSidebandJob(ctx, leaseOwner, false, message).catch(() => undefined)
+    })
+    .finally(() => ctx.slot?.release())
   return true
 }
 
@@ -772,6 +1050,21 @@ export async function recoverStaleSidebands(limit = 2) {
     ) {
       continue
     }
+
+    // A recovered call occupies a slot exactly like a new one. If the process
+    // is already full, leaving it for the next tick is correct — taking it
+    // would put this instance over the limit it just refused new calls for.
+    const admission = acquireCallSlot()
+    if (!admission.ok) {
+      voiceLog('ADMISSION_REFUSED', {
+        stage: 'recovery',
+        reason: admission.reason,
+        active: admission.active,
+        limit: admission.limit,
+      })
+      return
+    }
+
     await startRealtimeSideband({
       callRecordId: payload.callRecordId,
       externalCallId: payload.externalCallId,
@@ -785,6 +1078,9 @@ export async function recoverStaleSidebands(limit = 2) {
           ? revealString(payload.transferToProtected)
           : null,
       startedAt: new Date(payload.startedAt),
+      // The call is already under way; the agent must not greet again.
+      resumed: true,
+      slot: admission.slot,
     })
   }
 }

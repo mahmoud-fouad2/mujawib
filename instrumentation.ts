@@ -21,6 +21,15 @@ export async function register() {
       if (storageProblem) throw new Error(storageProblem)
     }
 
+    // Termination handling before anything that can hold a call. Next.js
+    // installs its own SIGTERM handler that exits as soon as the HTTP server
+    // closes, which is why `NEXT_MANUAL_SIG_HANDLE` has to be set for this to
+    // do anything — `installShutdownHandlers` says so in the log if it is not.
+    const { installShutdownHandlers } = await import('./server/runtime/lifecycle')
+    const { registerSidebandDrainHook } = await import('./server/voice/sideband')
+    registerSidebandDrainHook()
+    installShutdownHandlers()
+
     const { startBackgroundWorker } = await import('./server/jobs/worker')
     startBackgroundWorker()
 

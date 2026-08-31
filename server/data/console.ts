@@ -177,7 +177,15 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
         ),
     })
     .from(call)
-    .where(eq(call.origin, 'live'))
+    // Bounded to the window the summary actually reports on.
+    //
+    // This used to filter on `origin` alone, so every one of the six counters
+    // scanned the platform's entire call history on every console render — and
+    // on every five-second refresh of the live page. The `filter (where …)`
+    // clauses do not narrow the scan; only this outer predicate does, and
+    // `call_origin_started_idx` already covers it. Nothing above reads a call
+    // older than yesterday, so nothing older needs to be read.
+    .where(and(eq(call.origin, 'live'), gte(call.startedAt, yesterday)))
 
   const [bookings] = await db
     .select({
@@ -191,7 +199,7 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
     })
     .from(booking)
     .innerJoin(call, eq(booking.callId, call.id))
-    .where(eq(call.origin, 'live'))
+    .where(and(eq(call.origin, 'live'), gte(booking.createdAt, yesterday)))
 
   const [review] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
@@ -252,11 +260,16 @@ export async function getLiveCalls(): Promise<LiveCall[]> {
 
   if (rows.length === 0) return []
 
+  // One row per call, chosen by Postgres.
+  //
+  // This used to select *every* event for each live call and then keep the
+  // first of each in JavaScript. A call in progress accumulates events for as
+  // long as it lasts, so the amount transferred grew with call length — on a
+  // page that refreshes itself every few seconds.
   const events = await db
-    .select({
+    .selectDistinctOn([callEvent.callId], {
       callId: callEvent.callId,
       type: callEvent.type,
-      occurredAt: callEvent.occurredAt,
     })
     .from(callEvent)
     .where(
@@ -265,10 +278,10 @@ export async function getLiveCalls(): Promise<LiveCall[]> {
         rows.map((r) => r.id),
       ),
     )
-    .orderBy(desc(callEvent.occurredAt))
+    .orderBy(callEvent.callId, desc(callEvent.occurredAt))
 
   const latest = new Map<string, string>()
-  for (const e of events) if (!latest.has(e.callId)) latest.set(e.callId, e.type)
+  for (const e of events) latest.set(e.callId, e.type)
 
   return rows.map(({ callerNumberEncrypted, ...r }) => ({
     ...r,
@@ -584,6 +597,7 @@ export async function getClients(options: { search?: string; status?: WorkspaceS
         industryPack: workspace.industryPack,
         businessInfo: workspace.businessInfo,
         createdAt: workspace.createdAt,
+        retentionPolicy: workspace.retentionPolicy,
         monthlyCallLimit: workspace.monthlyCallLimit,
         concurrentCallLimit: workspace.concurrentCallLimit,
       })
@@ -1035,13 +1049,15 @@ export async function getCalls(options: {
   filter?: CallFilter
   workspaceId?: string
   search?: string
+  since?: Date
   limit?: number
 }) {
-  const { filter = 'all', workspaceId, search, limit = 60 } = options
+  const { filter = 'all', workspaceId, search, since, limit = 60 } = options
 
   const conditions = []
   if (workspaceId) conditions.push(eq(call.workspaceId, workspaceId))
   conditions.push(eq(call.origin, filter === 'demo' ? 'seed' : 'live'))
+  if (since) conditions.push(gte(call.startedAt, since))
 
   if (filter === 'resolved') conditions.push(inArray(call.outcome, ['resolved', 'booking', 'lead']))
   if (filter === 'transferred') conditions.push(eq(call.outcome, 'transfer'))

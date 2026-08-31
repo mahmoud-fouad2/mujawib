@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createHash, randomUUID } from 'node:crypto'
-import { and, eq, inArray, lt, or } from 'drizzle-orm'
+import { and, eq, inArray, lt, lte, or } from 'drizzle-orm'
 import {
   CALL_SUMMARY_JSON_SCHEMA,
   type CallIntelligenceState,
@@ -9,6 +9,12 @@ import {
   readCallIntelligenceState,
 } from '@/lib/call-intelligence'
 import { env } from '@/lib/env'
+import {
+  DEAD_JOB_STATUS,
+  MAX_JOB_ATTEMPTS,
+  planRetry,
+  RETRYABLE_JOB_STATUSES,
+} from '@/lib/job-backoff'
 import type { TranscriptTurn } from '@/server/calls/presentation'
 import { readCallTranscript } from '@/server/calls/transcript'
 import { db } from '@/server/db'
@@ -348,33 +354,74 @@ async function ensureJob(callId: string, force: boolean) {
   return id
 }
 
+/**
+ * Only a job that is due. `available_at` and `attempts` were already columns
+ * on this table; nothing read them, which is how a permanently failing summary
+ * came to be retried every fifteen seconds forever — three slots per tick,
+ * each a 25-second OpenAI request, blocking healthy jobs behind it.
+ */
+function claimableJob(now: Date, staleBefore: Date) {
+  return or(
+    and(
+      inArray(backgroundJob.status, [...RETRYABLE_JOB_STATUSES]),
+      lte(backgroundJob.availableAt, now),
+    ),
+    and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
+  )
+}
+
 async function runClaimedJob(jobIdValue: string, callId: string, force: boolean) {
-  const staleBefore = new Date(Date.now() - 2 * 60 * 1000)
+  const now = new Date()
+  const staleBefore = new Date(now.getTime() - 2 * 60 * 1000)
   const [claimed] = await db
     .update(backgroundJob)
-    .set({ status: 'running', lockedAt: new Date(), updatedAt: new Date() })
-    .where(
-      and(
-        eq(backgroundJob.id, jobIdValue),
-        or(
-          inArray(backgroundJob.status, ['pending', 'failed']),
-          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
-        ),
-      ),
-    )
-    .returning({ id: backgroundJob.id })
+    .set({ status: 'running', lockedAt: now, updatedAt: now })
+    .where(and(eq(backgroundJob.id, jobIdValue), claimableJob(now, staleBefore)))
+    .returning({ id: backgroundJob.id, attempts: backgroundJob.attempts })
   if (!claimed) return { state: 'queued' } as const
 
   const result = await runProcessing(callId, force)
+
+  if (result.state !== 'failed') {
+    await db
+      .update(backgroundJob)
+      .set({ status: 'completed', completedAt: new Date(), lastError: null, updatedAt: new Date() })
+      .where(eq(backgroundJob.id, jobIdValue))
+    return result
+  }
+
+  // A failure now costs the job a delay and one of its five attempts. `dead`
+  // is terminal and visible rather than a silent stop: the console reads
+  // `background_job.status`, and an operator can still force a fresh run,
+  // which mints a new dedupe key and therefore a new job.
+  const plan = planRetry(claimed.attempts)
   await db
     .update(backgroundJob)
     .set({
-      status: result.state === 'failed' ? 'failed' : 'completed',
-      completedAt: result.state === 'failed' ? null : new Date(),
-      lastError: result.state === 'failed' ? result.errorCode : null,
+      status: plan.status,
+      attempts: plan.attempts,
+      availableAt: plan.availableAt,
+      completedAt: plan.status === DEAD_JOB_STATUS ? new Date() : null,
+      lastError: result.errorCode,
       updatedAt: new Date(),
     })
     .where(eq(backgroundJob.id, jobIdValue))
+
+  if (plan.status === DEAD_JOB_STATUS) {
+    voiceError('POST_CALL_DEAD', {
+      callId: maskIdentifier(callId),
+      attempts: plan.attempts,
+      errorCode: result.errorCode,
+    })
+  } else {
+    voiceLog('POST_CALL_FAILED', {
+      callId: maskIdentifier(callId),
+      attempts: plan.attempts,
+      retryInMs: plan.delayMs,
+      errorCode: result.errorCode,
+    })
+  }
+
   return result
 }
 
@@ -392,19 +439,19 @@ export async function processCallIntelligence(
 }
 
 export async function drainCallIntelligenceJobs(limit = 3) {
-  const staleBefore = new Date(Date.now() - 2 * 60 * 1000)
+  const now = new Date()
+  const staleBefore = new Date(now.getTime() - 2 * 60 * 1000)
   const jobs = await db
     .select({ id: backgroundJob.id, payload: backgroundJob.payload })
     .from(backgroundJob)
     .where(
       and(
         eq(backgroundJob.type, 'post_call_intelligence'),
-        or(
-          inArray(backgroundJob.status, ['pending', 'failed']),
-          and(eq(backgroundJob.status, 'running'), lt(backgroundJob.lockedAt, staleBefore)),
-        ),
+        lt(backgroundJob.attempts, MAX_JOB_ATTEMPTS),
+        claimableJob(now, staleBefore),
       ),
     )
+    .orderBy(backgroundJob.availableAt)
     .limit(limit)
 
   for (const job of jobs) {

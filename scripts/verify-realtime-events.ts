@@ -22,6 +22,8 @@ assert.deepEqual(caller, [
     text: 'أرغب في حجز موعد غدًا',
     sourceId: 'evt_caller',
     eventType: 'conversation.item.input_audio_transcription.completed',
+    // A caller turn answers no response of ours, so it carries no response id.
+    responseId: null,
   },
 ])
 
@@ -29,10 +31,16 @@ const agent = actionsFromRealtimeEvent({
   event_id: 'evt_agent',
   type: 'response.output_audio_transcript.done',
   item_id: 'item_agent',
+  response_id: 'resp_agent',
   transcript: 'بكل تأكيد، ما الفترة المناسبة لك؟',
 })
 assert.equal(agent[0]?.kind, 'transcript')
 assert.equal(agent[0]?.kind === 'transcript' ? agent[0].role : null, 'agent')
+// The agent turn carries the response id so the transcript can look up the
+// latency recorded when audio actually started, rather than measuring itself.
+// Measuring here timed the arrival of the finished transcript — an event that
+// only fires once the agent has stopped speaking.
+assert.equal(agent[0]?.kind === 'transcript' ? agent[0].responseId : 'missing', 'resp_agent')
 
 const directTool = actionsFromRealtimeEvent({
   event_id: 'evt_tool',
@@ -76,15 +84,41 @@ assert.deepEqual(fallbackTools[1], {
   kind: 'lifecycle',
   state: 'response_finished',
   sourceId: 'evt_response',
+  responseId: null,
 })
 
 assert.deepEqual(actionsFromRealtimeEvent({ type: 'response.created', event_id: 'evt_started' }), [
-  { kind: 'lifecycle', state: 'response_started', sourceId: 'evt_started' },
+  { kind: 'lifecycle', state: 'response_started', sourceId: 'evt_started', responseId: null },
 ])
+
+// First audio. This is the only event that says the caller has started hearing
+// the reply, and it is what a turn's latency is now measured to.
+assert.deepEqual(
+  actionsFromRealtimeEvent({
+    type: 'output_audio_buffer.started',
+    event_id: 'evt_audio_start',
+    response_id: 'resp_1',
+  }),
+  [
+    {
+      kind: 'lifecycle',
+      state: 'output_audio_started',
+      sourceId: 'evt_audio_start',
+      responseId: 'resp_1',
+    },
+  ],
+)
 
 assert.deepEqual(
   actionsFromRealtimeEvent({ type: 'output_audio_buffer.stopped', event_id: 'evt_audio_done' }),
-  [{ kind: 'lifecycle', state: 'output_audio_stopped', sourceId: 'evt_audio_done' }],
+  [
+    {
+      kind: 'lifecycle',
+      state: 'output_audio_stopped',
+      sourceId: 'evt_audio_done',
+      responseId: null,
+    },
+  ],
 )
 
 const error = actionsFromRealtimeEvent({

@@ -3,15 +3,19 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
-import { db } from '@/server/db'
+// The whole of this route is a call's answer path, so it runs on the realtime
+// pool — a caller must never wait behind a rendering console page.
+import { dbRealtime as db } from '@/server/db'
 import { auditLog, call, webhookReceipt } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
+import { isDraining } from '@/server/runtime/lifecycle'
 import {
   protectedLookup,
   protectJson,
   protectString,
   revealString,
 } from '@/server/security/protected-data'
+import { acquireCallSlot, type CallSlot } from '@/server/voice/admission'
 import {
   maskIdentifier,
   maskNumber,
@@ -23,8 +27,22 @@ import {
 import { resolveRealtimeModel } from '@/server/voice/model'
 import { markPhoneAnswered, markPhoneReached } from '@/server/voice/phone'
 import { buildAcceptPayload, resolveAgentFromCandidates, VOICE_MODEL } from '@/server/voice/session'
-import { startRealtimeSideband } from '@/server/voice/sideband'
+import {
+  claimRealtimeSideband,
+  releaseSidebandClaim,
+  startRealtimeSideband,
+} from '@/server/voice/sideband'
 import { callerFrom, didCandidates, providerObserved, type SipHeader } from '@/server/voice/sip'
+import {
+  attachCallId,
+  attachExternalCallId,
+  attachWorkspaceId,
+  type CallTimeline,
+  createTimeline,
+  markTimeline,
+  timelineSnapshot,
+  withCallContext,
+} from '@/server/voice/telemetry'
 
 /**
  * Inbound call webhook — Product Bible §27, call path steps 4 and 5.
@@ -165,7 +183,24 @@ async function overCapacity(
 const WEBHOOK_LIMIT = 600
 const WEBHOOK_WINDOW_MS = 60_000
 
+/**
+ * Every stage of the answer path, timed from the instant the webhook arrived.
+ *
+ * The timeline is created here rather than inside the call runtime because
+ * offset zero has to be the moment the provider handed us the call — anything
+ * later would hide exactly the interval this measurement exists to expose.
+ * `withCallContext` then makes the identity ambient, so every line logged
+ * anywhere below carries the same `callId`.
+ */
 export async function POST(req: NextRequest) {
+  const timeline = createTimeline()
+  markTimeline(timeline, 'webhook_received')
+  return withCallContext({ callId: null, externalCallId: null, workspaceId: null, timeline }, () =>
+    handleIncomingCall(req, timeline),
+  )
+}
+
+async function handleIncomingCall(req: NextRequest, timeline: CallTimeline) {
   const limited = rateLimit(
     `voice-webhook:${clientIdentifier(req.headers)}`,
     WEBHOOK_LIMIT,
@@ -187,6 +222,7 @@ export async function POST(req: NextRequest) {
     voiceError('SIGNATURE_REJECTED', 'signature did not validate')
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
+  markTimeline(timeline, 'signature_verified')
   voiceLog('SIGNATURE_VERIFIED')
 
   let event: IncomingEvent
@@ -207,7 +243,20 @@ export async function POST(req: NextRequest) {
     voiceError('ERROR', 'event carried no call_id')
     return NextResponse.json({ error: 'missing call_id' }, { status: 400 })
   }
-  voiceLog('CALL_ID', maskIdentifier(callId))
+  const maskedCallId = maskIdentifier(callId)
+  attachExternalCallId(maskedCallId)
+  voiceLog('CALL_ID', maskedCallId)
+
+  // Checked before any database work, because a draining process should spend
+  // nothing at all on a call it is not going to answer. Rejecting outright
+  // rather than returning an error is what lets the carrier fail over to the
+  // client's human line immediately instead of retrying into a container that
+  // is about to disappear.
+  if (isDraining()) {
+    voiceLog('ADMISSION_REFUSED', { stage: 'webhook', reason: 'draining', callId: maskedCallId })
+    await rejectCall(callId, 'process draining')
+    return NextResponse.json({ accepted: false, reason: 'draining' }, { status: 200 })
+  }
 
   const webhookId = req.headers.get('webhook-id') as string
   const receiptNow = new Date()
@@ -266,6 +315,8 @@ export async function POST(req: NextRequest) {
     matchedHeader: resolved.matchedHeader,
     matchedE164: maskNumber(resolved.matchedE164),
   })
+  markTimeline(timeline, 'route_resolved')
+  attachWorkspaceId(resolved.workspaceId)
   voiceLog('CLIENT_RESOLVED', { workspaceId: resolved.workspaceId, name: resolved.workspaceName })
   voiceLog('AGENT_VERSION_RESOLVED', {
     agent: resolved.agentName,
@@ -275,15 +326,54 @@ export async function POST(req: NextRequest) {
     toolCount: resolved.tools.length,
   })
 
+  // Process-wide admission, checked before the two per-workspace count
+  // queries below because it is free and they are not.
+  //
+  // `workspace.concurrentCallLimit` is a per-client contract limit and says
+  // nothing about what this container can carry: twenty clients at the default
+  // of ten each add up to two hundred permitted concurrent calls on one
+  // instance. Refusing here is a real outcome — an unanswered invite falls
+  // through to the client's human line, which beats being answered by a
+  // process already too loaded to respond in time.
+  const admission = acquireCallSlot()
+  if (!admission.ok) {
+    voiceLog('ADMISSION_REFUSED', {
+      stage: 'webhook',
+      reason: admission.reason,
+      active: admission.active,
+      limit: admission.limit,
+    })
+    await rejectCall(callId, `process ${admission.reason}`)
+    await db
+      .update(webhookReceipt)
+      .set({ status: 'rejected', completedAt: new Date(), updatedAt: new Date() })
+      .where(eq(webhookReceipt.id, webhookId))
+    return NextResponse.json(
+      {
+        accepted: false,
+        reason: admission.reason,
+        active: admission.active,
+        limit: admission.limit,
+      },
+      { status: 200 },
+    )
+  }
+  let slot: CallSlot | null = admission.slot
+  /** Hands the slot back on every path that does not start a control channel. */
+  const releaseSlot = () => {
+    slot?.release()
+    slot = null
+  }
+
   const capacityReason = await overCapacity(
     resolved.workspaceId,
     resolved.monthlyCallLimit,
     resolved.concurrentCallLimit,
   )
   if (capacityReason) {
+    releaseSlot()
     voiceLog('CAPACITY_LIMIT_REACHED', {
       workspaceId: resolved.workspaceId,
-      callId: maskIdentifier(callId),
       reason: capacityReason,
     })
     await rejectCall(callId, capacityReason)
@@ -308,8 +398,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ accepted: false, reason: capacityReason }, { status: 200 })
   }
 
+  markTimeline(timeline, 'capacity_checked')
+
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
+    releaseSlot()
     voiceError('ERROR', 'OPENAI_API_KEY is not configured')
     await db
       .update(webhookReceipt)
@@ -373,20 +466,33 @@ export async function POST(req: NextRequest) {
     : await db.select().from(call).where(eq(call.externalCallId, callId)).limit(1)
 
   if (!callRecord) {
+    releaseSlot()
     voiceError('ERROR', 'call reservation failed without a recoverable record')
     return NextResponse.json({ accepted: false }, { status: 503 })
   }
 
+  attachCallId(callRecord.id)
+  markTimeline(timeline, 'call_reserved')
+
   if (callRecord.status !== 'accepting') {
     if (callRecord.status === 'live' || callRecord.status === 'waiting_tool') {
-      await startRealtimeSideband({
+      // A redelivery for a call already under way. Reattaching must not make
+      // the agent greet a caller it is mid-conversation with.
+      const started = await startRealtimeSideband({
         callRecordId: callRecord.id,
         externalCallId: callId,
         workspaceId: callRecord.workspaceId,
         callerNumber: revealString(callRecord.callerNumberEncrypted) ?? callRecord.callerNumber,
         transferTo: resolved.transferTo,
         startedAt: callRecord.startedAt,
+        resumed: true,
+        slot,
       })
+      // Ownership moved to the control channel only if one actually started.
+      if (started) slot = null
+      else releaseSlot()
+    } else {
+      releaseSlot()
     }
     voiceLog('CALL_RECORDED', {
       id: callRecord.id,
@@ -401,11 +507,30 @@ export async function POST(req: NextRequest) {
   }
 
   voiceLog('ACCEPT_REQUEST_STARTED', {
-    callId: maskIdentifier(callId),
     model: payload.model,
     instructionChars: payload.instructions.length,
   })
 
+  const sidebandContext = {
+    callRecordId: callRecord.id,
+    externalCallId: callId,
+    workspaceId: resolved.workspaceId,
+    callerNumber: caller,
+    transferTo: resolved.transferTo,
+    startedAt: now,
+    timeline,
+  }
+
+  // The control channel's lease is taken *while* OpenAI is answering, not
+  // after. It is a database write that does not depend on the accept's result,
+  // and the accept round trip is an order of magnitude longer, so overlapping
+  // them makes the claim effectively free. Everything that used to sit between
+  // the accept returning and the greeting being requested — an audit row, a
+  // status update, a CRM upsert, phone evidence, recording preparation — has
+  // moved below the socket handoff. The caller heard all of it as silence.
+  const claimPromise = claimRealtimeSideband(sidebandContext)
+
+  markTimeline(timeline, 'accept_request_started')
   const accept = await fetch(`${OPENAI_API}/realtime/calls/${callId}/accept`, {
     method: 'POST',
     headers: {
@@ -417,11 +542,15 @@ export async function POST(req: NextRequest) {
     voiceError('ERROR', `accept threw: ${sanitizeLogText(String(error))}`)
     return null
   })
+  markTimeline(timeline, 'accept_response_received')
 
   voiceLog('ACCEPT_RESPONSE_STATUS', accept ? accept.status : 'no response')
 
   const alreadyAccepted = accept?.status === 409
   if (!accept?.ok && !alreadyAccepted) {
+    const claim = await claimPromise
+    if (claim) await releaseSidebandClaim(sidebandContext, claim)
+    releaseSlot()
     const detail = accept ? await accept.text() : 'request failed'
     voiceError('ERROR', `accept rejected: ${sanitizeLogText(detail)}`)
     await markPhoneReached(resolved.phoneNumberId)
@@ -446,7 +575,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ accepted: false }, { status: transient ? 503 : 200 })
   }
 
-  voiceLog('CALL_ACCEPTED', { callId: maskIdentifier(callId), agent: resolved.agentName })
+  voiceLog('CALL_ACCEPTED', { agent: resolved.agentName })
+
+  // Nothing is awaited between here and `new WebSocket`. `startRealtimeSideband`
+  // with a claim in hand runs synchronously through to opening the socket, so
+  // this is the last point that affects when the caller hears a voice.
+  const sidebandStarted = await startRealtimeSideband(sidebandContext, await claimPromise)
+  if (sidebandStarted) slot = null
+  else releaseSlot()
+
+  // ── everything below is bookkeeping; the greeting is already on its way ──
 
   try {
     await db.transaction(async (tx) => {
@@ -484,17 +622,6 @@ export async function POST(req: NextRequest) {
     }).catch(() => voiceError('ERROR', 'could not register caller in CRM'))
   }
 
-  // OpenAI keeps SIP audio on its media path. This server-side socket joins
-  // the accepted session only for private events, transcript and tool calls.
-  await startRealtimeSideband({
-    callRecordId: callRecord.id,
-    externalCallId: callId,
-    workspaceId: resolved.workspaceId,
-    callerNumber: caller,
-    transferTo: resolved.transferTo,
-    startedAt: now,
-  })
-
   const evidence = {
     matchedHeader: resolved.matchedHeader,
     matchedE164: resolved.matchedE164,
@@ -511,7 +638,15 @@ export async function POST(req: NextRequest) {
     voiceError('ERROR', 'call was recorded but phone evidence was not updated')
   }
 
-  return NextResponse.json({ accepted: true, callId: callRecord.id })
+  // The whole answer path in one line, keyed to the call id, so a single
+  // `callId` is enough to see where every millisecond went.
+  voiceLog('CALL_TIMELINE', timelineSnapshot(timeline))
+
+  return NextResponse.json({
+    accepted: true,
+    callId: callRecord.id,
+    timeline: timelineSnapshot(timeline),
+  })
 }
 
 export async function GET() {

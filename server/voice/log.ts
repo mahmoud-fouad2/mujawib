@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { currentCallContext } from '@/server/voice/telemetry'
+
 /**
  * Structured logging for the inbound call path.
  *
@@ -12,6 +14,21 @@ import 'server-only'
 
 export type VoiceStage =
   | 'WEBHOOK_RECEIVED'
+  | 'CALL_TIMELINE'
+  | 'TURN_LATENCY'
+  | 'ADMISSION_REFUSED'
+  | 'SHUTDOWN_DRAINING'
+  | 'SHUTDOWN_HANDOFF'
+  | 'SHUTDOWN_HANDOFF_FAILED'
+  | 'SHUTDOWN_COMPLETE'
+  | 'SHUTDOWN_FORCED'
+  | 'SHUTDOWN_HANDLER_INSTALLED'
+  | 'SHUTDOWN_HANDLER_SKIPPED'
+  | 'UNCAUGHT_EXCEPTION'
+  | 'UNHANDLED_REJECTION'
+  | 'SIDEBAND_RESUMED'
+  | 'POST_CALL_DEAD'
+  | 'POOL_WAIT'
   | 'RATE_LIMITED'
   | 'SIGNATURE_VERIFIED'
   | 'SIGNATURE_REJECTED'
@@ -110,22 +127,68 @@ export function sanitizeSipHeaders(
   })
 }
 
+/**
+ * One call's worth of identity, attached to every line without the call site
+ * having to pass it.
+ *
+ * Previously each site decided for itself whether to include a masked call id,
+ * and most did not — so following a single call through the log stream was not
+ * possible even when every stage it passed through had logged something. The
+ * ambient context in `server/voice/telemetry.ts` closes that: `callId` is the
+ * console's own row id, which is what an operator has in their hand.
+ */
+function contextFields(): Record<string, unknown> {
+  const context = currentCallContext()
+  if (!context) return {}
+  const elapsedMs = context.timeline
+    ? Math.max(0, Date.now() - context.timeline.originMs)
+    : undefined
+  return {
+    ...(context.callId ? { callId: context.callId } : {}),
+    ...(context.externalCallId ? { extCallId: context.externalCallId } : {}),
+    ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+    ...(elapsedMs === undefined ? {} : { atMs: elapsedMs }),
+  }
+}
+
+/**
+ * Structured, one JSON object per line.
+ *
+ * The previous format (`[voice] STAGE {...}`) was greppable by stage but not
+ * machine-readable, so no timeline could be reconstructed and no log-based
+ * alert could be written. The `[voice]` prefix is kept ahead of the JSON so
+ * existing greps and the Render log filter still find these lines.
+ */
+function emit(level: 'info' | 'error', stage: VoiceStage, detail?: unknown) {
+  const record = {
+    ts: new Date().toISOString(),
+    lvl: level,
+    ch: 'voice',
+    stage,
+    ...contextFields(),
+    ...(detail === undefined ? {} : { detail }),
+  }
+
+  let line: string
+  try {
+    line = JSON.stringify(record)
+  } catch {
+    // A detail object that cannot be serialised (a cycle, a BigInt) must not
+    // be the reason a call has no log line at all.
+    line = JSON.stringify({ ...record, detail: '[unserializable]' })
+  }
+
+  if (level === 'error') console.error(`[voice] ${line}`)
+  else console.log(`[voice] ${line}`)
+}
+
 export function voiceLog(stage: VoiceStage, detail?: unknown) {
-  const line = `[voice] ${stage}`
-  if (detail === undefined) {
-    console.log(line)
-    return
-  }
-  if (typeof detail === 'string') {
-    console.log(`${line} ${detail}`)
-    return
-  }
-  console.log(`${line} ${JSON.stringify(detail)}`)
+  emit('info', stage, detail)
 }
 
 export function voiceError(stage: VoiceStage, detail: unknown) {
   const text = typeof detail === 'string' ? detail : JSON.stringify(detail)
-  console.error(`[voice] ${stage} ${text}`)
+  emit('error', stage, detail)
   // `text` reaching here has already been through sanitizeLogText/maskNumber
   // at every call site that carries provider data — the same string that was
   // already safe enough for the Render log stream is safe enough for Sentry.

@@ -4,6 +4,15 @@ export type RealtimeTranscriptAction = {
   text: string
   sourceId: string
   eventType: string
+  /**
+   * Which response this transcript belongs to, when the event carries it.
+   *
+   * Needed because an agent turn's latency is measured at the moment its audio
+   * starts playing, not when its transcript is finished — so the transcript
+   * has to be able to find the first-audio timestamp recorded earlier for the
+   * same response.
+   */
+  responseId: string | null
 }
 
 export type RealtimeToolAction = {
@@ -14,7 +23,7 @@ export type RealtimeToolAction = {
   sourceId: string
 }
 
-type RealtimeLifecycleAction = {
+export type RealtimeLifecycleAction = {
   kind: 'lifecycle'
   state:
     | 'connected'
@@ -22,8 +31,17 @@ type RealtimeLifecycleAction = {
     | 'speech_stopped'
     | 'response_started'
     | 'response_finished'
+    /**
+     * The caller is now hearing this response. This is the only event that
+     * marks first audio, and it is what turn latency is measured to — the
+     * previous measurement used `response.output_audio_transcript.done`, which
+     * does not fire until the agent has finished the whole reply, so a
+     * long answer was recorded as a long latency.
+     */
+    | 'output_audio_started'
     | 'output_audio_stopped'
   sourceId: string
+  responseId: string | null
 }
 
 type RealtimeErrorAction = {
@@ -54,6 +72,19 @@ type JsonRecord = Record<string, unknown>
  * The exact brand and agent greeting stays in the published session prompt;
  * this one-response instruction only tells Realtime to speak it now.
  */
+/**
+ * Whether a freshly opened control socket should make the agent speak.
+ *
+ * A resumed socket is one attaching to a call that is already in progress —
+ * the process that answered it was replaced, and `recoverStaleSidebands`
+ * reconnected. Sending the greeting there made the agent restate its opening
+ * line in the middle of a conversation, which is the most obviously broken
+ * thing a voice agent can do. Only a genuinely new call gets a greeting.
+ */
+export function shouldSendInitialGreeting(session: { resumed?: boolean }): boolean {
+  return session.resumed !== true
+}
+
 export function initialGreetingEvent() {
   return {
     type: 'response.create',
@@ -106,25 +137,56 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
   if (!event || !type) return []
 
   const eventSourceId = sourceId(event, type)
+  const eventResponseId = asString(event.response_id)
 
   if (type === 'session.created' || type === 'session.updated') {
-    return [{ kind: 'lifecycle', state: 'connected', sourceId: eventSourceId }]
+    return [{ kind: 'lifecycle', state: 'connected', sourceId: eventSourceId, responseId: null }]
   }
 
   if (type === 'input_audio_buffer.speech_started') {
-    return [{ kind: 'lifecycle', state: 'speech_started', sourceId: eventSourceId }]
+    return [
+      { kind: 'lifecycle', state: 'speech_started', sourceId: eventSourceId, responseId: null },
+    ]
   }
 
   if (type === 'input_audio_buffer.speech_stopped') {
-    return [{ kind: 'lifecycle', state: 'speech_stopped', sourceId: eventSourceId }]
+    return [
+      { kind: 'lifecycle', state: 'speech_stopped', sourceId: eventSourceId, responseId: null },
+    ]
   }
 
   if (type === 'response.created') {
-    return [{ kind: 'lifecycle', state: 'response_started', sourceId: eventSourceId }]
+    const response = asRecord(event.response)
+    return [
+      {
+        kind: 'lifecycle',
+        state: 'response_started',
+        sourceId: eventSourceId,
+        responseId: eventResponseId ?? asString(response?.id),
+      },
+    ]
+  }
+
+  if (type === 'output_audio_buffer.started') {
+    return [
+      {
+        kind: 'lifecycle',
+        state: 'output_audio_started',
+        sourceId: eventSourceId,
+        responseId: eventResponseId,
+      },
+    ]
   }
 
   if (type === 'output_audio_buffer.stopped') {
-    return [{ kind: 'lifecycle', state: 'output_audio_stopped', sourceId: eventSourceId }]
+    return [
+      {
+        kind: 'lifecycle',
+        state: 'output_audio_stopped',
+        sourceId: eventSourceId,
+        responseId: eventResponseId,
+      },
+    ]
   }
 
   if (
@@ -140,6 +202,7 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
         text,
         sourceId: sourceId(event, `${type}:${text}`),
         eventType: type,
+        responseId: null,
       },
     ]
   }
@@ -154,6 +217,7 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
         text,
         sourceId: sourceId(event, `${type}:${text}`),
         eventType: type,
+        responseId: eventResponseId,
       },
     ]
   }
@@ -207,7 +271,12 @@ export function actionsFromRealtimeEvent(value: unknown): RealtimeAction[] {
       .filter((action): action is RealtimeToolAction => Boolean(action))
 
     actions.push(...toolActions)
-    actions.push({ kind: 'lifecycle', state: 'response_finished', sourceId: eventSourceId })
+    actions.push({
+      kind: 'lifecycle',
+      state: 'response_finished',
+      sourceId: eventSourceId,
+      responseId: eventResponseId ?? asString(response?.id),
+    })
     return actions
   }
 

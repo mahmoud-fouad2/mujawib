@@ -1,44 +1,26 @@
-import { sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
-import { db } from '@/server/db'
-import { protectedDataReady } from '@/server/security/protected-data'
-import { recordingStorageProblem, recordingStorageReady } from '@/server/storage/recordings'
+import { readinessReport } from '@/server/runtime/health'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-function deploymentRevision() {
-  const revision = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT_SHA
-  return revision?.trim() ? revision.trim().slice(0, 12) : null
-}
-
+/**
+ * Kept at its original path and original meaning so anything already pointed
+ * here — a dashboard, an uptime check, a runbook — keeps working. The split
+ * that matters is that `render.yaml` now health-checks `/api/health/live`
+ * instead of this, so a transient database blip can no longer be read by the
+ * platform as a reason to restart a container carrying live calls.
+ */
 export async function GET() {
-  const databaseReady = await db
-    .execute(sql`select 1`)
-    .then(() => true)
-    .catch(() => false)
-  const voiceReady = Boolean(env.OPENAI_API_KEY && env.OPENAI_WEBHOOK_SECRET)
-  const encryptionReady = protectedDataReady()
-  const storageProblem = recordingStorageProblem()
-  const recordingsReady = recordingStorageReady()
-  const ready =
-    databaseReady &&
-    !storageProblem &&
-    (env.NODE_ENV !== 'production' || (voiceReady && encryptionReady))
-
+  const report = await readinessReport()
   return NextResponse.json(
     {
-      status: ready ? 'ok' : 'degraded',
+      status: report.status,
       service: 'mujawib-web',
-      revision: deploymentRevision(),
-      checks: {
-        database: databaseReady ? 'ok' : 'down',
-        voice: voiceReady ? 'ok' : 'disabled',
-        protectedData: encryptionReady ? 'ok' : 'disabled',
-        recordings: storageProblem ? 'misconfigured' : recordingsReady ? 'ok' : 'disabled',
-      },
-      timestamp: new Date().toISOString(),
+      revision: report.revision,
+      checks: report.checks,
+      timestamp: report.timestamp,
     },
-    { status: ready ? 200 : 503 },
+    { status: report.ready ? 200 : 503, headers: { 'Cache-Control': 'no-store' } },
   )
 }

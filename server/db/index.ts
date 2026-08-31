@@ -33,18 +33,68 @@ export function isDatabaseUnavailable(error: unknown): boolean {
 }
 
 type SqlClient = ReturnType<typeof postgres>
-const globalForDatabase = globalThis as typeof globalThis & { mujawibSql?: SqlClient }
+const globalForDatabase = globalThis as typeof globalThis & {
+  mujawibSql?: SqlClient
+  mujawibSqlRealtime?: SqlClient
+}
 
-const sqlClient =
-  globalForDatabase.mujawibSql ??
-  postgres(env.DATABASE_URL, {
-    max: 5,
+function pool(max: number): SqlClient {
+  return postgres(env.DATABASE_URL, {
+    max,
     connect_timeout: 10,
     idle_timeout: 10,
     max_lifetime: 60 * 15,
     prepare: false,
   })
+}
 
+function realtimePoolMax(): number {
+  const configured = Number(process.env.DATABASE_REALTIME_POOL_MAX)
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 3
+}
+
+const sqlClient = globalForDatabase.mujawibSql ?? pool(5)
 globalForDatabase.mujawibSql = sqlClient
 
+/**
+ * A second, small pool owned exclusively by the live call path.
+ *
+ * One shared pool of five connections used to serve everything at once: every
+ * server-rendered console and portal page, Better Auth's per-request session
+ * lookup, the maintenance worker, the Test Lab — and every write a call in
+ * progress makes. The console's live view alone re-renders every few seconds,
+ * and each of those re-renders is roughly ten queries. A call competing with
+ * that does not fail; it waits, and a caller hears the wait as the agent going
+ * quiet. Separating the pools does not make any single query faster, it stops
+ * page traffic from being able to delay a call at all.
+ *
+ * Deliberately small. The point is isolation, not headroom: three connections
+ * that only calls can use beat eight that anything can take.
+ */
+const sqlRealtimeClient = globalForDatabase.mujawibSqlRealtime ?? pool(realtimePoolMax())
+globalForDatabase.mujawibSqlRealtime = sqlRealtimeClient
+
 export const db = drizzle(sqlClient, { schema })
+
+/** Use from the voice runtime only — see the note above. */
+export const dbRealtime = drizzle(sqlRealtimeClient, { schema })
+
+export type PoolName = 'app' | 'realtime'
+
+/**
+ * How long it currently takes to get a connection out of a pool.
+ *
+ * The audit could not tell whether the pool or the CPU was the first
+ * bottleneck, because nothing measured either. `reserve()` goes through the
+ * same queue a query does, so the time it takes to hand one back is the
+ * queueing delay every query is already paying — the single most useful number
+ * for deciding whether these pools are sized correctly.
+ */
+export async function poolWaitMs(name: PoolName): Promise<number> {
+  const client = name === 'realtime' ? sqlRealtimeClient : sqlClient
+  const startedAt = Date.now()
+  const reserved = await client.reserve()
+  const waited = Date.now() - startedAt
+  reserved.release()
+  return waited
+}

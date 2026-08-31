@@ -29,7 +29,18 @@ services:
     buildCommand: pnpm install --frozen-lockfile && pnpm db:migrate && pnpm build
     startCommand: pnpm start
 
-    healthCheckPath: /api/health
+    # Liveness, not readiness.
+    #
+    # This used to point at /api/health, which returns 503 whenever a single
+    # `select 1` fails. A transient Neon blip — which this app knows happens,
+    # see isDatabaseUnavailable() in server/db/index.ts — was therefore read as
+    # "this container is broken", and restarting the container is the one
+    # response guaranteed to make it worse: it severs the control channel of
+    # every call on the line. /api/health/live answers only "is this process
+    # running code", and keeps answering 200 while draining, so a deploy is
+    # never cut short. /api/health/ready still reports dependency state for
+    # operators and uptime checks.
+    healthCheckPath: /api/health/live
     autoDeploy: true
 
     envVars:
@@ -46,6 +57,32 @@ services:
       # Next binds to this; Render injects the real port at runtime.
       - key: PORT
         value: '10000'
+
+      # ─── call-path runtime ──────────────────────────────────────────────
+      # Hands SIGTERM/SIGINT to server/runtime/lifecycle.ts instead of Next's
+      # own handler, which exits as soon as the HTTP server closes. Without
+      # this the drain below cannot run at all: the process is already gone.
+      # Next documents this variable for exactly this purpose.
+      - key: NEXT_MANUAL_SIG_HANDLE
+        value: '1'
+
+      # How long shutdown waits for calls to end before handing them over to
+      # the replacement process. Must stay under Render's own kill grace
+      # period, or the handover is cut off half-finished.
+      - key: SHUTDOWN_DRAIN_TIMEOUT_MS
+        value: '25000'
+
+      # Concurrent calls this process will carry before refusing new ones with
+      # SIP 486. Per-client limits (workspace.concurrentCallLimit) are a
+      # contract, not a protection: twenty clients at ten each is two hundred
+      # permitted calls on one instance. Raise only with load-test evidence.
+      - key: ACTIVE_REALTIME_CALL_LIMIT
+        value: '25'
+
+      # Connections reserved for the voice runtime, separate from the pool the
+      # console and portal use. Small on purpose — isolation, not headroom.
+      - key: DATABASE_REALTIME_POOL_MAX
+        value: '4'
 
       # ─── set these in the Render dashboard ───────────────────────────────
       # Neon pooled connection string (must include ?sslmode=require)

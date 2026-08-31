@@ -17,6 +17,21 @@ export const env = createEnv({
     RECORDING_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     RECORDING_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     RECORDING_MAX_SECONDS: z.coerce.number().int().min(60).max(7_200).default(3_600),
+    // Read directly from process.env by the modules that own them (they run on
+    // the call's critical path or during shutdown, and must not pull this
+    // module's import graph in). Declared here so they are validated,
+    // documented, and visible next to everything else that configures a deploy.
+    //
+    // How many calls one process will carry before refusing new ones. Refusal
+    // is a real outcome: an unanswered invite falls through to the client's
+    // human line, which beats being answered by an overloaded process.
+    ACTIVE_REALTIME_CALL_LIMIT: z.coerce.number().int().min(1).max(500).optional(),
+    // How long shutdown waits for calls to end before handing them over. Must
+    // stay comfortably under the platform's own kill grace period.
+    SHUTDOWN_DRAIN_TIMEOUT_MS: z.coerce.number().int().min(0).max(120_000).optional(),
+    // Size of the pool reserved for the voice runtime. Deliberately small —
+    // the point is isolation from page traffic, not headroom.
+    DATABASE_REALTIME_POOL_MAX: z.coerce.number().int().min(1).max(20).optional(),
     // Backward-compatible Cloudflare R2 names. R2_PUBLIC_BASE_URL is
     // intentionally not consumed: recordings are never served from a public URL.
     R2_ACCOUNT_ID: z.string().min(1).optional(),
@@ -64,6 +79,9 @@ export const env = createEnv({
     RECORDING_STORAGE_ACCESS_KEY_ID: process.env.RECORDING_STORAGE_ACCESS_KEY_ID,
     RECORDING_STORAGE_SECRET_ACCESS_KEY: process.env.RECORDING_STORAGE_SECRET_ACCESS_KEY,
     RECORDING_MAX_SECONDS: process.env.RECORDING_MAX_SECONDS,
+    ACTIVE_REALTIME_CALL_LIMIT: process.env.ACTIVE_REALTIME_CALL_LIMIT,
+    SHUTDOWN_DRAIN_TIMEOUT_MS: process.env.SHUTDOWN_DRAIN_TIMEOUT_MS,
+    DATABASE_REALTIME_POOL_MAX: process.env.DATABASE_REALTIME_POOL_MAX,
     R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
     R2_BUCKET: process.env.R2_BUCKET,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,

@@ -2,9 +2,11 @@ import 'server-only'
 
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/calls/intelligence'
-import { db } from '@/server/db'
+import { db, poolWaitMs } from '@/server/db'
 import { backgroundJob, call, callEvent } from '@/server/db/schema'
+import { isDraining } from '@/server/runtime/lifecycle'
 import { runRetentionSweep } from '@/server/security/retention'
+import { voiceLog } from '@/server/voice/log'
 import { recoverStaleSidebands } from '@/server/voice/sideband'
 
 let lastRetentionSweep = 0
@@ -120,10 +122,32 @@ async function releaseMaintenanceLease(lockedAt: Date) {
     )
 }
 
+/**
+ * Publishes how long each pool currently makes a query wait for a connection.
+ *
+ * The audit could not say whether the database pool or the CPU was the first
+ * bottleneck because neither was measured. This is the cheapest honest answer:
+ * `reserve()` queues exactly like a query does, so the time it takes is the
+ * queueing delay every query is already paying.
+ */
+async function reportPoolWait() {
+  const [app, realtime] = await Promise.all([
+    poolWaitMs('app').catch(() => -1),
+    poolWaitMs('realtime').catch(() => -1),
+  ])
+  voiceLog('POOL_WAIT', { appMs: app, realtimeMs: realtime })
+}
+
 async function runMaintenanceTick() {
+  // A draining process is finishing calls, not starting summaries or sweeping
+  // retention. Both compete for the same CPU and connections as the calls it
+  // is trying to let finish, and both are safe to leave to the next process.
+  if (isDraining()) return
+
   const lease = await claimMaintenanceLease()
   if (!lease) return
   try {
+    await reportPoolWait()
     await reconcileStaleCalls()
     await recoverStaleSidebands()
     await drainCallIntelligenceJobs()
