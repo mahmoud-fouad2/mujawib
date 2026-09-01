@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_REALTIME_MODEL,
   isRealtimeModelUnavailable,
+  PRIMARY_REALTIME_MODEL,
   resolveRealtimeModel,
 } from '../server/voice/model'
-import { buildAcceptPayload, type ResolvedAgent, VOICE_MODEL } from '../server/voice/session'
+import { buildAcceptPayload, type ResolvedAgent } from '../server/voice/session'
 import { toolsFor } from '../server/voice/tools'
 
 function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
@@ -31,7 +32,7 @@ function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
 }
 
 const conversationOnly = buildAcceptPayload(resolved(toolsFor([])))
-assert.equal(conversationOnly.model, VOICE_MODEL)
+assert.equal(conversationOnly.model, PRIMARY_REALTIME_MODEL)
 assert.equal(conversationOnly.audio.input.format.type, 'audio/pcmu')
 assert.equal(conversationOnly.audio.output.voice, 'cedar')
 assert.equal(conversationOnly.audio.input.transcription.model, 'gpt-4o-transcribe')
@@ -43,7 +44,11 @@ assert.equal(conversationOnly.tools?.length, 1)
 assert.equal(conversationOnly.tools?.[0]?.name, 'end_call')
 assert.equal(conversationOnly.tool_choice, 'auto')
 
-const withCaller = buildAcceptPayload(resolved(toolsFor([])), VOICE_MODEL, '+966530047640')
+const withCaller = buildAcceptPayload(
+  resolved(toolsFor([])),
+  PRIMARY_REALTIME_MODEL,
+  '+966530047640',
+)
 assert.match(withCaller.instructions, /\+966530047640/)
 assert.match(withCaller.instructions, /آخر أربعة أرقام/)
 assert.match(withCaller.instructions, /لا تسأل المتصل عن رقم الجوال/)

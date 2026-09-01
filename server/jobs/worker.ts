@@ -4,9 +4,10 @@ import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { db, poolWaitMs } from '@/server/db'
 import { backgroundJob, call, callEvent } from '@/server/db/schema'
+import { notifyOperators, tryNotify } from '@/server/notifications/service'
 import { isDraining } from '@/server/runtime/lifecycle'
 import { readVitals } from '@/server/runtime/vitals'
-import { runRetentionSweep } from '@/server/security/retention'
+import { runRetentionSweep, sweepOperationalTables } from '@/server/security/retention'
 import { voiceError, voiceLog } from '@/server/voice/log'
 import { recoverStaleSidebands } from '@/server/voice/sideband'
 
@@ -134,15 +135,40 @@ async function releaseMaintenanceLease(lockedAt: Date) {
 function reportVitals() {
   const vitals = readVitals({ reset: true })
   voiceLog('PROCESS_VITALS', vitals)
-  if (vitals.pressure !== 'ok') {
-    voiceError('MEMORY_PRESSURE', {
-      pressure: vitals.pressure,
-      heapUsedMB: vitals.heapUsedMB,
-      heapLimitMB: vitals.heapLimitMB,
-      rssMB: vitals.rssMB,
-      heapUsedPct: vitals.heapUsedPct,
-    })
-  }
+  if (vitals.pressure === 'ok') return
+
+  voiceError('MEMORY_PRESSURE', {
+    pressure: vitals.pressure,
+    heapUsedMB: vitals.heapUsedMB,
+    heapLimitMB: vitals.heapLimitMB,
+    rssMB: vitals.rssMB,
+    heapUsedPct: vitals.heapUsedPct,
+    rssPct: vitals.rssPct,
+  })
+
+  // A log line only helps someone already reading logs, and nobody reads logs
+  // at 2am — which is exactly when the 2026-09-01 OOM kill happened. This
+  // reaches the operator through the notification centre they already use.
+  // Deduped per hour so a process sitting at high water does not produce one
+  // notification every fifteen seconds.
+  const hour = Math.floor(Date.now() / 3_600_000)
+  void tryNotify(() =>
+    notifyOperators({
+      workspaceId: null,
+      roles: ['owner', 'ops'],
+      severity: vitals.pressure === 'critical' ? 'critical' : 'warning',
+      category: 'system',
+      title:
+        vitals.pressure === 'critical'
+          ? 'ذاكرة الخادم عند الحد الحرج'
+          : 'ارتفاع استهلاك ذاكرة الخادم',
+      message: `RSS ${vitals.rssMB}MB من ${vitals.containerLimitMB}MB · الكومة ${vitals.heapUsedMB}MB من ${vitals.heapLimitMB}MB${vitals.pressure === 'critical' ? ' — المكالمات الجديدة تُرفض حاليًا لحماية الجارية.' : '.'}`,
+      href: '/console/system',
+      sourceType: 'runtime',
+      sourceId: 'memory',
+      dedupeKey: `memory:${vitals.pressure}:${hour}`,
+    }),
+  )
 }
 
 /**
@@ -177,6 +203,9 @@ async function runMaintenanceTick() {
     await drainCallIntelligenceJobs()
     if (Date.now() - lastRetentionSweep > 60 * 60 * 1000) {
       await runRetentionSweep()
+      const purged = await sweepOperationalTables()
+      const total = Object.values(purged).reduce((sum, n) => sum + n, 0)
+      if (total > 0) voiceLog('RETENTION_SWEEP', purged)
       lastRetentionSweep = Date.now()
     }
   } finally {

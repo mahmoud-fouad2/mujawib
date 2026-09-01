@@ -37,7 +37,11 @@ export function PhoneProvisioningClient({ workspaceId }: { workspaceId: string }
     event.preventDefault()
     setError(null)
     startSearching(async () => {
-      const res = await searchAvailableNumbers(country, areaCode.trim() || undefined)
+      const res = await searchAvailableNumbers({
+        workspaceId,
+        countryCode: country,
+        ...(areaCode.trim() ? { areaCode: areaCode.trim() } : {}),
+      })
       if (!res.ok) {
         setError(res.error)
         setNumbers([])

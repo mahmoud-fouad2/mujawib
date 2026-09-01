@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
 import { cache } from 'react'
 import { db } from '@/server/db'
 import { platformContact } from '@/server/db/schema'
@@ -44,7 +45,14 @@ export async function getPlatformContactDraft() {
   }
 }
 
-export const getPlatformContact = cache(async (): Promise<PlatformContact> => {
+/**
+ * `cache()` deduplicates within one request; `unstable_cache` is what keeps
+ * this off the database on the *next* one. Every public page renders the
+ * footer, so without a cross-request cache this singleton row was read on
+ * every visit to the site. Contact details change by an operator action,
+ * which revalidates the tag, so a long window costs nothing in freshness.
+ */
+const loadPlatformContact = cache(async (): Promise<PlatformContact> => {
   // Singleton table — one row, no predicate needed.
   const [row] = await db
     .select()
@@ -64,3 +72,11 @@ export const getPlatformContact = cache(async (): Promise<PlatformContact> => {
         : null,
   }
 })
+
+export const PLATFORM_CONTACT_CACHE_TAG = 'platform-contact'
+
+export const getPlatformContact = unstable_cache(
+  () => loadPlatformContact(),
+  ['platform-contact'],
+  { revalidate: 900, tags: [PLATFORM_CONTACT_CACHE_TAG] },
+)

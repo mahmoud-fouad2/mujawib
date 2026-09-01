@@ -25,11 +25,12 @@ const ACTION_LABEL: Record<string, string> = {
 }
 
 export default async function SystemPage() {
-  const [{ counts, latency, audit, analytics, secretHealth }, contact, access] = await Promise.all([
-    getSystemOverview(),
-    getPlatformContactDraft(),
-    requireOperatorPage('/console/system'),
-  ])
+  const [{ counts, latency, deadJobs, audit, analytics, secretHealth }, contact, access] =
+    await Promise.all([
+      getSystemOverview(),
+      getPlatformContactDraft(),
+      requireOperatorPage('/console/system'),
+    ])
   const recentChange = secretHealth.some((s) => s.status === 'recent-change')
   const recordingState = recordingStorageProblem()
     ? 'misconfigured'
@@ -105,6 +106,37 @@ export default async function SystemPage() {
           { label: 'تنفيذات أدوات', value: num(counts?.tools ?? 0) },
         ]}
       />
+
+      {deadJobs.length > 0 ? (
+        <Section
+          title="مهام توقفت نهائيًا"
+          meta="استُنفدت محاولاتها وتوقفت عن إعادة المحاولة — تحتاج تدخلًا يدويًا"
+          flush
+        >
+          <div className="table-scroll">
+            <table className="table table--rows">
+              <thead>
+                <tr>
+                  <th>النوع</th>
+                  <th>المحاولات</th>
+                  <th>آخر خطأ</th>
+                  <th>آخر تحديث</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deadJobs.map((job) => (
+                  <tr key={job.id}>
+                    <td>{job.type}</td>
+                    <td className="mono">{num(job.attempts)}</td>
+                    <td className="muted">{job.lastError ?? '—'}</td>
+                    <td className="mono">{clock(job.updatedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      ) : null}
 
       <Section title="أداء الموقع" meta="آخر 30 يومًا، دون ملفات تعريف ارتباط أو بيانات زائر شخصية">
         <MetricStrip

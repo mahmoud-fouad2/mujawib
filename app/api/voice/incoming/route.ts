@@ -24,9 +24,9 @@ import {
   voiceError,
   voiceLog,
 } from '@/server/voice/log'
-import { resolveRealtimeModel } from '@/server/voice/model'
+import { PRIMARY_REALTIME_MODEL, resolveRealtimeModel } from '@/server/voice/model'
 import { markPhoneAnswered, markPhoneReached } from '@/server/voice/phone'
-import { buildAcceptPayload, resolveAgentFromCandidates, VOICE_MODEL } from '@/server/voice/session'
+import { buildAcceptPayload, resolveAgentFromCandidates } from '@/server/voice/session'
 import {
   claimRealtimeSideband,
   releaseSidebandClaim,
@@ -413,8 +413,11 @@ async function handleIncomingCall(req: NextRequest, timeline: CallTimeline) {
 
   const caller = callerFrom(headers)
   const realtimeModel = await resolveRealtimeModel(apiKey)
-  if (realtimeModel !== VOICE_MODEL) {
-    voiceLog('REALTIME_MODEL_FALLBACK', { configured: VOICE_MODEL, selected: realtimeModel })
+  if (realtimeModel !== PRIMARY_REALTIME_MODEL) {
+    voiceLog('REALTIME_MODEL_FALLBACK', {
+      configured: PRIMARY_REALTIME_MODEL,
+      selected: realtimeModel,
+    })
   }
   const payload = buildAcceptPayload(resolved, realtimeModel, caller)
 

@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import { unstable_cache } from 'next/cache'
 import { db } from '@/server/db'
 import {
   booking,
@@ -38,7 +39,7 @@ export type PlatformProof = {
   clients: number
 }
 
-export async function getPlatformProof(): Promise<PlatformProof> {
+async function loadPlatformProof(): Promise<PlatformProof> {
   const since = daysBack(30)
 
   const [calls] = await db
@@ -112,7 +113,7 @@ export type HeroCall = {
  * A real completed booking call, used as the hero. Picked deterministically
  * (most recent qualifying call) so the page is stable between renders.
  */
-export async function getHeroCall(): Promise<HeroCall | null> {
+async function loadHeroCall(): Promise<HeroCall | null> {
   const [row] = await db
     .select({
       id: call.id,
@@ -168,7 +169,7 @@ export async function getHeroCall(): Promise<HeroCall | null> {
 }
 
 /** Three short demo calls in different dialects — Bible §38 "Live Demo". */
-export async function getDemoCalls() {
+async function loadDemoCalls() {
   const rows = await db
     .select({
       id: call.id,
@@ -202,7 +203,7 @@ export async function getDemoCalls() {
 }
 
 /** Industry packs, with the number of businesses actually running each. */
-export async function getIndustryPacks() {
+async function loadIndustryPacks() {
   const templates = await db.select().from(industryTemplate)
   const usage = await db
     .select({
@@ -219,7 +220,7 @@ export async function getIndustryPacks() {
 }
 
 /** Integrations that are genuinely connected somewhere on the platform. */
-export async function getLiveIntegrations() {
+async function loadLiveIntegrations() {
   const rows = await db
     .select({
       provider: integrationConnection.provider,
@@ -241,7 +242,7 @@ export async function getLiveIntegrations() {
  * one call in full, so this section shows the surface that *ranks* calls —
  * otherwise the page states the same thing twice.
  */
-export async function getConsolePreview() {
+async function loadConsolePreview() {
   const [queue, liveRows, reviewRows, degradedRows] = await Promise.all([
     db
       .select({
@@ -292,3 +293,35 @@ export async function getConsolePreview() {
     },
   }
 }
+
+/* ─── caching boundary ─────────────────────────────────────────────────────
+ *
+ * Every function above reads the same database the console does, and the
+ * public marketing pages call six of them on each render — roughly fifteen
+ * queries per visit, on the pool the operator console shares. Nothing cached
+ * them: React's `cache()` deduplicates within a single request, not across
+ * requests, so every crawler hit and every visitor paid the full cost, and a
+ * traffic spike on the public site could starve the console.
+ *
+ * These figures describe the last thirty days. They do not need to be fresh
+ * to the second, and a five-minute window turns thousands of visits into one
+ * set of queries. `revalidate` is what makes this a real cross-request cache
+ * rather than a per-request one; the tag lets an operator action drop it
+ * deliberately if a figure ever needs to move sooner.
+ */
+const MARKETING_TTL_SECONDS = 300
+export const MARKETING_CACHE_TAG = 'marketing-figures'
+
+function cachedMarketing<T>(key: string, loader: () => Promise<T>) {
+  return unstable_cache(loader, ['marketing', key], {
+    revalidate: MARKETING_TTL_SECONDS,
+    tags: [MARKETING_CACHE_TAG],
+  })
+}
+
+export const getPlatformProof = cachedMarketing('platform-proof', loadPlatformProof)
+export const getHeroCall = cachedMarketing('hero-call', loadHeroCall)
+export const getDemoCalls = cachedMarketing('demo-calls', loadDemoCalls)
+export const getIndustryPacks = cachedMarketing('industry-packs', loadIndustryPacks)
+export const getLiveIntegrations = cachedMarketing('live-integrations', loadLiveIntegrations)
+export const getConsolePreview = cachedMarketing('console-preview', loadConsolePreview)

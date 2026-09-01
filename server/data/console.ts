@@ -18,6 +18,7 @@ import {
   agent,
   agentVersion,
   auditLog,
+  backgroundJob,
   booking,
   call,
   callEvent,
@@ -1634,9 +1635,27 @@ export async function getSystemOverview() {
   const pageViews = analyticsCounts[0]?.pageViews ?? 0
   const ctaClicks = analyticsCounts[0]?.ctaClicks ?? 0
 
+  // Jobs that exhausted their retries and stopped. Terminal by design — the
+  // cap exists so a permanently failing summary stops burning model calls —
+  // but a terminal state nobody can see is just a silent stop, which is the
+  // failure mode the cap was meant to replace.
+  const deadJobs = await db
+    .select({
+      id: backgroundJob.id,
+      type: backgroundJob.type,
+      attempts: backgroundJob.attempts,
+      lastError: backgroundJob.lastError,
+      updatedAt: backgroundJob.updatedAt,
+    })
+    .from(backgroundJob)
+    .where(eq(backgroundJob.status, 'dead'))
+    .orderBy(desc(backgroundJob.updatedAt))
+    .limit(10)
+
   return {
     counts: counts ?? null,
     latency: latency ?? { p50: 0, p95: 0 },
+    deadJobs,
     audit,
     analytics: {
       pageViews,

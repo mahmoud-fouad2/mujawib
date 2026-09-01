@@ -169,6 +169,13 @@
       "when": 1788211863461,
       "tag": "0023_default_voice_personas",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788271700953,
+      "tag": "0024_operational_indexes",
+      "breakpoints": true
     }
   ]
 }

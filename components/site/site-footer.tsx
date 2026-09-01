@@ -1,9 +1,8 @@
 import { MessageSquare } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-// Lucide dropped brand marks in v1; react-icons carries the official glyphs.
-import { FaInstagram, FaLinkedinIn } from 'react-icons/fa6'
 import { Logo } from '@/components/brand/logo'
+import { InstagramMark, LinkedInMark } from '@/components/brand/social-marks'
 import type { SiteCopy } from '@/lib/content/site'
 import { type Locale, localePath } from '@/lib/i18n'
 import type { PlatformContact } from '@/server/data/platform'
@@ -14,8 +13,8 @@ import type { PlatformContact } from '@/server/data/platform'
  * missing one. Add each back here once the handle is actually claimed.
  */
 const SOCIAL = [
-  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mujawib', Icon: FaLinkedinIn },
-  { label: 'Instagram', href: 'https://www.instagram.com/mujawib', Icon: FaInstagram },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/mujawib', Icon: LinkedInMark },
+  { label: 'Instagram', href: 'https://www.instagram.com/mujawib', Icon: InstagramMark },
 ]
 
 export function SiteFooter({

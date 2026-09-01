@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { z } from 'zod'
 import { ACCESS_ROLE_LABEL } from '@/lib/access'
 import { env } from '@/lib/env'
@@ -13,6 +14,7 @@ import {
   normalizeInvitationEmail,
   roleFitsWorkspace,
 } from '@/lib/invitations'
+import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { auth } from '@/server/auth'
 import { authorizeOperator } from '@/server/auth/access'
 import {
@@ -219,6 +221,16 @@ export async function revokeWorkspaceInvitation(invitationId: string): Promise<A
 export async function getInvitationPreview(tokenInput: string): Promise<InvitationPreviewResult> {
   const parsed = tokenSchema.safeParse(tokenInput)
   if (!parsed.success) return { ok: false, error: 'رابط الدعوة غير صالح.' }
+
+  // Unauthenticated by design — the token is the credential, and the recipient
+  // has no account yet. That makes it one of the few public endpoints that
+  // runs a database join per call, so it gets the same treatment as the
+  // contact form: a ceiling per address, which costs a legitimate invitee
+  // nothing and stops the endpoint being used to load the pool.
+  const limited = rateLimit(`invite-preview:${clientIdentifier(await headers())}`, 30, 10 * 60_000)
+  if (!limited.success) {
+    return { ok: false, error: 'محاولات كثيرة. أعد المحاولة بعد قليل.' }
+  }
 
   const [row] = await db
     .select({

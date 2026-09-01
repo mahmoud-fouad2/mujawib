@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { limitAction } from '@/server/actions/guard'
 import { authorizeClientWorkspace, authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
 import { auditLog, changeRequest, phoneNumber } from '@/server/db/schema'
@@ -89,8 +90,64 @@ export async function requestPhoneNumberPurchase(
   }
 }
 
-/** Searches Twilio for available phone numbers — read-only, no money moves. */
-export async function searchAvailableNumbers(countryCode: string, areaCode?: string) {
+/**
+ * Country and area code, validated before either reaches a URL.
+ *
+ * `countryCode` is interpolated into the Twilio API *path*. Unvalidated, a
+ * value containing `/` or `..` walks to a different endpoint on Twilio — using
+ * the platform's own credentials. Two uppercase letters is the entire legal
+ * shape of an ISO 3166-1 alpha-2 code, so the regex is not a guess at what is
+ * dangerous; it is the complete set of what is valid.
+ */
+const searchSchema = z.object({
+  workspaceId: z.string().trim().min(1),
+  countryCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{2}$/, 'رمز الدولة غير صالح.'),
+  areaCode: z
+    .string()
+    .trim()
+    .regex(/^\d{1,6}$/, 'مفتاح المنطقة يجب أن يكون أرقامًا.')
+    .optional(),
+})
+
+/**
+ * Available numbers for a client to choose from.
+ *
+ * This had no authorization check at all. Every `'use server'` export is a
+ * POST endpoint, and the action id ships in the client bundle of any page that
+ * imports it — so this was effectively a public route that spent the
+ * platform's Twilio credentials on each call, with `countryCode` going
+ * straight into the request path. It now requires the same client-workspace
+ * permission as the purchase request it feeds, validates both inputs, and is
+ * rate limited per user because every invocation is a billable API call to a
+ * third party.
+ *
+ * Read-only either way: money still only moves through
+ * `approvePhoneNumberPurchase`, which is operator-only.
+ */
+export async function searchAvailableNumbers(
+  input: z.input<typeof searchSchema>,
+): Promise<
+  | { ok: true; numbers: { friendlyName: string; phoneNumber: string; locality: string }[] }
+  | { ok: false; error: string }
+> {
+  const parsed = searchSchema.safeParse(input)
+  if (!parsed.success) {
+    return {
+      ok: false as const,
+      error: parsed.error.issues[0]?.message ?? 'بيانات البحث غير صحيحة.',
+    }
+  }
+
+  const access = await authorizeClientWorkspace(parsed.data.workspaceId, 'phone.request')
+  if (!access) return { ok: false as const, error: 'ليس لديك صلاحية البحث عن رقم.' }
+
+  const limited = limitAction('phone_provisioning', access.userId)
+  if (limited) return { ok: false as const, error: limited.error }
+
   const sid = process.env.TWILIO_ACCOUNT_SID
   const token = process.env.TWILIO_AUTH_TOKEN
   if (!sid || !token) {
@@ -98,13 +155,16 @@ export async function searchAvailableNumbers(countryCode: string, areaCode?: str
   }
 
   const query = new URLSearchParams({ VoiceEnabled: 'true' })
-  if (areaCode) query.set('AreaCode', areaCode)
+  if (parsed.data.areaCode) query.set('AreaCode', parsed.data.areaCode)
 
   let response: Response
   try {
     response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${sid}/AvailablePhoneNumbers/${countryCode}/Local.json?${query}`,
-      { headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}` } },
+      `https://api.twilio.com/2010-04-01/Accounts/${sid}/AvailablePhoneNumbers/${encodeURIComponent(parsed.data.countryCode)}/Local.json?${query}`,
+      {
+        headers: { Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}` },
+        signal: AbortSignal.timeout(10_000),
+      },
     )
   } catch {
     return { ok: false as const, error: 'تعذّر الوصول إلى Twilio الآن.' }
@@ -124,6 +184,15 @@ export async function searchAvailableNumbers(countryCode: string, areaCode?: str
 
 /** Pending `phone_number_purchase` requests, for the operator's review queue. */
 export async function getPendingPhoneRequests() {
+  // Operator-gated. Without this, the exported action returned every client's
+  // pending request — workspace id, chosen number, locality — to anyone able
+  // to reach the endpoint, which for a `'use server'` export is anyone holding
+  // the action id from a shipped bundle. An empty list rather than a throw
+  // keeps the review queue rendering as an empty state for an operator whose
+  // permission was revoked mid-session.
+  const access = await authorizeOperator('phone.manage')
+  if (!access) return []
+
   const rows = await db
     .select()
     .from(changeRequest)

@@ -271,6 +271,10 @@ export const backgroundJob = pgTable(
   (t) => [
     uniqueIndex('background_job_dedupe_idx').on(t.dedupeKey),
     index('background_job_ready_idx').on(t.status, t.availableAt),
+    // The sideband recovery sweep and the post-call drain both filter on
+    // `type` first and run every fifteen seconds; neither index above starts
+    // with it, so both were scanning the whole table.
+    index('background_job_type_status_idx').on(t.type, t.status, t.availableAt),
   ],
 )
 

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { limitAction } from '@/server/actions/guard'
 import { authorizeOperator } from '@/server/auth/access'
 import { processCallIntelligence } from '@/server/calls/intelligence'
 import { db } from '@/server/db'
@@ -18,6 +19,8 @@ const callIdSchema = z.string().trim().min(1).max(160)
 export async function retryCallSummary(callId: string): Promise<CallActionResult> {
   const access = await authorizeOperator('qa.review')
   if (!access) return { ok: false, error: 'لا تملك صلاحية إعادة إعداد الملخص.' }
+  const limited = limitAction('call_summary', access.userId)
+  if (limited) return limited
 
   const parsed = callIdSchema.safeParse(callId)
   if (!parsed.success) return { ok: false, error: 'تعذر تحديد المكالمة.' }

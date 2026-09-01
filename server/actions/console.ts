@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, ne, or, sql } from 'drizzle-orm'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
 import type { OperatorPermission } from '@/lib/access'
 import {
@@ -16,6 +16,7 @@ import { RECORDING_DISCLOSURE_MODES } from '@/lib/recording-policy'
 import { createVoiceAgentDraft } from '@/server/agents/create'
 import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
+import { PLATFORM_CONTACT_CACHE_TAG } from '@/server/data/platform'
 import { db } from '@/server/db'
 import {
   agent,
@@ -2370,6 +2371,11 @@ export async function updatePlatformContact(
     note: `تحديث قنوات التواصل — البريد ${parsed.data.emailConfirmed ? 'مؤكَّد' : 'غير مؤكَّد'}, الهاتف ${parsed.data.phoneConfirmed ? 'مؤكَّد' : 'غير مؤكَّد'}`,
   })
 
+  // The contact row is cached across requests now (server/data/platform.ts),
+  // so revalidating the paths is no longer enough on its own — the cached
+  // value has to be dropped by tag or the public pages keep serving the old
+  // number for the rest of its window.
+  revalidateTag(PLATFORM_CONTACT_CACHE_TAG)
   revalidatePath('/console/system')
   revalidatePath('/')
   revalidatePath('/en')

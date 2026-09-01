@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { SCENARIO_CATEGORIES, scenarioExpectationSchema, scenarioInputSchema } from '@/lib/test-lab'
+import { limitAction } from '@/server/actions/guard'
 import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
 import { agent, agentVersion, auditLog, scenarioTest } from '@/server/db/schema'
@@ -216,6 +217,8 @@ async function scenarioWithVersion(scenarioId: string) {
 export async function runTestScenario(scenarioId: string): Promise<ActionResult> {
   const access = await authorizeOperator('test.manage')
   if (!access) return { ok: false, error: 'لا تملك صلاحية تشغيل الاختبارات.' }
+  const limited = limitAction('test_scenario', access.userId)
+  if (limited) return limited
 
   const row = await scenarioWithVersion(scenarioId)
   if (!row) return { ok: false, error: 'السيناريو غير موجود.' }
@@ -265,6 +268,9 @@ export async function runTestScenario(scenarioId: string): Promise<ActionResult>
 export async function runVersionTestSuite(versionId: string): Promise<ActionResult> {
   const access = await authorizeOperator('test.manage')
   if (!access) return { ok: false, error: 'لا تملك صلاحية تشغيل الاختبارات.' }
+  // A batch opens one Realtime session per scenario, up to twelve.
+  const limited = limitAction('test_suite', access.userId)
+  if (limited) return limited
 
   const parsed = runVersionSchema.safeParse(versionId)
   if (!parsed.success) return { ok: false, error: 'النسخة غير صالحة.' }

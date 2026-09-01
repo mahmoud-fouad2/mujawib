@@ -27,9 +27,6 @@ import { toolsFor } from '@/server/voice/tools'
  * agent (Bible §23).
  */
 
-/** Launch default — Bible §28. One model, audio to audio, no cascade. */
-export const VOICE_MODEL = PRIMARY_REALTIME_MODEL
-
 const VOICE_BY_DIALECT: Record<string, string> = {
   saudi: 'cedar',
   gulf: 'cedar',
@@ -176,7 +173,7 @@ export async function resolveAgentFromCandidates(
  */
 export function buildAcceptPayload(
   resolved: ResolvedAgent,
-  model = VOICE_MODEL,
+  model = PRIMARY_REALTIME_MODEL,
   callerNumber: string | null = null,
 ) {
   // Tools are omitted entirely rather than sent as an empty array: a version
