@@ -81,7 +81,7 @@ const TOOL_DEFINITIONS = [
         to: { type: 'string' },
         bookingId: { type: 'string' },
       },
-      required: ['to', 'bookingId'],
+      required: ['bookingId'],
       additionalProperties: false,
     },
   },

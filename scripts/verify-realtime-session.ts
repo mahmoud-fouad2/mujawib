@@ -20,6 +20,7 @@ function resolved(tools: ResolvedAgent['tools']): ResolvedAgent {
     instructions: 'تحدث بالعربية بوضوح.',
     tools,
     voice: 'cedar',
+    pacing: null,
     transferTo: null,
     phoneNumberId: 'phone_test',
     recordingDisclosureMode: 'none',
@@ -35,6 +36,9 @@ assert.equal(conversationOnly.audio.input.format.type, 'audio/pcmu')
 assert.equal(conversationOnly.audio.output.voice, 'cedar')
 assert.equal(conversationOnly.audio.input.transcription.model, 'gpt-4o-transcribe')
 assert.equal(conversationOnly.audio.input.transcription.language, 'ar')
+assert.equal(conversationOnly.audio.input.turn_detection.threshold, 0.5)
+assert.equal(conversationOnly.audio.input.turn_detection.silence_duration_ms, 520)
+assert.equal(conversationOnly.audio.input.turn_detection.idle_timeout_ms, 7000)
 assert.equal(conversationOnly.tools?.length, 1)
 assert.equal(conversationOnly.tools?.[0]?.name, 'end_call')
 assert.equal(conversationOnly.tool_choice, 'auto')
@@ -42,6 +46,15 @@ assert.equal(conversationOnly.tool_choice, 'auto')
 const withCaller = buildAcceptPayload(resolved(toolsFor([])), VOICE_MODEL, '+966530047640')
 assert.match(withCaller.instructions, /\+966530047640/)
 assert.match(withCaller.instructions, /آخر أربعة أرقام/)
+assert.match(withCaller.instructions, /لا تسأل المتصل عن رقم الجوال/)
+
+const fastPersona = buildAcceptPayload({
+  ...resolved(toolsFor([])),
+  pacing: { vadThreshold: 0.48, silenceDurationMs: 460, idleTimeoutMs: 6000 },
+})
+assert.equal(fastPersona.audio.input.turn_detection.threshold, 0.48)
+assert.equal(fastPersona.audio.input.turn_detection.silence_duration_ms, 460)
+assert.equal(fastPersona.audio.input.turn_detection.idle_timeout_ms, 6000)
 
 const withRecordingDisclosure = buildAcceptPayload({
   ...resolved([]),

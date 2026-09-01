@@ -1,7 +1,7 @@
 'use server'
 
 import { randomUUID } from 'node:crypto'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { authorizeClientWorkspace } from '@/server/auth/access'
@@ -161,6 +161,10 @@ export async function updateCustomer(input: z.input<typeof updateSchema>): Promi
 }
 
 const deleteSchema = z.object({ id: z.string().min(1), workspaceId: z.string().min(1) })
+const bulkDeleteSchema = z.object({
+  workspaceId: z.string().min(1),
+  ids: z.array(z.string().min(1)).min(1).max(200),
+})
 
 export async function deleteCustomer(input: z.input<typeof deleteSchema>): Promise<ActionResult> {
   const parsed = deleteSchema.safeParse(input)
@@ -192,4 +196,41 @@ export async function deleteCustomer(input: z.input<typeof deleteSchema>): Promi
 
   revalidatePath('/portal/customers')
   return { ok: true, message: 'حُذفت جهة الاتصال.' }
+}
+
+export async function deleteCustomersBulk(
+  input: z.input<typeof bulkDeleteSchema>,
+): Promise<ActionResult> {
+  const parsed = bulkDeleteSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'بيانات غير صحيحة.' }
+  const access = await authorizeClientWorkspace(parsed.data.workspaceId, 'crm.manage')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية حذف جهات الاتصال.' }
+  if (!(await requireCrmEnabled(parsed.data.workspaceId))) {
+    return { ok: false, error: 'ميزة إدارة العملاء غير مفعّلة على باقتك.' }
+  }
+
+  const ids = [...new Set(parsed.data.ids)]
+  const rows = await db
+    .select({ id: customer.id })
+    .from(customer)
+    .where(and(eq(customer.workspaceId, parsed.data.workspaceId), inArray(customer.id, ids)))
+
+  if (rows.length === 0) return { ok: false, error: 'لا توجد جهات اتصال مطابقة للحذف.' }
+
+  await db.delete(customer).where(
+    inArray(
+      customer.id,
+      rows.map((row) => row.id),
+    ),
+  )
+  await audit({
+    workspaceId: parsed.data.workspaceId,
+    actorId: access.email,
+    action: 'crm.customers_bulk_deleted',
+    resourceId: 'bulk',
+    note: `حذف ${rows.length} جهة اتصال محددة`,
+  })
+
+  revalidatePath('/portal/customers')
+  return { ok: true, message: `حُذفت ${rows.length} جهة اتصال.` }
 }

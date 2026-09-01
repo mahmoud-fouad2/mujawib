@@ -1,0 +1,101 @@
+INSERT INTO "voice_profile" (
+  "id",
+  "workspace_id",
+  "name",
+  "country",
+  "dialect",
+  "style",
+  "language_policy",
+  "pacing",
+  "is_global",
+  "created_at",
+  "updated_at"
+)
+VALUES
+  (
+    'voice_global_formal_msa',
+    NULL,
+    'رسمي واضح',
+    'SA',
+    'msa',
+    'professional',
+    '{"primary":"ar","switchToEnglish":"on_caller_request","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"short","pauseMs":220,"vadThreshold":0.5,"prefixPaddingMs":220,"silenceDurationMs":520,"idleTimeoutMs":7000,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  ),
+  (
+    'voice_global_natural_warm',
+    NULL,
+    'طبيعي ودود',
+    'SA',
+    'msa',
+    'warm',
+    '{"primary":"ar","switchToEnglish":"on_caller_request","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"short","pauseMs":220,"vadThreshold":0.48,"prefixPaddingMs":240,"silenceDurationMs":500,"idleTimeoutMs":6500,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  ),
+  (
+    'voice_global_saudi_clear',
+    NULL,
+    'سعودي واضح',
+    'SA',
+    'saudi',
+    'warm',
+    '{"primary":"ar-SA","switchToEnglish":"on_caller_request","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"short","pauseMs":200,"vadThreshold":0.48,"prefixPaddingMs":230,"silenceDurationMs":500,"idleTimeoutMs":6500,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  ),
+  (
+    'voice_global_gulf_concise',
+    NULL,
+    'خليجي مختصر',
+    'AE',
+    'gulf',
+    'concise',
+    '{"primary":"ar-AE","switchToEnglish":"mixed_allowed","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"very_short","pauseMs":180,"vadThreshold":0.48,"prefixPaddingMs":220,"silenceDurationMs":460,"idleTimeoutMs":6000,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  ),
+  (
+    'voice_global_lebanese_premium',
+    NULL,
+    'لبناني راقٍ',
+    'LB',
+    'lebanese',
+    'premium',
+    '{"primary":"ar-LB","switchToEnglish":"mixed_allowed","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"short","pauseMs":240,"vadThreshold":0.5,"prefixPaddingMs":250,"silenceDurationMs":540,"idleTimeoutMs":7000,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  ),
+  (
+    'voice_global_egyptian_warm',
+    NULL,
+    'مصري مريح',
+    'EG',
+    'egyptian',
+    'warm',
+    '{"primary":"ar-EG","switchToEnglish":"on_caller_request","brandNames":"keep_latin"}'::jsonb,
+    '{"responseLength":"short","pauseMs":240,"vadThreshold":0.5,"prefixPaddingMs":250,"silenceDurationMs":540,"idleTimeoutMs":7000,"bargeIn":true}'::jsonb,
+    TRUE,
+    now(),
+    now()
+  )
+ON CONFLICT ("id") DO UPDATE SET
+  "name" = excluded."name",
+  "country" = excluded."country",
+  "dialect" = excluded."dialect",
+  "style" = excluded."style",
+  "language_policy" = excluded."language_policy",
+  "pacing" = excluded."pacing",
+  "is_global" = TRUE,
+  "updated_at" = now();

@@ -62,7 +62,12 @@ export function buildAgentBlueprint(input: BlueprintInput) {
         {
           name: 'حجز موعد',
           goal: 'جمع بيانات الحجز والتحقق من الموعد قبل أي تأكيد',
-          requiredFields: ['الخدمة', 'اليوم والوقت', 'الاسم', 'تأكيد رقم الاتصال'],
+          requiredFields: [
+            'الخدمة',
+            'اليوم والوقت',
+            'الاسم',
+            'تأكيد آخر أربعة أرقام من رقم الاتصال',
+          ],
           actions: ['check_availability', 'create_booking'],
           fallback: { onFailure: 'create_callback' },
         },
@@ -91,7 +96,7 @@ export function buildAgentBlueprint(input: BlueprintInput) {
                   'الخدمة أو المنتج',
                   'اليوم والوقت عند الحاجة',
                   'الاسم',
-                  'تأكيد رقم الاتصال',
+                  'تأكيد آخر أربعة أرقام من رقم الاتصال',
                 ],
                 actions: ['check_availability', 'create_booking'],
                 fallback: { onFailure: 'create_callback' },

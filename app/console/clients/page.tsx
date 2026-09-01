@@ -2,10 +2,11 @@ import { Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ClientRowActions, ClientsToolbar } from '@/components/console/client-actions'
+import { CsvExportButton } from '@/components/console/table-tools'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { type ClientBusinessInfo, clientEditable } from '@/lib/client-editable'
-import { num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
+import { fullDate, num, relative, WORKSPACE_STATUS_LABEL, workspaceTone } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getClients } from '@/server/data/console'
 import type { WorkspaceStatus } from '@/server/db/schema'
@@ -75,7 +76,46 @@ export default async function ClientsPage({
       <Section
         title="كل العملاء"
         meta={truncated ? `تعرض أول ${num(clients.length)} من ${num(total)} عميل` : undefined}
-        action={<ClientsToolbar search={search} status={status} />}
+        action={
+          <ClientsToolbar search={search} status={status}>
+            <CsvExportButton
+              filename={`mujawib-clients-${new Date().toISOString().slice(0, 10)}.csv`}
+              headers={[
+                'الشركة',
+                'الحالة',
+                'القطاع',
+                'المدينة',
+                'الدولة',
+                'مكالمات 30 يومًا',
+                'الاستخدام الشهري',
+                'الحد الشهري',
+                'حجوزات 30 يومًا',
+                'موظفون صوتيون',
+                'الربط المتعثر',
+                'منذ',
+              ]}
+              rows={clients.map((client) => {
+                const info = (client.businessInfo ?? {}) as ClientBusinessInfo
+                return [
+                  client.name,
+                  WORKSPACE_STATUS_LABEL[client.status] ?? client.status,
+                  client.industryPack
+                    ? (PACK_LABEL[client.industryPack] ?? client.industryPack)
+                    : '',
+                  info.city ?? '',
+                  info.country ?? '',
+                  client.calls30d,
+                  client.callsThisMonth,
+                  client.monthlyCallLimit ?? 'بلا حد',
+                  client.bookings30d,
+                  client.agents,
+                  client.unhealthy,
+                  fullDate(client.createdAt),
+                ]
+              })}
+            />
+          </ClientsToolbar>
+        }
         flush
       >
         {clients.length === 0 ? (

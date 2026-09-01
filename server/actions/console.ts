@@ -1399,6 +1399,7 @@ const clientSchema = z.object({
   // concurrent one is NOT NULL with a > 0 check, so it always has a value).
   monthlyCallLimit: z.number().int().positive().nullable().optional(),
   concurrentCallLimit: z.number().int().positive().optional(),
+  retentionPreset: z.enum(['30d', '180d']).optional(),
 })
 
 const STATUS_LABEL: Record<string, string> = {
@@ -1449,6 +1450,15 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
     hours: { ...hours, sun_thu: parsed.data.hoursWeekday ?? hours.sun_thu },
     transferTo: keep(parsed.data.transferTo, info.transferTo),
   }
+  const currentRetentionPolicy = (row.retentionPolicy ?? {}) as Record<string, unknown>
+  const nextRetentionPolicy = parsed.data.retentionPreset
+    ? {
+        ...currentRetentionPolicy,
+        calls: parsed.data.retentionPreset,
+        transcripts: parsed.data.retentionPreset,
+        recordings: parsed.data.retentionPreset,
+      }
+    : currentRetentionPolicy
 
   if (row.status !== 'live' && parsed.data.status === 'live') {
     const readiness = await getClientReadinessById(row.id, {
@@ -1474,6 +1484,7 @@ export async function updateClient(input: z.input<typeof clientSchema>): Promise
           ? row.monthlyCallLimit
           : parsed.data.monthlyCallLimit,
       concurrentCallLimit: parsed.data.concurrentCallLimit ?? row.concurrentCallLimit,
+      retentionPolicy: nextRetentionPolicy,
       updatedAt: new Date(),
     })
     .where(eq(workspace.id, parsed.data.workspaceId))

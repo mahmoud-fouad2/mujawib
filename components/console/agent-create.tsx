@@ -5,6 +5,11 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/overlays'
 import { useAction } from '@/components/ui/row-actions'
+import {
+  DEFAULT_VOICE_PERSONAS,
+  profileMatchesPersona,
+  type VoicePersonaKey,
+} from '@/lib/voice-personas'
 import { createVoiceAgent } from '@/server/actions/console'
 
 type ClientOption = { id: string; name: string; slug: string }
@@ -37,6 +42,13 @@ export function AgentCreateSheet({
     availableProfiles[0]?.id ?? profiles[0]?.id ?? '',
   )
   const { run, pending } = useAction()
+
+  const applyPersona = (key: VoicePersonaKey) => {
+    const persona = DEFAULT_VOICE_PERSONAS.find((item) => item.key === key)
+    const profile = availableProfiles.find((candidate) => profileMatchesPersona(candidate, key))
+    if (profile) setVoiceProfileId(profile.id)
+    if (persona && !name.trim()) setName(persona.defaultAgentName)
+  }
 
   const close = () => {
     setOpen(false)
@@ -77,6 +89,29 @@ export function AgentCreateSheet({
           </>
         }
       >
+        <section className="voice-persona-grid" aria-label="اختيار شخصية الموظف الصوتي">
+          {DEFAULT_VOICE_PERSONAS.map((persona) => {
+            const matchedProfile = availableProfiles.find((profile) =>
+              profileMatchesPersona(profile, persona.key),
+            )
+            const active = matchedProfile?.id === voiceProfileId
+            return (
+              <button
+                key={persona.key}
+                type="button"
+                className="voice-persona"
+                data-active={active ? 'true' : 'false'}
+                onClick={() => applyPersona(persona.key)}
+                disabled={!matchedProfile}
+              >
+                <strong>{persona.label}</strong>
+                <span>{persona.description}</span>
+                <small>{matchedProfile ? matchedProfile.name : 'غير متاح بعد'}</small>
+              </button>
+            )
+          })}
+        </section>
+
         <div className="field">
           <label htmlFor="agent-client">العميل</label>
           <select

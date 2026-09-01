@@ -40,6 +40,8 @@ function id(prefix: string) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 16)}`
 }
 
+const VOICE_TOOL_TIMEOUT_MS = 4_500
+
 export type ToolContext = {
   callId: string
   workspaceId: string
@@ -60,6 +62,10 @@ function integrationError(code: IntegrationFailureCode, subject: string): string
   if (code === 'credential_missing') return `يحتاج اتصال ${subject} إلى إعادة ربط آمنة.`
   if (code === 'invalid_response') return `أعاد ${subject} نتيجة غير مكتملة.`
   return `${subject} غير متاح حاليًا.`
+}
+
+function lastFour(phone: string) {
+  return phone.replace(/\D/g, '').slice(-4)
 }
 
 const availabilityArgs = z.object({
@@ -309,6 +315,7 @@ async function checkAvailability(
   const response = await invokeIntegration<{ slots: string[] }>({
     connection: integration,
     action: 'availability',
+    timeoutMs: VOICE_TOOL_TIMEOUT_MS,
     payload: {
       service: parsed.data.service,
       date: parsed.data.preferredDate,
@@ -413,6 +420,7 @@ async function createBooking(
     const response = await invokeIntegration<{ bookingId: string }>({
       connection: integration,
       action: 'booking',
+      timeoutMs: VOICE_TOOL_TIMEOUT_MS,
       payload: {
         service: parsed.data.service,
         slot: parsed.data.slot,
@@ -504,7 +512,10 @@ async function createBooking(
     when: bookedAt,
   }).catch(() => console.error('[voice] could not upsert CRM contact from booking'))
 
-  return { ok: true, data: { bookingId, slot: parsed.data.slot, source } }
+  return {
+    ok: true,
+    data: { bookingId, slot: parsed.data.slot, source, contactLast4: lastFour(customerPhone) },
+  }
 }
 
 /* ─── shared: finding the caller's own booking ───────────────────────────── */
@@ -619,6 +630,7 @@ async function cancelBooking(
       const response = await invokeIntegration({
         connection: integration,
         action: 'cancellation',
+        timeoutMs: VOICE_TOOL_TIMEOUT_MS,
         payload: { externalId: target.externalId },
       })
       externalSynced = response.ok
@@ -720,6 +732,7 @@ async function rescheduleBooking(
     const response = await invokeIntegration({
       connection: integration,
       action: 'reschedule',
+      timeoutMs: VOICE_TOOL_TIMEOUT_MS,
       payload: { externalId: target.externalId, slot: parsed.data.newSlot },
     })
     if (!response.ok) {
@@ -791,12 +804,13 @@ async function sendConfirmation(
   const response = await invokeIntegration({
     connection: integration,
     action: 'message',
+    timeoutMs: VOICE_TOOL_TIMEOUT_MS,
     payload: { to: destination, bookingId: parsed.data.bookingId },
   })
   if (!response.ok) {
     return { ok: false, error: integrationError(response.code, 'قناة الإرسال'), fallback: 'retry' }
   }
-  return { ok: true, data: { sent: true } }
+  return { ok: true, data: { sent: true, sentToLast4: lastFour(destination) } }
 }
 
 /* ─── create_callback ────────────────────────────────────────────────────── */
@@ -857,7 +871,14 @@ async function createCallback(
     when: now,
   }).catch(() => console.error('[voice] could not upsert CRM contact from callback'))
 
-  return { ok: true, data: { logged: true, ...(inserted ? { requestId: inserted.id } : {}) } }
+  return {
+    ok: true,
+    data: {
+      logged: true,
+      contactLast4: lastFour(customerPhone),
+      ...(inserted ? { requestId: inserted.id } : {}),
+    },
+  }
 }
 
 /* ─── transfer_to_human ──────────────────────────────────────────────────── */

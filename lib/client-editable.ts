@@ -37,6 +37,11 @@ export type ClientEditable = {
   /** null = unlimited. */
   monthlyCallLimit: number | null
   concurrentCallLimit: number
+  retentionPreset: '30d' | '180d'
+}
+
+function retentionPreset(policy: Record<string, unknown> | null | undefined): '30d' | '180d' {
+  return policy?.calls === '30d' ? '30d' : '180d'
 }
 
 export function clientEditable(
@@ -47,6 +52,7 @@ export function clientEditable(
     status: string
     monthlyCallLimit: number | null
     concurrentCallLimit: number
+    retentionPolicy?: Record<string, unknown> | null
   },
   info: ClientBusinessInfo,
 ): ClientEditable {
@@ -67,5 +73,6 @@ export function clientEditable(
     notes: info.notes ?? '',
     monthlyCallLimit: workspace.monthlyCallLimit,
     concurrentCallLimit: workspace.concurrentCallLimit,
+    retentionPreset: retentionPreset(workspace.retentionPolicy),
   }
 }

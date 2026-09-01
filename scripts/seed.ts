@@ -12,6 +12,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { DEFAULT_VOICE_PERSONAS } from '../lib/voice-personas.ts'
 import * as schema from '../server/db/schema/index.ts'
 
 const connectionString = process.env.DATABASE_URL
@@ -277,40 +278,7 @@ const PACKS = [
   },
 ]
 
-const VOICE_PROFILES = [
-  {
-    name: 'سعودي احترافي',
-    country: 'SA',
-    dialect: 'saudi',
-    style: 'professional',
-    policy: { primary: 'ar-SA', switchToEnglish: 'on_caller_request', brandNames: 'keep_latin' },
-    pacing: { responseLength: 'short', pauseMs: 260, bargeIn: true },
-  },
-  {
-    name: 'مصري ودود',
-    country: 'EG',
-    dialect: 'egyptian',
-    style: 'warm',
-    policy: { primary: 'ar-EG', switchToEnglish: 'on_caller_request', brandNames: 'keep_latin' },
-    pacing: { responseLength: 'short', pauseMs: 300, bargeIn: true },
-  },
-  {
-    name: 'خليجي موجز',
-    country: 'AE',
-    dialect: 'gulf',
-    style: 'concise',
-    policy: { primary: 'ar-AE', switchToEnglish: 'mixed_allowed', brandNames: 'keep_latin' },
-    pacing: { responseLength: 'very_short', pauseMs: 220, bargeIn: true },
-  },
-  {
-    name: 'فصحى محايدة',
-    country: 'MSA',
-    dialect: 'msa',
-    style: 'premium',
-    policy: { primary: 'ar', switchToEnglish: 'never', brandNames: 'transliterate' },
-    pacing: { responseLength: 'medium', pauseMs: 320, bargeIn: false },
-  },
-]
+const VOICE_PROFILES = DEFAULT_VOICE_PERSONAS
 
 const INTEGRATION_CATALOG: Record<string, string> = {
   google_calendar: 'Google Calendar',
@@ -517,7 +485,7 @@ function build() {
     B.voiceProfile.add({
       id: vid,
       workspaceId: null,
-      name: v.name,
+      name: v.label,
       country: v.country,
       dialect: v.dialect,
       style: v.style,
@@ -568,12 +536,23 @@ function build() {
     })
 
     for (const s of client.services) {
+      const owner = pick(client.staff)
       B.knowledgeItem.add({
         id: id('kn'),
         workspaceId: client.id,
         category: 'service',
         title: s.title,
-        content: { price: s.price, duration: s.duration },
+        content: {
+          body: `${s.title} ضمن خدمات ${client.name}. يشرح الموظف الهدف منها باختصار، ثم يوجه المتصل للحجز أو المتابعة حسب حاجته.`,
+          price: s.price,
+          duration: s.duration,
+          suitableFor: 'العملاء الذين يطلبون هذه الخدمة أو يحتاجون توضيحًا قبل الحجز.',
+          requirements: 'الاسم وتأكيد آخر أربعة أرقام من رقم الاتصال، وأي ملاحظة تخص الطلب.',
+          outcome: 'توضيح الخدمة ثم حجز موعد أو تسجيل متابعة عند الحاجة.',
+          availability: 'حسب المواعيد المتاحة وساعات العمل المسجلة.',
+          owner,
+          branch: pick(client.branches),
+        },
         source: 'structured',
         createdAt: daysAgo(activeDays + 20),
       })
@@ -595,7 +574,17 @@ function build() {
         workspaceId: client.id,
         category: 'staff',
         title: s,
-        content: { availability: 'الأحد إلى الخميس' },
+        content: {
+          role:
+            client.pack === 'medical'
+              ? 'مختص يستقبل الحالات حسب جدول العيادة'
+              : 'مسؤول خدمة أو متابعة',
+          specialty: client.pack === 'medical' ? 'خدمات المركز المسجلة' : client.pack,
+          experience: 'يُشرح دوره من المعرفة المعتمدة فقط دون وعود أو تفاصيل غير مسجلة.',
+          services: client.services.map((service) => service.title).join('، '),
+          branch: pick(client.branches),
+          body: 'متاح حسب ساعات العمل وجداول الفريق.',
+        },
         source: 'structured',
         createdAt: daysAgo(activeDays + 20),
       })
@@ -675,7 +664,7 @@ function build() {
         name: f,
         goal: `إنجاز ${f} بدون تدخل بشري`,
         requiredFields: f.includes('حجز')
-          ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'رقم الجوال']
+          ? ['الخدمة', 'التاريخ والوقت', 'الاسم', 'تأكيد آخر أربعة أرقام من رقم الاتصال']
           : ['الموضوع'],
         actions: f.includes('حجز') ? ['check_availability', 'create_booking'] : ['answer'],
         fallback: { onFailure: 'callback_or_transfer' },

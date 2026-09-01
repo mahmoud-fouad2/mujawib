@@ -33,9 +33,12 @@ export const VOICE_MODEL = PRIMARY_REALTIME_MODEL
 const VOICE_BY_DIALECT: Record<string, string> = {
   saudi: 'cedar',
   gulf: 'cedar',
+  lebanese: 'marin',
   egyptian: 'marin',
   msa: 'marin',
 }
+
+type JsonRecord = Record<string, unknown>
 
 export type ResolvedAgent = {
   /** Which SIP header and number actually matched a configured route. */
@@ -50,6 +53,7 @@ export type ResolvedAgent = {
   instructions: string
   tools: ReturnType<typeof toolsFor>
   voice: string
+  pacing: JsonRecord | null
   transferTo: string | null
   phoneNumberId: string
   recordingDisclosureMode: string
@@ -132,6 +136,10 @@ async function resolveAgentForNumber(
       voiceCancellationEnabled: version.voiceCancellationEnabled,
     }),
     voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',
+    pacing:
+      resolvedProfile?.pacing && typeof resolvedProfile.pacing === 'object'
+        ? (resolvedProfile.pacing as JsonRecord)
+        : null,
     transferTo: rules.transferTo ?? row.phone.transferDestination ?? null,
     phoneNumberId: row.phone.id,
     recordingDisclosureMode: row.ws.recordingDisclosureMode,
@@ -188,14 +196,16 @@ export function buildAcceptPayload(
   const disclosureInstruction = recordingDisclosureInstruction(resolved.recordingDisclosureMode)
   const callerInstruction = callerNumber
     ? `رقم الاتصال الموثوق لهذه المكالمة هو ${callerNumber}.
-- لا تطلب من المتصل إملاء رقمه افتراضيًا؛ أكّد له آخر أربعة أرقام فقط، ثم اسأله هل يستخدم هذا الرقم للموعد أو المتابعة.
-- استخدم هذا الرقم في create_booking وcreate_callback وsend_confirmation ما لم يطلب المتصل صراحةً رقمًا مختلفًا.
+- اعتبر هذا الرقم رقم المتصل الأساسي. لا تسأل المتصل عن رقم الجوال أثناء الحجز أو المتابعة إلا إذا قال صراحةً إنه يريد استخدام رقم آخر.
+- عند الحاجة للتأكد، قل: «أستخدم الرقم المنتهي بـ ${callerNumber.slice(-4)}؟» ولا تطلب منه إملاء الرقم كاملًا.
+- مرّر هذا الرقم تلقائيًا إلى create_booking وcreate_callback وsend_confirmation إذا احتاجت الأداة رقمًا ولم يذكر المتصل رقمًا بديلًا.
 - إذا طلب المتصل سماع الرقم كاملًا، انطقه رقمًا رقمًا بلا حذف أي أرقام من الوسط.
 - لا تعرض الرقم في أي سجل أو رسالة تقنية.`
     : `لم يصل رقم موثوق للمتصل. اطلب رقم الجوال مرة واحدة فقط عند الحاجة إلى حجز أو متابعة.`
   const instructions = [disclosureInstruction, callerInstruction, resolved.instructions]
     .filter(Boolean)
     .join('\n\n')
+  const turnDetection = turnDetectionSettings(resolved.pacing)
 
   return {
     type: 'realtime',
@@ -213,10 +223,10 @@ export function buildAcceptPayload(
         },
         turn_detection: {
           type: 'server_vad',
-          threshold: 0.55,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 700,
-          idle_timeout_ms: 12_000,
+          threshold: turnDetection.threshold,
+          prefix_padding_ms: turnDetection.prefixPaddingMs,
+          silence_duration_ms: turnDetection.silenceDurationMs,
+          idle_timeout_ms: turnDetection.idleTimeoutMs,
           interrupt_response: true,
         },
       },
@@ -226,5 +236,26 @@ export function buildAcceptPayload(
       },
     },
     ...toolFields,
+  }
+}
+
+function numberSetting(
+  source: JsonRecord | null,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+) {
+  const value = source?.[key]
+  const number = typeof value === 'number' && Number.isFinite(value) ? value : fallback
+  return Math.min(max, Math.max(min, number))
+}
+
+function turnDetectionSettings(pacing: JsonRecord | null) {
+  return {
+    threshold: numberSetting(pacing, 'vadThreshold', 0.5, 0.35, 0.75),
+    prefixPaddingMs: Math.round(numberSetting(pacing, 'prefixPaddingMs', 240, 120, 500)),
+    silenceDurationMs: Math.round(numberSetting(pacing, 'silenceDurationMs', 520, 380, 900)),
+    idleTimeoutMs: Math.round(numberSetting(pacing, 'idleTimeoutMs', 7_000, 4_000, 15_000)),
   }
 }

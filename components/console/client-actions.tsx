@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
@@ -49,7 +49,15 @@ function clientsHrefFor(search: string, status: string) {
   return `/console/clients${qs ? `?${qs}` : ''}`
 }
 
-export function ClientsToolbar({ search, status }: { search: string; status: string }) {
+export function ClientsToolbar({
+  search,
+  status,
+  children,
+}: {
+  search: string
+  status: string
+  children?: ReactNode
+}) {
   const router = useRouter()
   const [query, setQuery] = useState(search)
 
@@ -90,6 +98,7 @@ export function ClientsToolbar({ search, status }: { search: string; status: str
           </option>
         ))}
       </select>
+      {children}
     </div>
   )
 }
@@ -268,6 +277,7 @@ export function ClientRowActions({
                       notes: form.notes,
                       monthlyCallLimit: form.monthlyCallLimit,
                       concurrentCallLimit: form.concurrentCallLimit,
+                      retentionPreset: form.retentionPreset,
                     }),
                   () => setEditing(false),
                 )
@@ -385,6 +395,31 @@ export function ClientRowActions({
                 }))
               }
             />
+          </div>
+        </div>
+
+        <div className="sheet__group">
+          <h3>حفظ المكالمات والمحادثات</h3>
+          <p className="field__hint" style={{ marginBlockEnd: 'var(--s-2)' }}>
+            يحدد مدة بقاء سجلات المكالمات، نصوص الحوار، والتسجيلات الخاصة بهذا العميل قبل تنظيفها
+            تلقائيًا، ما لم توجد علامة حفظ قانوني.
+          </p>
+          <div className="field">
+            <label htmlFor={`retention-${client.workspaceId}`}>مدة الاحتفاظ</label>
+            <select
+              id={`retention-${client.workspaceId}`}
+              className="input"
+              value={form.retentionPreset}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  retentionPreset: event.target.value === '30d' ? '30d' : '180d',
+                }))
+              }
+            >
+              <option value="30d">شهر واحد</option>
+              <option value="180d">6 أشهر</option>
+            </select>
           </div>
         </div>
 

@@ -927,6 +927,21 @@
   overflow-x: auto;
 }
 
+.workbench__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-3) var(--s-3);
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.workbench__actions .input {
+  min-inline-size: 132px;
+  block-size: 34px;
+  font-size: var(--step--1);
+}
+
 .filter-chip {
   padding: 5px 11px;
   border-radius: var(--r-pill);
@@ -2534,6 +2549,22 @@
   min-inline-size: 160px;
 }
 
+.crm-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: var(--s-3);
+  margin-block-end: var(--s-3);
+  border-block: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.crm-bulk-bar strong {
+  color: var(--text);
+  font-size: var(--step--1);
+}
+
 @media (max-width: 700px) {
   .portal-toolbar,
   .console-table-toolbar,
@@ -2565,7 +2596,9 @@
   .crm-toolbar > .input,
   .crm-toolbar > .btn,
   .crm-toolbar > .row-actions,
-  .clients-toolbar > .input {
+  .crm-bulk-bar > .btn,
+  .clients-toolbar > .input,
+  .clients-toolbar > .btn {
     flex: 1 1 140px;
   }
 
@@ -2586,6 +2619,15 @@
 
   .workbench__list {
     max-block-size: 300px;
+  }
+
+  .workbench__actions {
+    align-items: stretch;
+  }
+
+  .workbench__actions .input,
+  .workbench__actions .btn {
+    flex: 1 1 140px;
   }
 
   .workbench__detail {

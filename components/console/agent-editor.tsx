@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
+import {
+  DEFAULT_VOICE_PERSONAS,
+  personaByKey,
+  profileMatchesPersona,
+  type VoicePersonaKey,
+} from '@/lib/voice-personas'
 import { updateAgentDraft } from '@/server/actions/console'
 
 type IntegrationOption = {
@@ -96,6 +102,19 @@ export function AgentEditorSheet({
       b.includes('rest_api') ||
       b.includes('generic_api'),
   )
+  const applyPersona = (key: VoicePersonaKey) => {
+    const persona = personaByKey(key)
+    const profile = voiceProfiles.find((candidate) => profileMatchesPersona(candidate, key))
+    if (profile) setVoiceProfileId(profile.id)
+    if (!name.trim() || DEFAULT_VOICE_PERSONAS.some((item) => item.defaultAgentName === name)) {
+      setName(persona.defaultAgentName)
+    }
+    if (!role.trim()) {
+      setRole(
+        `موظف استقبال صوتي ${persona.label}، يرد باسم النشاط، يفهم طلب المتصل، ينفذ المسارات المسموحة فقط، ويصعّد للفريق عند نقص البيانات أو فشل الأداة.`,
+      )
+    }
+  }
 
   const handleSave = () => {
     run(
@@ -295,6 +314,29 @@ export function AgentEditorSheet({
         }
       >
         <div className="stack" style={{ gap: 'var(--s-5)' }}>
+          <section className="voice-persona-grid" aria-label="اختيار الشخصية الصوتية">
+            {DEFAULT_VOICE_PERSONAS.map((persona) => {
+              const matchedProfile = voiceProfiles.find((profile) =>
+                profileMatchesPersona(profile, persona.key),
+              )
+              const active = matchedProfile?.id === voiceProfileId
+              return (
+                <button
+                  key={persona.key}
+                  type="button"
+                  className="voice-persona"
+                  data-active={active ? 'true' : 'false'}
+                  onClick={() => applyPersona(persona.key)}
+                  disabled={!matchedProfile}
+                >
+                  <strong>{persona.label}</strong>
+                  <span>{persona.description}</span>
+                  <small>{matchedProfile ? matchedProfile.name : 'غير متاح في هذه البيئة'}</small>
+                </button>
+              )
+            })}
+          </section>
+
           {/* Quick Blueprint Presets */}
           <div
             style={{

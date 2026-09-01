@@ -2,7 +2,8 @@
 
 import { Columns3, Download, MessageSquare, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CsvExportButton } from '@/components/console/table-tools'
 import { Section, SummaryBar } from '@/components/console/ui'
 import { Button } from '@/components/ui/button'
 import { Confirm, Sheet } from '@/components/ui/overlays'
@@ -17,7 +18,12 @@ import {
   num,
   relative,
 } from '@/lib/format'
-import { createCustomer, deleteCustomer, updateCustomer } from '@/server/actions/crm'
+import {
+  createCustomer,
+  deleteCustomer,
+  deleteCustomersBulk,
+  updateCustomer,
+} from '@/server/actions/crm'
 import type { CrmCustomerRow, CrmDateRange, CrmStatusFilter } from '@/server/data/crm'
 
 type Filters = { search: string; status: CrmStatusFilter; range: CrmDateRange }
@@ -397,9 +403,19 @@ export function CrmTable({
 }) {
   const router = useRouter()
   const [search, setSearch] = useState(filters.search)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const { visible, toggle } = useVisibleColumns(workspaceId)
+  const { run, pending } = useAction()
 
   useEffect(() => setSearch(filters.search), [filters.search])
+  // `customers` is the trigger here, not an input: the effect exists to clear
+  // the selection whenever the list changes underneath it. Removing the
+  // dependency — Biome's suggested fix — would leave ids selected that are no
+  // longer on screen, and a bulk delete would then act on rows the operator
+  // can no longer see.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger
+  useEffect(() => setSelected(new Set()), [customers])
 
   useEffect(() => {
     const trimmed = search.trim()
@@ -414,6 +430,41 @@ export function CrmTable({
     Boolean(filters.search) || filters.status !== 'all' || filters.range !== 'all'
   const exportQs = filterQuery(filters)
   const exportHref = `/portal/crm/export${exportQs ? `?${exportQs}` : ''}`
+  const selectedRows = useMemo(
+    () => customers.filter((customer) => selected.has(customer.id)),
+    [customers, selected],
+  )
+  const allSelected = customers.length > 0 && selectedRows.length === customers.length
+  const selectedExportRows = selectedRows.map((customer) => [
+    customer.name ?? '',
+    customer.phone,
+    customer.email ?? '',
+    CRM_STATUS_LABEL[customer.status] ?? customer.status,
+    customer.tags.join(' | '),
+    customer.notes ?? '',
+    CRM_SOURCE_LABEL[customer.source] ?? customer.source,
+    customer.calls,
+    customer.lastCallAt ? fullDate(customer.lastCallAt) : '',
+    fullDate(customer.createdAt),
+  ])
+
+  function toggleAll() {
+    setSelected((previous) => {
+      if (customers.length > 0 && customers.every((customer) => previous.has(customer.id))) {
+        return new Set()
+      }
+      return new Set(customers.map((customer) => customer.id))
+    })
+  }
+
+  function toggleOne(id: string) {
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   return (
     <>
@@ -474,6 +525,43 @@ export function CrmTable({
         {canManage ? <AddCustomerButton workspaceId={workspaceId} /> : null}
       </div>
 
+      {selectedRows.length > 0 ? (
+        <div className="crm-bulk-bar">
+          <strong>{num(selectedRows.length)} محدد</strong>
+          <CsvExportButton
+            filename={`mujawib-selected-customers-${new Date().toISOString().slice(0, 10)}.csv`}
+            headers={[
+              'الاسم',
+              'الجوال',
+              'البريد الإلكتروني',
+              'الحالة',
+              'الوسوم',
+              'ملاحظات',
+              'المصدر',
+              'عدد المكالمات',
+              'آخر اتصال',
+              'أُضيف في',
+            ]}
+            rows={selectedExportRows}
+            label="تصدير المحدد"
+          />
+          {canManage ? (
+            <Button
+              size="sm"
+              variant="danger"
+              leading={<Trash2 size={15} />}
+              disabled={pending}
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              حذف المحدد
+            </Button>
+          ) : null}
+          <Button size="sm" onClick={() => setSelected(new Set())}>
+            إلغاء التحديد
+          </Button>
+        </div>
+      ) : null}
+
       <Section title="كل العملاء" meta={`${num(customers.length)} من ${num(summary.total)}`} flush>
         {customers.length === 0 ? (
           <EmptyState
@@ -489,6 +577,14 @@ export function CrmTable({
             <table className="table table--rows">
               <thead>
                 <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      aria-label="تحديد كل العملاء المعروضين"
+                    />
+                  </th>
                   <th>الاسم</th>
                   <th>الجوال</th>
                   <th>تواصل سريع</th>
@@ -506,6 +602,14 @@ export function CrmTable({
               <tbody>
                 {customers.map((c) => (
                   <tr key={c.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleOne(c.id)}
+                        aria-label={`تحديد ${c.name ?? c.phone}`}
+                      />
+                    </td>
                     <td style={{ fontWeight: 500 }}>{c.name ?? '—'}</td>
                     {/* The client owns this data and needs the real number to act on
                         it (call, export, hand to another system) — unlike the masked
@@ -584,6 +688,25 @@ export function CrmTable({
           </div>
         )}
       </Section>
+
+      <Confirm
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={() =>
+          run(
+            () => deleteCustomersBulk({ workspaceId, ids: selectedRows.map((row) => row.id) }),
+            () => {
+              setSelected(new Set())
+              setBulkDeleteOpen(false)
+            },
+          )
+        }
+        title={`حذف ${selectedRows.length} جهة اتصال؟`}
+        body="سيتم حذف جهات الاتصال المحددة من CRM فقط. سجل المكالمات المرتبط بها لا يتأثر."
+        confirmLabel="احذف المحدد"
+        tone="danger"
+        pending={pending}
+      />
     </>
   )
 }

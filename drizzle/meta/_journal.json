@@ -162,6 +162,13 @@
       "when": 1788084734266,
       "tag": "0022_bumpy_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788211863461,
+      "tag": "0023_default_voice_personas",
+      "breakpoints": true
     }
   ]
 }

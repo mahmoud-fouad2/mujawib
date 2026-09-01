@@ -113,6 +113,7 @@ export async function invokeIntegration<T = Record<string, unknown>>(input: {
   connection: Connection
   action: IntegrationAction
   payload?: Record<string, unknown>
+  timeoutMs?: number
 }): Promise<IntegrationResult<T>> {
   const config = normalizeIntegrationConfig(input.connection.config)
   const endpoint = config.endpoints[input.action]
@@ -128,6 +129,10 @@ export async function invokeIntegration<T = Record<string, unknown>>(input: {
     ...(input.payload ? { body: input.payload } : {}),
     credentialsRef: input.connection.credentialsRef,
     credentialsEncrypted: input.connection.credentialsEncrypted,
+    // Spread rather than assigned: under `exactOptionalPropertyTypes` an
+    // explicit `undefined` is not the same as an absent optional property, and
+    // omitting it is what lets `safeIntegrationRequest` apply its own default.
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
   })
 
   if (!response.ok) {

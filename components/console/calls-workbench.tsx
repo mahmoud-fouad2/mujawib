@@ -7,11 +7,13 @@ import { useEffect, useState } from 'react'
 import { RecordingPlayer } from '@/components/calls/recording-player'
 import { CallIntelligenceStatus } from '@/components/console/call-intelligence-status'
 import { QuickPronunciationFix } from '@/components/console/quick-pronunciation'
+import { CsvExportButton } from '@/components/console/table-tools'
 import { Sheet } from '@/components/ui/overlays'
 import { Pill } from '@/components/ui/primitives'
 import {
   CALL_OUTCOME_LABEL,
   CALL_STATUS_LABEL,
+  CRM_RANGE_LABEL,
   clock,
   duration,
   EVENT_LABEL,
@@ -35,10 +37,18 @@ const CALL_FILTERS = [
   { id: 'demo', label: 'بيانات تجريبية' },
 ] as const
 
-function hrefFor(filter: string, callId?: string, search?: string) {
+function hrefFor(
+  filter: string,
+  callId?: string,
+  search?: string,
+  clientSlug?: string,
+  range = 'all',
+) {
   const params = new URLSearchParams()
+  if (clientSlug) params.set('client', clientSlug)
   if (filter !== 'all') params.set('filter', filter)
   if (search) params.set('q', search)
+  if (range !== 'all') params.set('range', range)
   if (callId) params.set('call', callId)
   const qs = params.toString()
   return `/console/calls${qs ? `?${qs}` : ''}`
@@ -53,13 +63,17 @@ export function CallsWorkbench({
   rows,
   selected,
   filter,
+  range,
   search,
+  clientSlug,
   canRetrySummary,
 }: {
   rows: CallRow[]
   selected: CallDetail | null
   filter: string
+  range: string
   search?: string
+  clientSlug?: string
   canRetrySummary: boolean
 }) {
   const router = useRouter()
@@ -71,10 +85,12 @@ export function CallsWorkbench({
     const trimmed = query.trim()
     if (trimmed === (search ?? '')) return
     const id = window.setTimeout(() => {
-      router.replace(hrefFor(filter, undefined, trimmed || undefined), { scroll: false })
+      router.replace(hrefFor(filter, undefined, trimmed || undefined, clientSlug, range), {
+        scroll: false,
+      })
     }, 350)
     return () => window.clearTimeout(id)
-  }, [query, search, filter, router])
+  }, [query, search, filter, clientSlug, range, router])
 
   return (
     <div className="workbench">
@@ -94,12 +110,60 @@ export function CallsWorkbench({
           {CALL_FILTERS.map((f) => (
             <Link
               key={f.id}
-              href={hrefFor(f.id, undefined, search)}
+              href={hrefFor(f.id, undefined, query.trim() || undefined, clientSlug, range)}
               className={`filter-chip${f.id === filter ? ' is-active' : ''}`}
             >
               {f.label}
             </Link>
           ))}
+        </div>
+        <div className="workbench__actions">
+          <select
+            className="input"
+            value={range}
+            onChange={(event) =>
+              router.replace(
+                hrefFor(
+                  filter,
+                  undefined,
+                  query.trim() || undefined,
+                  clientSlug,
+                  event.target.value,
+                ),
+                { scroll: false },
+              )
+            }
+            aria-label="فلترة المكالمات حسب التاريخ"
+          >
+            {Object.entries(CRM_RANGE_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <CsvExportButton
+            filename={`mujawib-calls-${new Date().toISOString().slice(0, 10)}.csv`}
+            headers={[
+              'معرف المكالمة',
+              'العميل',
+              'رقم المتصل',
+              'الحالة',
+              'النتيجة',
+              'النية',
+              'المدة بالثواني',
+              'بدأت في',
+            ]}
+            rows={rows.map((row) => [
+              row.id,
+              row.workspaceName,
+              row.callerNumber ?? '',
+              CALL_STATUS_LABEL[row.status] ?? row.status,
+              row.outcome ? (CALL_OUTCOME_LABEL[row.outcome] ?? row.outcome) : '',
+              row.intent ?? '',
+              row.durationSeconds ?? '',
+              fullDate(row.startedAt),
+            ])}
+          />
         </div>
 
         {rows.length === 0 ? (
@@ -111,7 +175,7 @@ export function CallsWorkbench({
           rows.map((r) => (
             <Link
               key={r.id}
-              href={hrefFor(filter, r.id, search)}
+              href={hrefFor(filter, r.id, query.trim() || undefined, clientSlug, range)}
               className={`list-item${selected?.id === r.id ? ' is-active' : ''}`}
             >
               <div className="list-item__top">

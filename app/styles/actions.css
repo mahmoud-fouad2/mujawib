@@ -805,6 +805,61 @@
   color: var(--bad);
 }
 
+.voice-persona-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+  padding-block-end: var(--s-4);
+  border-block-end: 1px solid var(--line);
+}
+
+.voice-persona {
+  display: grid;
+  gap: 4px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.voice-persona:hover:not(:disabled),
+.voice-persona[data-active="true"] {
+  border-color: var(--signal-line);
+  background: var(--signal-soft);
+}
+
+.voice-persona:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.voice-persona strong {
+  font-size: var(--step--1);
+}
+
+.voice-persona span,
+.voice-persona small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.voice-persona small {
+  color: var(--text-faint);
+}
+
+@media (max-width: 560px) {
+  .voice-persona-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .invite-result {
   display: grid;
   gap: var(--s-5);
