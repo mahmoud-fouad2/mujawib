@@ -286,12 +286,12 @@ export async function runVersionTestSuite(versionId: string): Promise<ActionResu
     }
   }
 
-  // Sequential, not the two-worker pool this used to run: this process's
-  // start script caps the heap at 384MB (render.yaml's starter plan) and
-  // owns every live call's sideband socket at the same time (README's
-  // "horizontal scaling limits" section) - two scenarios' realtime WS
-  // sessions overlapping was extra memory pressure this had no real need
-  // for. A batch takes longer now; nothing else about the result changes.
+  // Sequential, not the two-worker pool this used to run: this process caps
+  // its heap well below the container limit (package.json#start) and owns
+  // every live call's sideband socket at the same time, so two scenarios'
+  // realtime WS sessions overlapping was extra memory pressure this had no
+  // real need for. A batch takes longer now; nothing else about the result
+  // changes.
   const results: {
     scenario: ScenarioRow
     result: Awaited<ReturnType<typeof executeAndPersistScenario>>
