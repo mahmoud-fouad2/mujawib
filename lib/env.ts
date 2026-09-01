@@ -32,6 +32,10 @@ export const env = createEnv({
     // Size of the pool reserved for the voice runtime. Deliberately small —
     // the point is isolation from page traffic, not headroom.
     DATABASE_REALTIME_POOL_MAX: z.coerce.number().int().min(1).max(20).optional(),
+    // The container memory limit, which Node cannot discover for itself: V8
+    // sizes its heap from the host, not the cgroup. Pressure is measured
+    // against this, and calls are refused before it is reached.
+    MEMORY_LIMIT_MB: z.coerce.number().int().min(128).max(16_384).optional(),
     // Backward-compatible Cloudflare R2 names. R2_PUBLIC_BASE_URL is
     // intentionally not consumed: recordings are never served from a public URL.
     R2_ACCOUNT_ID: z.string().min(1).optional(),
@@ -82,6 +86,7 @@ export const env = createEnv({
     ACTIVE_REALTIME_CALL_LIMIT: process.env.ACTIVE_REALTIME_CALL_LIMIT,
     SHUTDOWN_DRAIN_TIMEOUT_MS: process.env.SHUTDOWN_DRAIN_TIMEOUT_MS,
     DATABASE_REALTIME_POOL_MAX: process.env.DATABASE_REALTIME_POOL_MAX,
+    MEMORY_LIMIT_MB: process.env.MEMORY_LIMIT_MB,
     R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
     R2_BUCKET: process.env.R2_BUCKET,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,

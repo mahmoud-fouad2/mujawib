@@ -84,6 +84,23 @@ services:
       - key: DATABASE_REALTIME_POOL_MAX
         value: '4'
 
+      # This plan's memory ceiling. Node cannot discover it: V8 sizes its heap
+      # from the *host's* memory, not the container's, so it has to be told.
+      #
+      # An instance was OOM-killed on 2026-09-01 ("Ran out of memory (used over
+      # 512MB) while running your code"). The cause was arithmetic:
+      # package.json#start passed --max-old-space-size=384, and V8 reports a
+      # total heap limit of that plus ~192MB of other spaces — a 576MB ceiling
+      # inside a 512MB box. V8 had no reason to collect before the platform
+      # killed the process, and committed heap (heapTotal) grew toward a limit
+      # the container could not honour. The flag is now 192, giving a 384MB
+      # ceiling and roughly 90MB of headroom against measured non-heap RSS.
+      #
+      # This value is what the pressure signal and call admission measure
+      # against. If the instance plan changes, change both together.
+      - key: MEMORY_LIMIT_MB
+        value: '512'
+
       # ─── set these in the Render dashboard ───────────────────────────────
       # Neon pooled connection string (must include ?sslmode=require)
       - key: DATABASE_URL

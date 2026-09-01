@@ -1,5 +1,13 @@
-import * as Sentry from '@sentry/nextjs'
-
+/**
+ * Sentry is imported only when it is actually going to be used.
+ *
+ * `import * as Sentry from '@sentry/nextjs'` at module scope cost a measured
+ * 34MB of RSS on import — it pulls in @sentry/node and its OpenTelemetry
+ * auto-instrumentation — and it was paid unconditionally, including on a
+ * deployment with no DSN configured, where every one of those bytes belongs to
+ * a no-op. On a 512MB container that is seven percent of the whole budget.
+ * With a DSN set the cost is real and worth it; without one it is not.
+ */
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Runs once, only when a server process actually starts serving traffic —
@@ -25,6 +33,10 @@ export async function register() {
     // installs its own SIGTERM handler that exits as soon as the HTTP server
     // closes, which is why `NEXT_MANUAL_SIG_HANDLE` has to be set for this to
     // do anything — `installShutdownHandlers` says so in the log if it is not.
+    // Starts the event-loop delay histogram before anything else can block it.
+    const { startVitals } = await import('./server/runtime/vitals')
+    startVitals()
+
     const { installShutdownHandlers } = await import('./server/runtime/lifecycle')
     const { registerSidebandDrainHook } = await import('./server/voice/sideband')
     registerSidebandDrainHook()
@@ -38,12 +50,10 @@ export async function register() {
   }
 
   // Optional, like every other third-party integration in this app
-  // (RESEND_API_KEY, GOOGLE_CLIENT_ID): unset means Sentry.init runs with no
-  // DSN, which the SDK treats as "stay a no-op" rather than an error — so a
-  // deployment with nothing configured behaves exactly as it did before this
-  // file existed. Importing the package itself is always safe; it is calling
-  // .init() with a real DSN that starts anything network-facing.
+  // (RESEND_API_KEY, GOOGLE_CLIENT_ID). Unset now means the SDK is never
+  // loaded at all, rather than loaded and told to stay quiet.
   if (process.env.SENTRY_DSN) {
+    const Sentry = await import('@sentry/nextjs')
     Sentry.init({
       dsn: process.env.SENTRY_DSN,
       // Request/response bodies and headers can carry a caller's phone number
@@ -51,15 +61,33 @@ export async function register() {
       // (server/voice/log.ts) for exactly that data, so Sentry is not asked
       // to collect it independently.
       sendDefaultPii: false,
-      tracesSampleRate: 0.2,
+      // Lowered from 0.2. Tracing is the expensive half of the SDK — it is
+      // what pulls in the OpenTelemetry auto-instrumentation and keeps spans
+      // in memory — and on a 512MB container that budget is better spent on
+      // carrying calls. Errors, which are what this deployment actually reads,
+      // are unaffected by this rate.
+      tracesSampleRate: 0.05,
     })
   }
 }
 
 /**
  * Next.js's App Router hook for an error that surfaces during rendering or a
- * route handler, outside any component's own try/catch. Sentry's own binding
- * for it — a no-op when SENTRY_DSN was never set above, so this is safe to
- * export unconditionally rather than behind the same `if`.
+ * route handler, outside any component's own try/catch.
+ *
+ * Forwards to Sentry only when a DSN is configured, so a deployment without
+ * one never pays the SDK's import cost on this path either. Next calls this
+ * for every unhandled request error, so it must not throw: a failure to report
+ * an error must not itself become one.
  */
-export const onRequestError = Sentry.captureRequestError
+export async function onRequestError(
+  ...args: Parameters<typeof import('@sentry/nextjs').captureRequestError>
+) {
+  if (!process.env.SENTRY_DSN) return
+  try {
+    const Sentry = await import('@sentry/nextjs')
+    await Sentry.captureRequestError(...args)
+  } catch {
+    // Reporting is best effort; the request has already failed on its own.
+  }
+}

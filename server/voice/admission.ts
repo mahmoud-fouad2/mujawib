@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { isDraining } from '@/server/runtime/lifecycle'
+import { memoryPressure } from '@/server/runtime/vitals'
 
 /**
  * How many calls this process will carry at once.
@@ -23,7 +24,7 @@ const DEFAULT_LIMIT = 25
 
 export type AdmissionRefusal = {
   ok: false
-  reason: 'draining' | 'at_capacity'
+  reason: 'draining' | 'at_capacity' | 'memory_pressure'
   active: number
   limit: number
 }
@@ -64,6 +65,15 @@ export function acquireCallSlot(): AdmissionResult {
   }
   if (active >= limit) {
     return { ok: false, reason: 'at_capacity', active, limit }
+  }
+
+  // A process near its heap ceiling must stop taking on work rather than take
+  // one more call and be killed carrying all of them. On 2026-09-01 an
+  // instance was OOM-killed at 512MB; every call it held died with it. One
+  // refused call rings through to the client's human line — a far smaller
+  // failure, and a recoverable one.
+  if (memoryPressure() === 'critical') {
+    return { ok: false, reason: 'memory_pressure', active, limit }
   }
 
   active += 1

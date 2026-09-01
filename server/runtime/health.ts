@@ -2,6 +2,7 @@ import 'server-only'
 
 import { sql } from 'drizzle-orm'
 import { runtimePhase } from '@/server/runtime/lifecycle'
+import { readVitals, type Vitals } from '@/server/runtime/vitals'
 import { activeRealtimeCalls, realtimeCallLimit } from '@/server/voice/admission'
 
 /**
@@ -27,6 +28,7 @@ export type LivenessReport = {
   activeCalls: number
   callLimit: number
   uptimeSeconds: number
+  vitals: Vitals
 }
 
 export type ReadinessReport = {
@@ -65,6 +67,10 @@ export function livenessReport(): LivenessReport {
     activeCalls: activeRealtimeCalls(),
     callLimit: realtimeCallLimit(),
     uptimeSeconds: Math.round(process.uptime()),
+    // Memory and event-loop delay, on the one endpoint that never touches a
+    // dependency — so it stays readable exactly when the process is in the
+    // trouble these numbers describe.
+    vitals: readVitals(),
   }
 }
 

@@ -5,8 +5,9 @@ import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/cal
 import { db, poolWaitMs } from '@/server/db'
 import { backgroundJob, call, callEvent } from '@/server/db/schema'
 import { isDraining } from '@/server/runtime/lifecycle'
+import { readVitals } from '@/server/runtime/vitals'
 import { runRetentionSweep } from '@/server/security/retention'
-import { voiceLog } from '@/server/voice/log'
+import { voiceError, voiceLog } from '@/server/voice/log'
 import { recoverStaleSidebands } from '@/server/voice/sideband'
 
 let lastRetentionSweep = 0
@@ -123,6 +124,28 @@ async function releaseMaintenanceLease(lockedAt: Date) {
 }
 
 /**
+ * One line every tick carrying memory, heap headroom and event-loop delay.
+ *
+ * This is the line that would have explained the 2026-09-01 OOM kill. It is
+ * emitted before the tick's real work, so a reading still lands even when that
+ * work is what is consuming the process — and it is deliberately not awaited,
+ * because a measurement must never be able to delay what it measures.
+ */
+function reportVitals() {
+  const vitals = readVitals({ reset: true })
+  voiceLog('PROCESS_VITALS', vitals)
+  if (vitals.pressure !== 'ok') {
+    voiceError('MEMORY_PRESSURE', {
+      pressure: vitals.pressure,
+      heapUsedMB: vitals.heapUsedMB,
+      heapLimitMB: vitals.heapLimitMB,
+      rssMB: vitals.rssMB,
+      heapUsedPct: vitals.heapUsedPct,
+    })
+  }
+}
+
+/**
  * Publishes how long each pool currently makes a query wait for a connection.
  *
  * The audit could not say whether the database pool or the CPU was the first
@@ -147,6 +170,7 @@ async function runMaintenanceTick() {
   const lease = await claimMaintenanceLease()
   if (!lease) return
   try {
+    reportVitals()
     await reportPoolWait()
     await reconcileStaleCalls()
     await recoverStaleSidebands()
