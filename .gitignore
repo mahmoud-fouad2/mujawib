@@ -22,3 +22,8 @@ __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
 .vercel/
+
+# Playwright: signed-in session state (real cookies) and run artefacts.
+.auth
+playwright-report
+test-results

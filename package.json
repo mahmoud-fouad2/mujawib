@@ -46,7 +46,10 @@
     "test-lab:run-version": "node --conditions=react-server --import tsx --env-file-if-exists=.env.local scripts/run-agent-version-suite.ts",
     "test-lab:verify": "tsx scripts/verify-test-lab-contract.ts",
     "test:contracts": "corepack pnpm access:verify-policy && corepack pnpm auth:verify-contract && corepack pnpm voice:verify-privacy && corepack pnpm voice:verify-realtime && corepack pnpm calls:verify-intelligence && corepack pnpm integrations:verify-contract && corepack pnpm test-lab:verify",
-    "content:seed": "tsx --env-file=.env.local scripts/seed-articles.ts"
+    "content:seed": "tsx --env-file=.env.local scripts/seed-articles.ts",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:public": "playwright test --project=public --project=mobile"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1118.0",
@@ -69,6 +72,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@biomejs/biome": "^2.5.10",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.13.3",
     "@types/qrcode": "1.5.6",
     "@types/react": "^19.2.18",

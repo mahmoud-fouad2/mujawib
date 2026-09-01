@@ -1,5 +1,4 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { unstable_cache } from 'next/cache'
 import { CallPlayer } from '@/components/site/call-player'
 import { Industries } from '@/components/site/industries'
 import {
@@ -40,34 +39,33 @@ const READY_INTEGRATIONS = [
 ] as const
 
 /**
- * The public homepage used to run six real operational aggregate queries on
- * every anonymous visit — on the same Postgres connection pool a live call's
- * sideband depends on. A traffic spike (the exact outcome a marketing push
- * wants) competed directly with real calls for that pool. None of this data
- * needs to be instant: a 90-second-stale proof strip is invisible to a
- * visitor, so it is cached instead of refetched per request.
+ * The homepage's operational figures.
+ *
+ * These used to run six aggregate queries on every anonymous visit, on the
+ * same connection pool a live call depends on, so a traffic spike competed
+ * directly with real calls. They were cached here first; the cache has since
+ * moved down into `server/data/marketing.ts`, where every consumer gets it —
+ * `/sign-in` reads the same hero call, and the footer's contact row is on
+ * every public page. Caching in one place rather than two means one window to
+ * reason about and no chance of the layers disagreeing.
  */
-const getCachedLandingData = unstable_cache(
-  async () => {
-    const [proof, hero, demos, packs, integrations, consolePreview] = await Promise.all([
-      getPlatformProof(),
-      getHeroCall(),
-      getDemoCalls(),
-      getIndustryPacks(),
-      getLiveIntegrations(),
-      getConsolePreview(),
-    ])
-    return { proof, hero, demos, packs, integrations, consolePreview }
-  },
-  ['marketing-landing-data'],
-  { revalidate: 90, tags: ['marketing'] },
-)
+async function loadLandingData() {
+  const [proof, hero, demos, packs, integrations, consolePreview] = await Promise.all([
+    getPlatformProof(),
+    getHeroCall(),
+    getDemoCalls(),
+    getIndustryPacks(),
+    getLiveIntegrations(),
+    getConsolePreview(),
+  ])
+  return { proof, hero, demos, packs, integrations, consolePreview }
+}
 
 export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
-  const data = await getCachedLandingData().catch((error: unknown) => {
+  const data = await loadLandingData().catch((error: unknown) => {
     if (!isDatabaseUnavailable(error)) throw error
     console.error('[marketing] operational data unavailable')
     return null
