@@ -22,6 +22,7 @@ export type NavIconKey =
   | 'integrations'
   | 'phone'
   | 'access'
+  | 'content'
   | 'system'
 
 type NavItem = {
@@ -155,6 +156,24 @@ export const CONSOLE_NAV: NavGroup[] = [
         ownerOnly: true,
         requiredPermission: 'access.manage',
         keywords: ['access', 'roles', 'صلاحيات', 'وصول'],
+      },
+      {
+        id: 'content',
+        label: 'المحتوى والإعلانات',
+        href: '/console/content',
+        icon: 'content',
+        requiredPermission: 'content.manage',
+        keywords: [
+          'content',
+          'blog',
+          'article',
+          'announcement',
+          'maintenance',
+          'محتوى',
+          'مقالات',
+          'إعلان',
+          'صيانة',
+        ],
       },
       {
         id: 'system',

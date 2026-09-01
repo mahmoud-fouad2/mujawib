@@ -3,6 +3,7 @@
 import {
   Activity,
   AudioLines,
+  FileText,
   FlaskConical,
   FolderTree,
   Home,
@@ -51,6 +52,7 @@ const ICONS: Record<NavIconKey, typeof Home> = {
   integrations: Plug,
   phone: Phone,
   access: UserRoundCog,
+  content: FileText,
   system: Settings,
 }
 

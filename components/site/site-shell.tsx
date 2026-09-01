@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
+import { AnnouncementBanner } from '@/components/site/announcement-banner'
 import { SiteAnalytics } from '@/components/site/site-analytics'
 import { SiteFooter } from '@/components/site/site-footer'
 import { SiteHeader } from '@/components/site/site-header'
 import { copyFor } from '@/lib/content/site'
 import type { Locale } from '@/lib/i18n'
+import { getLiveAnnouncement } from '@/server/data/content'
 import { getPlatformContact } from '@/server/data/platform'
 
 /**
@@ -16,11 +18,18 @@ import { getPlatformContact } from '@/server/data/platform'
  */
 export async function SiteShell({ locale, children }: { locale: Locale; children: ReactNode }) {
   const copy = copyFor(locale)
-  const contact = await getPlatformContact()
+  // Both are cached across requests, so the banner adds no per-visit database
+  // work to the public site — the announcement is read once every thirty
+  // seconds for the whole platform, not once per visitor.
+  const [contact, announcement] = await Promise.all([
+    getPlatformContact(),
+    getLiveAnnouncement('public'),
+  ])
 
   return (
     <div className="site">
       <SiteAnalytics locale={locale} />
+      {announcement ? <AnnouncementBanner announcement={announcement} locale={locale} /> : null}
       <SiteHeader locale={locale} copy={copy} />
       <main>{children}</main>
       <SiteFooter locale={locale} copy={copy} contact={contact} />

@@ -176,6 +176,13 @@
       "when": 1788271700953,
       "tag": "0024_operational_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788289236499,
+      "tag": "0025_content_and_announcements",
+      "breakpoints": true
     }
   ]
 }

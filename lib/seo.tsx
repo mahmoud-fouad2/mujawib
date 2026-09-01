@@ -305,3 +305,66 @@ export function JsonLd({ data }: { data: object | object[] }) {
     />
   )
 }
+
+/**
+ * Article structured data.
+ *
+ * Google needs `datePublished` and a real author to treat a page as an
+ * article rather than a generic document, and `inLanguage` matters more than
+ * usual here because the corpus is Arabic and the domain also serves English.
+ * Everything below is asserted from the row, never invented: an article with
+ * no publish date does not get a schema at all rather than a fabricated one.
+ */
+export function articleSchema(input: {
+  slug: string
+  title: string
+  description: string
+  publishedAt: Date
+  updatedAt: Date
+  authorName: string | null
+  keywords: string[]
+  locale: Locale
+}) {
+  const url = absolute(localePath(input.locale, `/blog/${input.slug}`))
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: input.title,
+    description: input.description,
+    inLanguage: input.locale === 'ar' ? 'ar-SA' : 'en-US',
+    datePublished: input.publishedAt.toISOString(),
+    dateModified: input.updatedAt.toISOString(),
+    ...(input.keywords.length > 0 ? { keywords: input.keywords.join(', ') } : {}),
+    author: { '@type': 'Organization', name: input.authorName ?? ORG_NAME_AR },
+    publisher: {
+      '@type': 'Organization',
+      name: input.locale === 'ar' ? ORG_NAME_AR : ORG_NAME_EN,
+      url: SITE_URL,
+    },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    url,
+  }
+}
+
+/** Breadcrumbs for an article, so the result shows the section not a bare URL. */
+export function articleBreadcrumbSchema(input: { slug: string; title: string; locale: Locale }) {
+  const blogUrl = absolute(localePath(input.locale, '/blog'))
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: input.locale === 'ar' ? 'المدونة' : 'Blog',
+        item: blogUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: input.title,
+        item: absolute(localePath(input.locale, `/blog/${input.slug}`)),
+      },
+    ],
+  }
+}

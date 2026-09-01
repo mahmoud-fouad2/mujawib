@@ -24,6 +24,7 @@ export type OperatorPermission =
   | 'change.manage'
   | 'access.manage'
   | 'recording.listen'
+  | 'content.manage'
 
 export type ClientPermission =
   | 'portal.view'
@@ -60,6 +61,7 @@ const OPERATOR_POLICY: Record<OperatorRole, ReadonlySet<OperatorPermission>> = {
     'change.manage',
     'access.manage',
     'recording.listen',
+    'content.manage',
   ]),
   ops: new Set([
     'console.view',
@@ -73,6 +75,7 @@ const OPERATOR_POLICY: Record<OperatorRole, ReadonlySet<OperatorPermission>> = {
     'system.view',
     'change.manage',
     'recording.listen',
+    'content.manage',
   ]),
   qa: new Set([
     'console.view',
