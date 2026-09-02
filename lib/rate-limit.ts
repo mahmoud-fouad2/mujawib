@@ -41,12 +41,24 @@ export function rateLimit(
 /**
  * Best-effort caller identity from proxy headers.
  *
- * Trustworthy only if a real reverse proxy fronts this deployment and strips
- * client-supplied values before setting its own. Falls back to a constant so
- * a spoofed/missing header degrades to one shared bucket rather than an
- * exception.
+ * Reads the *last* entry of `X-Forwarded-For`, not the first. This runs
+ * behind exactly one hop — Render's own edge — and a single trusted proxy
+ * appends the address it actually observed to whatever arrived with the
+ * request; it does not overwrite what the client sent. Reading the first
+ * entry took the client's own, freely-typed value instead of Render's,
+ * which made the limiter trivially bypassable: a request with
+ * `X-Forwarded-For: 1.2.3.4` picked a fresh bucket on every retry.
+ *
+ * Still best-effort. Behind more than one hop this would need the count of
+ * trusted proxies to know how many entries from the end to trust — this
+ * deployment has exactly one, so "last" is that hop.
  */
 export function clientIdentifier(headers: { get(name: string): string | null }): string {
-  const forwarded = headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const chain = headers.get('x-forwarded-for')
+  const forwarded = chain
+    ?.split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .at(-1)
   return forwarded || headers.get('x-real-ip') || 'unknown'
 }
