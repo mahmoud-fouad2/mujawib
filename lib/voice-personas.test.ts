@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VOICE_PERSONAS,
+  dialectLabel,
   personaByKey,
   personasPerProviderVoice,
 } from '@/lib/voice-personas'
@@ -81,6 +82,22 @@ describe('default voice personas', () => {
     expect(personaByKey('sara-sa')?.gender).toBe('female')
     expect(personaByKey('nasser-sa')?.gender).toBe('male')
     expect(personaByKey('does-not-exist')).toBeNull()
+  })
+
+  it('has a readable label for every dialect it ships', () => {
+    // The signup screen renders this. A raw key like "msa" in front of a
+    // business owner choosing a voice is not a choice they can make.
+    for (const persona of DEFAULT_VOICE_PERSONAS) {
+      const label = dialectLabel(persona.dialect)
+      expect(label, `${persona.dialect} has no label`).not.toBe(persona.dialect)
+      expect(label.length).toBeGreaterThan(2)
+    }
+  })
+
+  it('falls back to the key for a dialect it does not know', () => {
+    // A workspace's own profile can carry anything; showing the raw value
+    // beats showing an empty cell.
+    expect(dialectLabel('moroccan')).toBe('moroccan')
   })
 
   it('gives every persona turn-detection settings', () => {

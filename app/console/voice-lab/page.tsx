@@ -1,9 +1,11 @@
 import { Check, X } from 'lucide-react'
 import type { Metadata } from 'next'
+import { AddPersona, PersonaRowActions } from '@/components/console/persona-manager'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { AddPronunciation, PronunciationRowActions } from '@/components/console/voice-actions'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { num, relative } from '@/lib/format'
+import { dialectLabel, PERSONA_GENDER_LABEL } from '@/lib/voice-personas'
 import { getClientOptions, getVoiceLab } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'مختبر الصوت' }
@@ -71,37 +73,62 @@ export default async function VoiceLabPage() {
       />
 
       <div className="split">
-        <Section title="ملفات اللهجات" flush>
+        <Section
+          title="الشخصيات الصوتية"
+          meta={`${num(profiles.filter((p) => p.isGlobal).length)} افتراضية · ${num(profiles.filter((p) => !p.isGlobal).length)} خاصة`}
+          action={<AddPersona clients={clients} />}
+          flush
+        >
           {profiles.length === 0 ? (
             <EmptyState
-              title="لا ملفات لهجة بعد"
-              body="ملف اللهجة يحدد أسلوب الصوت وسياسة اللغة لكل عميل أو للنطاق العام."
+              title="لا شخصيات صوتية بعد"
+              body="الشخصية تحدد اللهجة والجنس والأسلوب وصوت المزوّد. الافتراضية تأتي مع المنصة؛ الخاصة يملكها عميل واحد."
             />
           ) : (
             <div className="table-scroll">
-              <table className="table table--rows">
+              <table className="table table--rows table--cards">
                 <thead>
                   <tr>
-                    <th>الملف</th>
+                    <th>الشخصية</th>
                     <th>اللهجة</th>
+                    <th>الجنس</th>
                     <th>الأسلوب</th>
-                    <th>سياسة اللغة</th>
+                    <th>صوت المزوّد</th>
                     <th>النطاق</th>
+                    <th aria-label="إجراءات" />
                   </tr>
                 </thead>
                 <tbody>
-                  {profiles.map((p) => {
-                    const policy = (p.languagePolicy ?? {}) as { primary?: string }
-                    return (
-                      <tr key={p.id}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
-                        <td className="mono">{p.dialect}</td>
-                        <td className="muted">{STYLE_LABEL[p.style] ?? p.style}</td>
-                        <td className="mono">{policy.primary ?? '—'}</td>
-                        <td>{p.isGlobal ? <Pill tone="signal">عام</Pill> : <Pill>خاص</Pill>}</td>
-                      </tr>
-                    )
-                  })}
+                  {profiles.map((p) => (
+                    <tr key={p.id}>
+                      <td data-label="الشخصية" style={{ fontWeight: 500 }}>
+                        {p.name}
+                      </td>
+                      <td data-label="اللهجة">{dialectLabel(p.dialect)}</td>
+                      <td data-label="الجنس">{p.gender ? PERSONA_GENDER_LABEL[p.gender] : '—'}</td>
+                      <td data-label="الأسلوب" className="muted">
+                        {STYLE_LABEL[p.style] ?? p.style}
+                      </td>
+                      {/* Printed rather than hidden: ten personas share two
+                          provider voices, so this column is what explains why
+                          two of them sound alike. */}
+                      <td data-label="صوت المزوّد" className="mono">
+                        {p.providerVoice}
+                      </td>
+                      <td data-label="النطاق">
+                        {p.isProtected ? (
+                          <Pill tone="signal">محمية</Pill>
+                        ) : p.isGlobal ? (
+                          <Pill tone="signal">عامة</Pill>
+                        ) : (
+                          <Pill>خاصة</Pill>
+                        )}
+                      </td>
+                      <td data-label="إجراءات">
+                        <PersonaRowActions row={p} clients={clients} />
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

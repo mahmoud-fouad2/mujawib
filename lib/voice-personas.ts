@@ -45,7 +45,7 @@ export type VoicePersona = {
  * English-derived defaults expect, so a shorter silence window cuts them off.
  * These are starting points an operator can override per profile.
  */
-const PACING_MEASURED = {
+export const PACING_MEASURED = {
   responseLength: 'short',
   vadThreshold: 0.5,
   prefixPaddingMs: 240,
@@ -54,7 +54,7 @@ const PACING_MEASURED = {
   bargeIn: true,
 }
 
-const PACING_BRISK = {
+export const PACING_BRISK = {
   responseLength: 'short',
   vadThreshold: 0.48,
   prefixPaddingMs: 220,
@@ -63,7 +63,7 @@ const PACING_BRISK = {
   bargeIn: true,
 }
 
-const ARABIC_POLICY = {
+export const ARABIC_POLICY = {
   primary: 'ar',
   switchToEnglish: 'on_caller_request',
   brandNames: 'keep_latin',
@@ -226,6 +226,26 @@ export const PERSONA_GENDER_LABEL: Record<PersonaGender, string> = {
 export const PERSONA_LANGUAGE_LABEL: Record<PersonaLanguage, string> = {
   ar: 'العربية',
   en: 'الإنجليزية',
+}
+
+/**
+ * Readable dialect names, so a signup screen never shows a raw key.
+ *
+ * Falls back to the key itself through `dialectLabel` rather than an empty
+ * string: a workspace's own custom profile can carry a dialect this map does
+ * not know, and showing "gulf" is better than showing nothing.
+ */
+export const PERSONA_DIALECT_LABEL: Record<string, string> = {
+  saudi: 'سعودي',
+  gulf: 'خليجي',
+  egyptian: 'مصري',
+  lebanese: 'لبناني',
+  msa: 'فصحى',
+  english: 'إنجليزي',
+}
+
+export function dialectLabel(dialect: string): string {
+  return PERSONA_DIALECT_LABEL[dialect] ?? dialect
 }
 
 /**

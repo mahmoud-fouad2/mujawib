@@ -14,6 +14,7 @@ const PORTAL_ROUTES = [
   '/portal/bookings',
   '/portal/customers',
   '/portal/requests',
+  '/portal/campaigns',
   '/portal/insights',
   '/portal/integrations',
   '/portal/business-info',
@@ -42,7 +43,15 @@ test.describe('client portal', () => {
 })
 
 test.describe('client boundaries', () => {
-  for (const path of ['/console', '/console/clients', '/console/system', '/console/content']) {
+  for (const path of [
+    '/console',
+    '/console/clients',
+    '/console/system',
+    '/console/content',
+    // A client builds campaigns in their own portal; the approval queue,
+    // which spans every client, is not theirs to see.
+    '/console/campaigns',
+  ]) {
     test(`a client is refused ${path}`, async ({ page }) => {
       await page.goto(path)
       // Either bounced to the denial page or to sign-in. What must never

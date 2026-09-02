@@ -13,6 +13,7 @@ import {
   optionalCapabilitiesForProvider,
 } from '@/lib/integrations'
 import { RECORDING_DISCLOSURE_MODES } from '@/lib/recording-policy'
+import { ARABIC_POLICY, PACING_BRISK, PACING_MEASURED } from '@/lib/voice-personas'
 import { createVoiceAgentDraft } from '@/server/agents/create'
 import { authorizeOperator } from '@/server/auth/access'
 import { getCurrentUser } from '@/server/auth/session'
@@ -2494,6 +2495,131 @@ export async function duplicateVoicePersona(
   revalidatePath('/console/voice-lab')
   revalidatePath('/console/agents')
   return { ok: true, message: `أُنشئت نسخة قابلة للتعديل باسم «${copyName}».` }
+}
+
+const personaSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  workspaceId: z.string().trim().min(1),
+  name: z.string().trim().min(2, 'اسم الشخصية قصير جدًا.').max(120),
+  dialect: z.enum(['saudi', 'gulf', 'egyptian', 'lebanese', 'msa', 'english']),
+  style: z.enum(['professional', 'warm', 'concise', 'premium']),
+  gender: z.enum(['male', 'female']),
+  language: z.enum(['ar', 'en']),
+  /**
+   * Restricted to the voices this runtime has actually carried a call on.
+   * Naming one the provider does not accept fails the call, not the build —
+   * a configuration typo becomes a dead call at the moment somebody dials.
+   */
+  providerVoice: z.enum(['cedar', 'marin']),
+  pacingPreset: z.enum(['measured', 'brisk']),
+  country: z.string().trim().min(2).max(60),
+})
+
+/**
+ * Creates or edits a workspace's own voice persona, from scratch.
+ *
+ * `duplicateVoicePersona` covers "start from one of ours and change it".
+ * This covers the other half — a client who wants a voice that is not a
+ * variation on a default at all — and the same call edits one afterwards, so
+ * a persona is not a thing you can create and then never touch.
+ *
+ * Refuses to edit a platform default. Those are shared by every workspace,
+ * onboarding, and the picker; editing one would silently change the voice of
+ * businesses that never asked for it, which is why the defaults are copied
+ * rather than mutated.
+ */
+export async function saveVoicePersona(
+  input: z.input<typeof personaSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
+
+  const parsed = personaSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'بيانات الشخصية غير مكتملة.' }
+  }
+  const data = parsed.data
+
+  const [target] = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, data.workspaceId))
+    .limit(1)
+  if (!target) return { ok: false, error: 'العميل غير موجود.' }
+
+  const pacing = data.pacingPreset === 'brisk' ? PACING_BRISK : PACING_MEASURED
+  const languagePolicy =
+    data.language === 'en' ? { primary: 'en', switchToArabic: 'on_caller_request' } : ARABIC_POLICY
+
+  const values = {
+    name: data.name,
+    country: data.country,
+    dialect: data.dialect,
+    style: data.style,
+    gender: data.gender,
+    language: data.language,
+    providerVoice: data.providerVoice,
+    pacing,
+    languagePolicy,
+    updatedAt: new Date(),
+  }
+
+  if (data.id) {
+    const [existing] = await db
+      .select({
+        isGlobal: voiceProfile.isGlobal,
+        isProtected: voiceProfile.isProtected,
+        workspaceId: voiceProfile.workspaceId,
+      })
+      .from(voiceProfile)
+      .where(eq(voiceProfile.id, data.id))
+      .limit(1)
+    if (!existing) return { ok: false, error: 'الشخصية الصوتية غير موجودة.' }
+    if (existing.isGlobal || existing.isProtected) {
+      return {
+        ok: false,
+        error: 'هذه شخصية افتراضية للمنصة ولا تُعدَّل. انسخها إلى عميل ثم عدّل النسخة.',
+      }
+    }
+    if (existing.workspaceId !== data.workspaceId) {
+      return { ok: false, error: 'هذه الشخصية تخص عميلًا آخر.' }
+    }
+
+    await db.update(voiceProfile).set(values).where(eq(voiceProfile.id, data.id))
+    await audit({
+      workspaceId: data.workspaceId,
+      action: 'voice.persona_updated',
+      resourceType: 'voice_profile',
+      resourceId: data.id,
+      note: data.name,
+    })
+    revalidatePath('/console/voice-lab')
+    revalidatePath('/console/agents')
+    return { ok: true, message: 'حُفظت الشخصية الصوتية.' }
+  }
+
+  const newId = id('voice')
+  await db.insert(voiceProfile).values({
+    id: newId,
+    workspaceId: data.workspaceId,
+    ...values,
+    // A workspace's own persona is never shared and never protected.
+    isGlobal: false,
+    isProtected: false,
+    personaKey: null,
+    sortOrder: 0,
+    createdAt: new Date(),
+  })
+  await audit({
+    workspaceId: data.workspaceId,
+    action: 'voice.persona_created',
+    resourceType: 'voice_profile',
+    resourceId: newId,
+    note: `${data.name} — ${target.name}`,
+  })
+  revalidatePath('/console/voice-lab')
+  revalidatePath('/console/agents')
+  return { ok: true, message: `أُنشئت الشخصية «${data.name}».` }
 }
 
 /**

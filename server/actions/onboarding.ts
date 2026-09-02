@@ -1,7 +1,7 @@
 'use server'
 
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { INVITATION_TTL_DAYS, normalizeInvitationEmail } from '@/lib/invitations'
@@ -18,6 +18,7 @@ import {
   knowledgeItem,
   organization,
   phoneNumber,
+  voiceProfile,
   workspace,
   workspaceInvitation,
 } from '@/server/db/schema'
@@ -46,6 +47,16 @@ const schema = z.object({
     .trim()
     .regex(/^[a-z0-9_-]{2,80}$/, 'قالب القطاع غير صحيح'),
   agentName: z.string().trim().min(2, 'اسم الموظف الصوتي مطلوب').max(60),
+  /**
+   * Which default persona speaks. Optional: an older client of this action, or
+   * a signup that skipped the step, still provisions — it simply lands on the
+   * dialect fallback in `server/voice/session.ts` rather than a chosen voice.
+   */
+  personaKey: z
+    .string()
+    .trim()
+    .regex(/^[a-z]+-[a-z]{2,4}$/, 'اختيار الصوت غير صحيح')
+    .optional(),
   services: z.array(serviceSchema).min(1, 'أضف خدمة واحدة على الأقل').max(30),
   branches: z
     .array(z.string().trim().min(2, 'اسم الفرع قصير جدًا').max(120))
@@ -202,11 +213,28 @@ export async function provisionWorkspace(input: OnboardingInput): Promise<Onboar
         updatedAt: now,
       })
 
+      // The persona picked at signup, resolved to the row seeded by migration
+      // 0026. Looked up rather than trusted: an unknown key leaves the version
+      // without a profile, which is the same state every pre-persona client is
+      // already in, instead of a foreign key that points at nothing.
+      const chosenPersona = data.personaKey
+        ? ((
+            await tx
+              .select({ id: voiceProfile.id })
+              .from(voiceProfile)
+              .where(
+                and(eq(voiceProfile.personaKey, data.personaKey), eq(voiceProfile.isGlobal, true)),
+              )
+              .limit(1)
+          )[0]?.id ?? null)
+        : null
+
       await tx.insert(agentVersion).values({
         id: versionId,
         agentId,
         versionNumber: 1,
         status: 'draft',
+        ...(chosenPersona ? { voiceProfileId: chosenPersona } : {}),
         identity: {
           role: `موظف استقبال صوتي لدى ${data.name}`,
           goals: [

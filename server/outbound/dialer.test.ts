@@ -37,11 +37,7 @@ describe('outbound dialer readiness', () => {
   it('is not ready on a deployment with nothing configured', () => {
     const status = outboundDialerStatus()
     expect(status.ready).toBe(false)
-    expect(status.missing).toEqual([
-      'TWILIO_ACCOUNT_SID',
-      'TWILIO_AUTH_TOKEN',
-      'OPENAI_PROJECT_ID',
-    ])
+    expect(status.missing).toEqual(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'OPENAI_PROJECT_ID'])
   })
 
   it('names each missing piece rather than reporting a bare false', () => {

@@ -81,7 +81,22 @@ function getRoadmapState(index: number, step: number) {
   return 'todo'
 }
 
-export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
+export type WizardPersona = {
+  key: string
+  name: string
+  description: string
+  gender: 'male' | 'female'
+  language: 'ar' | 'en'
+  dialectLabel: string
+}
+
+export function OnboardingWizard({
+  packs,
+  personas,
+}: {
+  packs: WizardPack[]
+  personas: WizardPersona[]
+}) {
   const toast = useToast()
   const [step, setStep] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +114,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
   const [timezone, setTimezone] = useState('Asia/Riyadh')
   const [pack, setPack] = useState(packs[0]?.packKey ?? 'medical')
   const [agentName, setAgentName] = useState('')
+  const [personaKey, setPersonaKey] = useState(personas[0]?.key ?? '')
   const [services, setServices] = useState<Row[]>([newRow()])
   const [branches, setBranches] = useState<Row[]>([newRow()])
   const [hoursWeekday, setHoursWeekday] = useState('09:00–21:00')
@@ -115,7 +131,15 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         city.trim().length >= 2 &&
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail.trim())
       )
-    if (step === 1) return Boolean(pack) && agentName.trim().length >= 2
+    if (step === 1) {
+      // A persona is required only when the platform actually offers one, so
+      // a deployment whose seed has not run yet is not locked out of signup.
+      return (
+        Boolean(pack) &&
+        agentName.trim().length >= 2 &&
+        (personas.length === 0 || Boolean(personaKey))
+      )
+    }
     if (step === 2) {
       // Every non-blank row must be individually valid, not just one of them —
       // otherwise a stray 1-character row survives this gate and only fails at
@@ -143,6 +167,7 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
         timezone,
         pack,
         agentName,
+        ...(personaKey ? { personaKey } : {}),
         services: services
           .filter((s) => s.title.trim())
           .map((s) => ({ title: s.title.trim(), price: s.price.trim() })),
@@ -373,6 +398,39 @@ export function OnboardingWizard({ packs }: { packs: WizardPack[] }) {
                   placeholder="سارة"
                 />
               </div>
+
+              {/*
+                The voice, chosen at signup rather than discovered later in the
+                agent editor. Every persona seeded by migration 0026 is listed
+                with its dialect and gender, so the choice is made on what the
+                caller will actually hear.
+              */}
+              {personas.length > 0 ? (
+                <div className="field">
+                  <span className="field__group-label">الصوت واللهجة</span>
+                  <div className="choices">
+                    {personas.map((persona) => (
+                      <button
+                        key={persona.key}
+                        type="button"
+                        className="choice"
+                        aria-pressed={persona.key === personaKey}
+                        onClick={() => setPersonaKey(persona.key)}
+                      >
+                        <strong>{persona.name}</strong>
+                        <span>{persona.description}</span>
+                        <span className="choice__flows">
+                          <Pill>{persona.dialectLabel}</Pill>
+                          <Pill>{persona.gender === 'female' ? 'أنثى' : 'ذكر'}</Pill>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <span className="hint">
+                    يمكن تغييره لاحقًا من محرر الموظف الصوتي، أو نسخه وتخصيصه بالكامل.
+                  </span>
+                </div>
+              ) : null}
             </>
           ) : null}
 

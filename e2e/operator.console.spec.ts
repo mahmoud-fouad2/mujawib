@@ -17,6 +17,7 @@ const CONSOLE_ROUTES = [
   '/console/qa',
   '/console/clients',
   '/console/inquiries',
+  '/console/campaigns',
   '/console/agents',
   '/console/templates',
   '/console/voice-lab',
