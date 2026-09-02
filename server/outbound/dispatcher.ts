@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import {
   type CampaignStatus,
   canAttempt,
@@ -15,12 +15,15 @@ import {
 import { withinGlobalDemoCap } from '@/lib/demo-call'
 import { db } from '@/server/db'
 import {
+  agent,
+  agentVersion,
   campaignAttempt,
   campaignContact,
   demoCallRequest,
   outboundCampaign,
   phoneNumber,
   suppressionEntry,
+  workspace,
 } from '@/server/db/schema'
 import { outboundDialerStatus, placeOutboundCall } from '@/server/outbound/dialer'
 import { isDraining } from '@/server/runtime/lifecycle'
@@ -476,6 +479,70 @@ export async function settleCampaignContactForCall(input: {
 
 /* ─── the public demo ────────────────────────────────────────────────────── */
 
+export type DemoTarget = {
+  agentVersionId: string
+  agentLabel: string
+  fromNumberId: string
+  fromNumber: string
+  /** How it was chosen, so the console can say so rather than look magic. */
+  source: 'configured' | 'resolved'
+}
+
+/**
+ * Which assistant answers the demo, and from which number.
+ *
+ * Originally this read two ids out of the environment. That was a bad ask: an
+ * agent-version id is an internal primary key, it is not shown anywhere in the
+ * product, and nobody running the platform has a way to find one — so the
+ * feature was gated behind a value its own operator could not obtain.
+ *
+ * Now it resolves itself: the newest published agent version belonging to a
+ * workspace that actually has a number attached. The environment variables
+ * still win when set, but they are an override for a deliberate choice rather
+ * than a prerequisite for the feature working at all.
+ *
+ * Returns null when the platform genuinely has nothing to demonstrate with —
+ * no published agent, or no number — which is a real state and not an error.
+ */
+export async function resolveDemoTarget(): Promise<DemoTarget | null> {
+  const configuredAgent = process.env.DEMO_AGENT_VERSION_ID?.trim()
+  const configuredNumber = process.env.DEMO_FROM_NUMBER_ID?.trim()
+
+  const [candidate] = await db
+    .select({
+      agentVersionId: agentVersion.id,
+      versionNumber: agentVersion.versionNumber,
+      agentName: agent.name,
+      workspaceName: workspace.name,
+      fromNumberId: phoneNumber.id,
+      fromNumber: phoneNumber.e164,
+    })
+    .from(agentVersion)
+    .innerJoin(agent, eq(agentVersion.agentId, agent.id))
+    .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+    // The number has to belong to the same workspace as the agent, or the
+    // recipient sees one business's number and hears another's assistant.
+    .innerJoin(phoneNumber, eq(phoneNumber.workspaceId, agent.workspaceId))
+    .where(
+      and(
+        eq(agentVersion.status, 'published'),
+        configuredAgent ? eq(agentVersion.id, configuredAgent) : undefined,
+        configuredNumber ? eq(phoneNumber.id, configuredNumber) : undefined,
+      ),
+    )
+    .orderBy(desc(agentVersion.versionNumber))
+    .limit(1)
+
+  if (!candidate) return null
+  return {
+    agentVersionId: candidate.agentVersionId,
+    agentLabel: `${candidate.workspaceName} · ${candidate.agentName} — نسخة ${candidate.versionNumber}`,
+    fromNumberId: candidate.fromNumberId,
+    fromNumber: candidate.fromNumber,
+    source: configuredAgent && configuredNumber ? 'configured' : 'resolved',
+  }
+}
+
 /**
  * Places calls for demo requests whose number has been verified.
  *
@@ -497,9 +564,8 @@ export async function settleCampaignContactForCall(input: {
 async function dispatchDemoCalls(dialerReady: boolean): Promise<number> {
   if (!dialerReady) return 0
 
-  const agentVersionId = process.env.DEMO_AGENT_VERSION_ID?.trim()
-  const fromNumberId = process.env.DEMO_FROM_NUMBER_ID?.trim()
-  if (!agentVersionId || !fromNumberId) return 0
+  const target = await resolveDemoTarget()
+  if (!target) return 0
 
   const cap = Number(process.env.DEMO_DAILY_CALL_CAP ?? 50)
   const dayStart = new Date()
@@ -515,13 +581,6 @@ async function dispatchDemoCalls(dialerReady: boolean): Promise<number> {
       ),
     )
   if (!withinGlobalDemoCap(Number(today?.total ?? 0), cap)) return 0
-
-  const [from] = await db
-    .select({ e164: phoneNumber.e164 })
-    .from(phoneNumber)
-    .where(eq(phoneNumber.id, fromNumberId))
-    .limit(1)
-  if (!from) return 0
 
   // Demo calls run inside the same decent hours a campaign does. Somebody who
   // asked at 2am asked to be called, not to be woken.
@@ -553,7 +612,7 @@ async function dispatchDemoCalls(dialerReady: boolean): Promise<number> {
 
   const result = await placeOutboundCall({
     to: request.phone,
-    from: from.e164,
+    from: target.fromNumber,
     reference: `${request.id}-auto`,
   })
 

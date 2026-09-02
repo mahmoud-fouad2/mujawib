@@ -72,16 +72,20 @@ export const env = createEnv({
     //
     // Absent, `outboundDialerStatus()` reports not-ready and no code path in
     // this product can ring a phone. That is the default and it is deliberate.
-    TWILIO_ACCOUNT_SID: z
-      .string()
-      .regex(/^AC[0-9a-fA-F]{32}$/, 'TWILIO_ACCOUNT_SID must be an AC… account SID')
-      .optional(),
-    TWILIO_AUTH_TOKEN: z.string().min(16).optional(),
+    //
+    // Deliberately loose. These were strictly shaped here for one commit, and
+    // a value that did not match took the *entire site* down: `createEnv`
+    // throws at import, and this module is imported by the marketing
+    // homepage. A mistyped Twilio number must disable outbound calling — it
+    // must never stop an anonymous visitor reading the front page.
+    //
+    // The shape checks now live in `outboundDialerStatus()` and `smsStatus()`,
+    // which already report exactly what is missing and now report exactly what
+    // is malformed, on a screen an operator is looking at.
+    TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+    TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
     /** The number verification codes are sent from. Without it, no SMS. */
-    TWILIO_SMS_FROM: z
-      .string()
-      .regex(/^\+[1-9]\d{7,14}$/, 'TWILIO_SMS_FROM must be E.164')
-      .optional(),
+    TWILIO_SMS_FROM: z.string().min(1).optional(),
     /** OpenAI project whose SIP endpoint every call — in or out — lands on. */
     OPENAI_PROJECT_ID: z.string().min(1).optional(),
     /** Overrides the SIP URI built from OPENAI_PROJECT_ID. Rarely needed. */
@@ -95,11 +99,15 @@ export const env = createEnv({
      */
     DEMO_DAILY_CALL_CAP: z.coerce.number().int().min(0).max(2_000).default(50),
     /**
-     * Which assistant answers the demo, and which number it calls from.
+     * Pins which assistant answers the demo, and from which number.
      *
-     * Both unset is the safe default: a verified request then waits for an
-     * operator to pick, exactly as it does today. Setting them is the
-     * deliberate act that turns the demo call automatic.
+     * Optional, and normally left unset: `resolveDemoTarget()` picks the newest
+     * published agent version whose workspace has a number attached, and the
+     * console prints which one it chose. These exist only to override that.
+     *
+     * They were briefly a prerequisite, which was a mistake — an agent-version
+     * id is an internal primary key that appears nowhere in the product, so the
+     * feature was gated behind a value its own operator had no way to find.
      */
     DEMO_AGENT_VERSION_ID: z.string().min(1).optional(),
     DEMO_FROM_NUMBER_ID: z.string().min(1).optional(),

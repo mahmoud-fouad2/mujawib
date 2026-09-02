@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="مُجاوِب">
+  <title>مُجاوِب</title>
+  <!--
+    The brand mark reduced to what survives a 16px browser tab.
+
+    The full logo is a speech bubble forming an M around a blue waveform, with
+    a gradient and a drop shadow. At tab size the waveform bars are narrower
+    than a pixel, the tail disappears, and the gradient averages into grey —
+    which is why the old favicon read as a smudge. It was also a 512px PNG
+    scaled down at request time, so nothing about it was ever sharp.
+
+    What is kept is the silhouette: the bubble that opens into the M. What is
+    dropped is every piece of detail finer than one pixel at 16px. Solid fills,
+    one weight, maximum contrast.
+  -->
+  <rect width="100" height="100" rx="22" fill="#0B0D10"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <!-- The bubble, open on the right where the M takes over. -->
+    <path d="M50 28 A22 22 0 1 0 50 72"/>
+    <!-- The M, sharing the bubble's right edge as its left stem. -->
+    <path d="M50 72 V28 L64 47 L78 28 V72"/>
+  </g>
+</svg>

@@ -69,9 +69,26 @@ export async function Landing({ locale }: { locale: Locale }) {
   const copy = copyFor(locale)
   const Arrow = isRtl(locale) ? ArrowLeft : ArrowRight
 
+  /**
+   * The homepage renders whatever happens to this query.
+   *
+   * It used to rethrow anything that was not a transient connection failure,
+   * which meant a schema the code was ahead of — a column added in a migration
+   * that had not run yet — turned the public front page into an error screen
+   * for every visitor. Every figure below already has a fallback and the page
+   * is complete without them, so degrading is strictly better than 500ing: a
+   * visitor who sees the site without live numbers still reads the site.
+   *
+   * The error is logged in full either way, so this hides nothing from us — it
+   * only stops hiding the product from them.
+   */
   const data = await loadLandingData().catch((error: unknown) => {
-    if (!isDatabaseUnavailable(error)) throw error
-    console.error('[marketing] operational data unavailable')
+    console.error(
+      isDatabaseUnavailable(error)
+        ? '[marketing] operational data unavailable'
+        : '[marketing] landing data failed, rendering without it',
+      error,
+    )
     return null
   })
   const proof = data?.proof ?? null

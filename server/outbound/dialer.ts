@@ -36,9 +36,18 @@ export type DialerReadiness = {
   ready: boolean
   /** Which specific pieces are absent, for a UI that has to say what to set. */
   missing: string[]
+  /**
+   * Set but wrong. Kept apart from `missing` because the two need different
+   * answers: one says "add this", the other says "you added this and it is not
+   * the right shape", which is a much harder problem to spot unaided.
+   */
+  malformed: { key: string; expected: string }[]
   /** Never proven end-to-end from this deployment. Surfaced, not hidden. */
   verified: false
 }
+
+/** Twilio account SIDs are `AC` followed by 32 hex characters, always. */
+const ACCOUNT_SID = /^AC[0-9a-fA-F]{32}$/
 
 const SIP_HOST = 'sip.api.openai.com'
 
@@ -58,10 +67,29 @@ function projectSipTarget(): string | null {
  */
 export function outboundDialerStatus(): DialerReadiness {
   const missing: string[] = []
-  if (!process.env.TWILIO_ACCOUNT_SID?.trim()) missing.push('TWILIO_ACCOUNT_SID')
-  if (!process.env.TWILIO_AUTH_TOKEN?.trim()) missing.push('TWILIO_AUTH_TOKEN')
+  const malformed: { key: string; expected: string }[] = []
+
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim()
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim()
+
+  if (!sid) missing.push('TWILIO_ACCOUNT_SID')
+  else if (!ACCOUNT_SID.test(sid)) {
+    malformed.push({ key: 'TWILIO_ACCOUNT_SID', expected: 'AC + 32 hex characters' })
+  }
+
+  if (!token) missing.push('TWILIO_AUTH_TOKEN')
+  else if (token.length < 16) {
+    malformed.push({ key: 'TWILIO_AUTH_TOKEN', expected: 'at least 16 characters' })
+  }
+
   if (!projectSipTarget()) missing.push('OPENAI_PROJECT_ID')
-  return { ready: missing.length === 0, missing, verified: false }
+
+  return {
+    ready: missing.length === 0 && malformed.length === 0,
+    missing,
+    malformed,
+    verified: false,
+  }
 }
 
 export type PlaceCallInput = {
@@ -90,9 +118,10 @@ const E164 = /^\+[1-9]\d{7,14}$/
 export async function placeOutboundCall(input: PlaceCallInput): Promise<PlaceCallResult> {
   const status = outboundDialerStatus()
   if (!status.ready) {
+    const problems = [...status.missing, ...status.malformed.map((m) => `${m.key} (${m.expected})`)]
     return {
       ok: false,
-      error: `الاتصال الصادر غير مُهيّأ (${status.missing.join('، ')})`,
+      error: `الاتصال الصادر غير مُهيّأ (${problems.join('، ')})`,
       retryable: false,
     }
   }

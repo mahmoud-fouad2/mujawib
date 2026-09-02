@@ -42,15 +42,40 @@ describe('outbound dialer readiness', () => {
 
   it('names each missing piece rather than reporting a bare false', () => {
     // The UI prints these. "Not configured" with no list is a support ticket.
-    process.env.TWILIO_ACCOUNT_SID = 'AC1'
+    process.env.TWILIO_ACCOUNT_SID = 'AC00000000000000000000000000000000'
     expect(outboundDialerStatus().missing).toEqual(['TWILIO_AUTH_TOKEN', 'OPENAI_PROJECT_ID'])
   })
 
   it('accepts an explicit SIP URI in place of a project id', () => {
-    process.env.TWILIO_ACCOUNT_SID = 'AC1'
-    process.env.TWILIO_AUTH_TOKEN = 'token'
+    process.env.TWILIO_ACCOUNT_SID = 'AC00000000000000000000000000000000'
+    process.env.TWILIO_AUTH_TOKEN = 'a-token-long-enough'
     process.env.OPENAI_SIP_URI = 'sip:proj_x@sip.api.openai.com;transport=tls'
     expect(outboundDialerStatus().ready).toBe(true)
+  })
+
+  it('separates a value that is set but wrong from one that is absent', () => {
+    // These two need different answers. "Add TWILIO_ACCOUNT_SID" is useless to
+    // somebody who has already added it in the wrong shape, and that mistake
+    // is far harder to spot unaided than a missing variable.
+    process.env.TWILIO_ACCOUNT_SID = 'AC1'
+    process.env.TWILIO_AUTH_TOKEN = 'short'
+    process.env.OPENAI_PROJECT_ID = 'proj_test'
+
+    const status = outboundDialerStatus()
+    expect(status.ready).toBe(false)
+    expect(status.missing).toEqual([])
+    expect(status.malformed.map((m) => m.key)).toEqual(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'])
+    expect(status.malformed[0]?.expected).toContain('AC')
+  })
+
+  it('never lets a malformed value pass as configured', () => {
+    // A badly shaped credential must disable outbound, never enable it — and
+    // the shape check lives here, not in env validation, because a throw at
+    // import time in `lib/env.ts` took the whole marketing site down once.
+    process.env.TWILIO_ACCOUNT_SID = 'not-an-account-sid'
+    process.env.TWILIO_AUTH_TOKEN = 'a-token-long-enough'
+    process.env.OPENAI_PROJECT_ID = 'proj_test'
+    expect(outboundDialerStatus().ready).toBe(false)
   })
 
   it('never claims the path has been proven in production', () => {

@@ -15,27 +15,39 @@ import { sanitizeLogText } from '@/server/voice/log'
  * deployment cannot text anybody, which is the default.
  */
 
+const E164 = /^\+[1-9]\d{7,14}$/
+
 export type SmsReadiness = {
   ready: boolean
   missing: string[]
+  /** Set but not the right shape. See `dialer.ts` for why this is separate. */
+  malformed: { key: string; expected: string }[]
 }
 
 export function smsStatus(): SmsReadiness {
   const missing: string[] = []
+  const malformed: { key: string; expected: string }[] = []
+
   if (!process.env.TWILIO_ACCOUNT_SID?.trim()) missing.push('TWILIO_ACCOUNT_SID')
   if (!process.env.TWILIO_AUTH_TOKEN?.trim()) missing.push('TWILIO_AUTH_TOKEN')
-  if (!process.env.TWILIO_SMS_FROM?.trim()) missing.push('TWILIO_SMS_FROM')
-  return { ready: missing.length === 0, missing }
+
+  const from = process.env.TWILIO_SMS_FROM?.trim()
+  if (!from) missing.push('TWILIO_SMS_FROM')
+  // The single most likely mistake: a number entered without its leading plus.
+  else if (!E164.test(from)) {
+    malformed.push({ key: 'TWILIO_SMS_FROM', expected: '+966XXXXXXXXX (E.164, with the +)' })
+  }
+
+  return { ready: missing.length === 0 && malformed.length === 0, missing, malformed }
 }
 
 export type SendSmsResult = { ok: true; providerId: string } | { ok: false; error: string }
 
-const E164 = /^\+[1-9]\d{7,14}$/
-
 export async function sendVerificationSms(to: string, code: string): Promise<SendSmsResult> {
   const status = smsStatus()
   if (!status.ready) {
-    return { ok: false, error: `SMS غير مُهيّأ (${status.missing.join('، ')})` }
+    const problems = [...status.missing, ...status.malformed.map((m) => `${m.key} (${m.expected})`)]
+    return { ok: false, error: `SMS غير مُهيّأ (${problems.join('، ')})` }
   }
   if (!E164.test(to)) return { ok: false, error: 'رقم غير صالح' }
   if (!/^\d{4,8}$/.test(code)) return { ok: false, error: 'رمز غير صالح' }

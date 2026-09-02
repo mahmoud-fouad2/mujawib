@@ -87,11 +87,23 @@ const loadCandidateAnnouncements = unstable_cache(
  * seconds old, and filtering by `now` in SQL would make every distinct second
  * its own cache key.
  */
+/**
+ * Never throws.
+ *
+ * This is read by `SiteShell`, which wraps every public page, so a failure
+ * here is a failure of the entire marketing site — and the thing being read is
+ * a banner that is absent almost all of the time anyway. A database blip, or a
+ * deploy that lands before its migration, must not be able to take the front
+ * page down to decide whether there is a maintenance notice to show.
+ */
 export async function getLiveAnnouncement(
   surface: 'public' | 'app',
   now: Date = new Date(),
 ): Promise<LiveAnnouncement | null> {
-  const candidates = await loadCandidateAnnouncements()
+  const candidates = await loadCandidateAnnouncements().catch((error: unknown) => {
+    console.error('[content] announcement lookup failed; rendering without a banner', error)
+    return [] as LiveAnnouncement[]
+  })
   const live = candidates
     // `isActive` is already true for every row the query returned, so the
     // window check only has the schedule left to evaluate.

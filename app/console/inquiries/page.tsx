@@ -14,6 +14,8 @@ import {
   getSalesInquiryCounts,
 } from '@/server/data/console'
 import { outboundDialerStatus } from '@/server/outbound/dialer'
+import { resolveDemoTarget } from '@/server/outbound/dispatcher'
+import { smsStatus } from '@/server/outbound/sms'
 import { maskNumber } from '@/server/voice/log'
 
 export const metadata: Metadata = { title: 'طلبات العروض' }
@@ -75,13 +77,15 @@ export default async function InquiriesPage({
   const status = FILTERS.some((f) => f.value === params.status) ? (params.status ?? '') : ''
   const search = params.q?.trim() ?? ''
 
-  const [inquiries, counts, demoRequests, demoTargets] = await Promise.all([
+  const [inquiries, counts, demoRequests, demoTargets, demoTarget] = await Promise.all([
     getSalesInquiries({ ...(status ? { status } : {}), ...(search ? { search } : {}) }),
     getSalesInquiryCounts(),
     getDemoCallRequests(),
     getDemoCallTargets(),
+    resolveDemoTarget(),
   ])
   const dialer = outboundDialerStatus()
+  const sms = smsStatus()
   const pendingDemos = demoRequests.filter((r) => r.status === 'new').length
 
   const versionOptions = demoTargets.versions.map((v) => ({
@@ -120,15 +124,40 @@ export default async function InquiriesPage({
         not have to know the site has two forms writing to two tables.
       */}
       <Section title="طلبات المكالمة التجريبية" meta={`${num(demoRequests.length)} طلب`} flush>
-        {!dialer.ready && demoRequests.length > 0 ? (
-          <div className="notice notice--warn" role="status">
-            <strong>الاتصال الصادر غير مُهيّأ — لا يمكن إجراء المكالمة من هنا.</strong>
-            <p>
-              الطلبات محفوظة بأرقامها الكاملة ويمكن الاتصال بها يدويًا. الناقص:{' '}
-              <code dir="ltr">{dialer.missing.join(', ')}</code>
-            </p>
-          </div>
-        ) : null}
+        {/*
+          What the demo will actually do, on the page where it is handled.
+          A feature whose behaviour depends on three separate configurations
+          should say which of them are in place rather than leave an operator
+          to infer it from whether calls happen.
+        */}
+        <div className="notice" role="status">
+          <strong>حالة المكالمة التجريبية</strong>
+          <ul>
+            <li>
+              {dialer.ready
+                ? '• الاتصال الصادر مُهيّأ.'
+                : `• الاتصال الصادر غير مُهيّأ — ${[
+                    ...dialer.missing,
+                    ...dialer.malformed.map((m) => `${m.key}: يجب أن يكون ${m.expected}`),
+                  ].join('، ')}`}
+            </li>
+            <li>
+              {sms.ready
+                ? '• التحقق بالرمز يعمل — الطلب المؤكَّد يُتصل به تلقائيًا.'
+                : `• التحقق بالرمز معطّل — كل طلب ينتظرك هنا. الناقص: ${[
+                    ...sms.missing,
+                    ...sms.malformed.map((m) => `${m.key} (${m.expected})`),
+                  ].join('، ')}`}
+            </li>
+            <li>
+              {demoTarget
+                ? `• يردّ على التجربة: ${demoTarget.agentLabel} من ${demoTarget.fromNumber}${
+                    demoTarget.source === 'resolved' ? ' (اختير تلقائيًا)' : ' (مثبَّت بالإعدادات)'
+                  }`
+                : '• لا يوجد موظف صوتي منشور مربوط برقم — انشر نسخة واربط رقمًا أولًا.'}
+            </li>
+          </ul>
+        </div>
 
         {demoRequests.length === 0 ? (
           <EmptyState
