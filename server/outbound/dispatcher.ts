@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import {
   type CampaignStatus,
   canAttempt,
@@ -228,7 +228,7 @@ async function dispatchOne(
       and(
         eq(campaignAttempt.workspaceId, campaign.workspaceId),
         eq(campaignAttempt.placed, true),
-        sql`${campaignAttempt.createdAt} >= ${dayStart}`,
+        gte(campaignAttempt.createdAt, dayStart),
       ),
     )
 
@@ -577,7 +577,7 @@ async function dispatchDemoCalls(dialerReady: boolean): Promise<number> {
     .where(
       and(
         inArray(demoCallRequest.status, ['calling', 'completed', 'failed']),
-        sql`${demoCallRequest.updatedAt} >= ${dayStart}`,
+        gte(demoCallRequest.updatedAt, dayStart),
       ),
     )
   if (!withinGlobalDemoCap(Number(today?.total ?? 0), cap)) return 0
