@@ -49,7 +49,8 @@
     "content:seed": "tsx --env-file=.env.local scripts/seed-articles.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:public": "playwright test --project=public --project=mobile"
+    "e2e:public": "playwright test --project=public --project=mobile",
+    "e2e:seed": "tsx --env-file-if-exists=.env.local scripts/seed-e2e-users.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1118.0",

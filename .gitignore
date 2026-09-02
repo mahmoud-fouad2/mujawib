@@ -27,3 +27,4 @@ __v0_jsx-dev-runtime.ts
 .auth
 playwright-report
 test-results
+.tmp/

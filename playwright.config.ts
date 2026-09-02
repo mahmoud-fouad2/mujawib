@@ -38,6 +38,9 @@ export default defineConfig({
   projects: [
     {
       name: 'setup',
+      // Sign-in is the slowest thing the suite does: four sequential database
+      // round trips before the first screen renders. See auth.setup.ts.
+      timeout: 120_000,
       testMatch: /auth\.setup\.ts/,
     },
     {
