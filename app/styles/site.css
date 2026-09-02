@@ -3318,3 +3318,75 @@
 .demo-call__resend:disabled {
   opacity: 0.5;
 }
+
+/*
+ * The persona picker. Previously eight `.day-toggle` chips in a flex-wrap
+ * row — a class shared with the campaign weekday picker, sized for seven
+ * short day names. Persona labels carry a name and a region ("سارة —
+ * السعودية") and are two to three times longer, so the shared chip wrapped
+ * into ragged, uneven rows. A grid instead of flex-wrap: every cell the same
+ * width, rows that actually align, and it collapses to one column on its own
+ * on a narrow phone rather than needing a breakpoint to say so.
+ */
+.persona-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.persona-toggle {
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: center;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.persona-toggle:hover {
+  border-color: var(--text-muted);
+}
+
+.persona-toggle[aria-pressed="true"] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--canvas);
+}
+
+/*
+ * The country code as its own fixed element outside the input, instead of
+ * repeated inside the field's placeholder text. The placeholder used to read
+ * "+966 5X XXX XXXX" directly under a dropdown that had already picked
+ * Saudi Arabia — indistinguishable from an instruction to type the code
+ * again, which was reported as exactly that confusion. The code cannot be
+ * typed into the field at all now; there is nowhere left for the ambiguity
+ * to live.
+ */
+.demo-call__phone-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.demo-call__phone-prefix {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--raised);
+  color: var(--text-muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+.demo-call__phone-row .input {
+  flex: 1;
+}

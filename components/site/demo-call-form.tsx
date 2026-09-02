@@ -2,7 +2,7 @@
 
 import { Check, PhoneCall } from 'lucide-react'
 import Script from 'next/script'
-import { type FormEvent, useState, useTransition } from 'react'
+import { type FormEvent, useEffect, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { DEMO_CODE_LENGTH, DEMO_COUNTRIES } from '@/lib/demo-call'
 import type { Locale } from '@/lib/i18n'
@@ -72,6 +72,21 @@ export function DemoCallForm({
   const [awaiting, setAwaiting] = useState<{ requestId: string; phone: string } | null>(null)
   const [code, setCode] = useState('')
   const [done, setDone] = useState<string | null>(null)
+  const errorRef = useRef<HTMLParagraphElement>(null)
+
+  /**
+   * The card is tall enough that a submit click near the bottom leaves the
+   * result message — rendered near the top, next to the fields it concerns —
+   * entirely off-screen. Nothing else about the page moves on submit, so a
+   * visitor who does not scroll back up sees no reaction at all: the exact
+   * report this was built to fix was "typed the number, nothing happened,"
+   * for a request that was in fact reaching the server and failing there.
+   */
+  useEffect(() => {
+    if (result && !result.ok) {
+      errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [result])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -152,7 +167,7 @@ export function DemoCallForm({
         </div>
 
         {result && !result.ok ? (
-          <p className="auth__error" role="alert">
+          <p ref={errorRef} className="auth__error" role="alert">
             {result.message}
           </p>
         ) : null}
@@ -234,7 +249,7 @@ export function DemoCallForm({
       </div>
 
       {result && !result.ok ? (
-        <p className="auth__error" role="alert">
+        <p ref={errorRef} className="auth__error" role="alert">
           {result.message}
         </p>
       ) : null}
@@ -242,16 +257,20 @@ export function DemoCallForm({
       {personas.length > 0 ? (
         <fieldset className="field">
           <legend>{ar ? 'الصوت واللهجة' : 'Voice and dialect'}</legend>
-          <div className="day-toggles">
+          <div className="persona-grid">
             {personas.map((option) => (
               <button
                 key={option.key}
                 type="button"
-                className="day-toggle"
+                className="persona-toggle"
                 aria-pressed={option.key === persona}
                 onClick={() => setPersona(option.key)}
               >
-                {option.name} · {option.dialectLabel}
+                {/* The name already carries the region ("سارة — السعودية"),
+                    so repeating dialectLabel next to it said "Saudi" twice —
+                    the redundancy that made eight of these read as clutter
+                    rather than eight distinct choices. */}
+                {option.name}
               </button>
             ))}
           </div>
@@ -276,17 +295,32 @@ export function DemoCallForm({
 
       <div className="field">
         <label htmlFor={`${locale}-demo-phone`}>{ar ? 'رقم هاتفك' : 'Your phone number'}</label>
-        <input
-          id={`${locale}-demo-phone`}
-          name="phone"
-          className="input"
-          type="tel"
-          inputMode="tel"
-          dir="ltr"
-          autoComplete="tel"
-          required
-          placeholder={`+${dial} 5X XXX XXXX`}
-        />
+        <div className="demo-call__phone-row" dir="ltr">
+          <span className="demo-call__phone-prefix">+{dial}</span>
+          <input
+            id={`${locale}-demo-phone`}
+            name="phone"
+            className="input"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+            /*
+             * The dropdown above already sets the country. This placeholder
+             * used to repeat the same code inside the field itself
+             * ("+966 5X XXX XXXX"), so it was never clear whether the code
+             * belonged in the box too — the exact question this was
+             * reported for. The prefix now sits outside the input as its
+             * own fixed element; the field only ever holds the local number.
+             */
+            placeholder="5X XXX XXXX"
+          />
+        </div>
+        <span className="hint">
+          {ar
+            ? 'الرمز أعلاه ثابت من اختيار الدولة — اكتب رقمك المحلي فقط، بلا صفر في البداية.'
+            : 'The code above comes from the country you picked — type your local number only, no leading zero.'}
+        </span>
       </div>
 
       <div className="field">

@@ -408,6 +408,20 @@ p {
   color: var(--text-muted);
 }
 
+/*
+ * Supplementary text under a field — "why", not "what". Used across the
+ * console, portal and now the public site (dozens of call sites), but the
+ * class itself had never been defined: every one of those hints has been
+ * rendering as plain, undifferentiated body text since it was written, with
+ * nothing to mark it as secondary. Purely additive — nothing today depends
+ * on `.hint` being unstyled.
+ */
+.hint {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 .input {
   inline-size: 100%;
   padding-block: 0.625rem;
