@@ -1,19 +1,23 @@
 import 'server-only'
 
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import {
   type CampaignStatus,
   canAttempt,
+  DEFAULT_CALLING_WINDOW,
   DISPATCH_REASON_LABEL,
   dispatchDecision,
+  isWithinCallingWindow,
   localParts,
   MAX_ATTEMPTS_PER_CONTACT,
 } from '@/lib/campaigns'
+import { withinGlobalDemoCap } from '@/lib/demo-call'
 import { db } from '@/server/db'
 import {
   campaignAttempt,
   campaignContact,
+  demoCallRequest,
   outboundCampaign,
   phoneNumber,
   suppressionEntry,
@@ -135,8 +139,9 @@ export async function runCampaignDispatch(): Promise<{
   refused: number
   released: number
   completed: number
+  demo: number
 }> {
-  const summary = { campaigns: 0, placed: 0, refused: 0, released: 0, completed: 0 }
+  const summary = { campaigns: 0, placed: 0, refused: 0, released: 0, completed: 0, demo: 0 }
 
   // A draining process is finishing the calls it already holds. Starting new
   // outbound legs during a deploy hands them to a container about to exit.
@@ -146,6 +151,9 @@ export async function runCampaignDispatch(): Promise<{
 
   summary.released = await releaseStaleCalling()
   summary.completed = await completeFinishedCampaigns()
+  // Ahead of the campaign sweep and independent of it: somebody waiting on a
+  // demo call they just asked for is watching a page, and a campaign is not.
+  summary.demo = await dispatchDemoCalls(dialer.ready)
 
   const campaigns = (await db
     .select({
@@ -168,7 +176,10 @@ export async function runCampaignDispatch(): Promise<{
     .orderBy(asc(outboundCampaign.updatedAt))
     .limit(10)) as RunningCampaign[]
 
-  if (campaigns.length === 0) return summary
+  if (campaigns.length === 0) {
+    if (summary.demo > 0) voiceLog('CAMPAIGN_DISPATCH', summary)
+    return summary
+  }
   summary.campaigns = campaigns.length
 
   // Outbound is the most interruptible work this process does. Under memory
@@ -186,7 +197,7 @@ export async function runCampaignDispatch(): Promise<{
     summary.refused += placed.refused
   }
 
-  if (summary.placed > 0 || summary.released > 0 || summary.completed > 0) {
+  if (summary.placed > 0 || summary.released > 0 || summary.completed > 0 || summary.demo > 0) {
     voiceLog('CAMPAIGN_DISPATCH', summary)
   }
   return summary
@@ -409,21 +420,156 @@ export function dispatchReasonLabel(reason: string | null): string | null {
 }
 
 /** Closes a contact when its call actually ends. Called from the voice path. */
-export async function settleCampaignContactForCall(
-  callId: string,
-  outcome: 'completed' | 'no_answer' | 'busy' | 'failed',
-  summary?: string,
-) {
+export async function settleCampaignContactForCall(input: {
+  callId: string
+  workspaceId: string
+  /** Masked or full; only the last four digits are used to match. */
+  calledNumber: string | null
+  outcome: 'completed' | 'no_answer' | 'busy' | 'failed'
+  summary?: string
+}): Promise<{ linked: number; reason: 'ok' | 'no_number' | 'no_match' | 'ambiguous' }> {
+  const digits = (input.calledNumber ?? '').replace(/[^0-9]/g, '')
+  if (digits.length < 4) return { linked: 0, reason: 'no_number' }
+  const tail = digits.slice(-4)
+
+  const candidates = await db
+    .select({ id: campaignContact.id })
+    .from(campaignContact)
+    .where(
+      and(
+        eq(campaignContact.workspaceId, input.workspaceId),
+        eq(campaignContact.status, 'calling'),
+        // The stored number is full E.164; the call row's is masked at write
+        // time, so the last four digits are the only part present on both.
+        sql`right(${campaignContact.phone}, 4) = ${tail}`,
+      ),
+    )
+    .limit(2)
+
+  // Exactly one, or nothing. Ambiguity is left alone deliberately: a summary
+  // filed against the wrong person is worse than a record with no summary,
+  // because one of the two is wrong and nothing on the screen says so.
+  if (candidates.length !== 1) {
+    return { linked: 0, reason: candidates.length === 0 ? 'no_match' : 'ambiguous' }
+  }
+  const contact = candidates[0]
+  if (!contact) return { linked: 0, reason: 'no_match' }
+
   await db
     .update(campaignContact)
     .set({
-      status: outcome,
-      outcome,
-      ...(summary ? { summary: summary.slice(0, 2000) } : {}),
-      lastCallId: callId,
+      status: input.outcome,
+      outcome: input.outcome,
+      ...(input.summary ? { summary: input.summary.slice(0, 2000) } : {}),
+      lastCallId: input.callId,
       updatedAt: new Date(),
     })
+    .where(and(eq(campaignContact.id, contact.id), eq(campaignContact.status, 'calling')))
+
+  await db
+    .update(campaignAttempt)
+    .set({ callId: input.callId, outcome: input.outcome })
+    .where(and(eq(campaignAttempt.contactId, contact.id), isNull(campaignAttempt.callId)))
+
+  return { linked: 1, reason: 'ok' }
+}
+
+/* ─── the public demo ────────────────────────────────────────────────────── */
+
+/**
+ * Places calls for demo requests whose number has been verified.
+ *
+ * Runs from the same tick as the campaign dispatcher, and refuses on the same
+ * grounds — draining, memory pressure, an unconfigured dialer — plus three of
+ * its own:
+ *
+ * The request must carry `verifiedAt`. Status alone is not enough: a status
+ * can be edited from the console, and what makes a call permissible here is
+ * that somebody read a code sent to that number.
+ *
+ * A demo assistant and a caller id must be designated (`DEMO_AGENT_VERSION_ID`
+ * and `DEMO_FROM_NUMBER_ID`). Unset — the default — verified requests simply
+ * wait for an operator, which is the behaviour before this existed.
+ *
+ * And the whole platform has a daily ceiling. If verification, rate limiting
+ * and the blocklist all fail at once, this is what stops the bill.
+ */
+async function dispatchDemoCalls(dialerReady: boolean): Promise<number> {
+  if (!dialerReady) return 0
+
+  const agentVersionId = process.env.DEMO_AGENT_VERSION_ID?.trim()
+  const fromNumberId = process.env.DEMO_FROM_NUMBER_ID?.trim()
+  if (!agentVersionId || !fromNumberId) return 0
+
+  const cap = Number(process.env.DEMO_DAILY_CALL_CAP ?? 50)
+  const dayStart = new Date()
+  dayStart.setUTCHours(0, 0, 0, 0)
+
+  const [today] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(demoCallRequest)
     .where(
-      and(eq(campaignContact.lastCallId, callId), inArray(campaignContact.status, ['calling'])),
+      and(
+        inArray(demoCallRequest.status, ['calling', 'completed', 'failed']),
+        sql`${demoCallRequest.updatedAt} >= ${dayStart}`,
+      ),
     )
+  if (!withinGlobalDemoCap(Number(today?.total ?? 0), cap)) return 0
+
+  const [from] = await db
+    .select({ e164: phoneNumber.e164 })
+    .from(phoneNumber)
+    .where(eq(phoneNumber.id, fromNumberId))
+    .limit(1)
+  if (!from) return 0
+
+  // Demo calls run inside the same decent hours a campaign does. Somebody who
+  // asked at 2am asked to be called, not to be woken.
+  const now = new Date()
+  if (!isWithinCallingWindow(now, DEFAULT_CALLING_WINDOW)) return 0
+
+  // One per tick. The demo is a courtesy, not a queue to drain, and a single
+  // call every fifteen seconds is faster than anybody waiting for one notices.
+  const claimed = await db
+    .update(demoCallRequest)
+    .set({ status: 'calling', updatedAt: now })
+    .where(
+      and(
+        eq(demoCallRequest.status, 'verified'),
+        isNotNull(demoCallRequest.verifiedAt),
+        eq(
+          demoCallRequest.id,
+          sql`(select id from ${demoCallRequest}
+               where status = 'verified' and verified_at is not null
+               order by verified_at
+               limit 1 for update skip locked)`,
+        ),
+      ),
+    )
+    .returning({ id: demoCallRequest.id, phone: demoCallRequest.phone })
+
+  const request = claimed[0]
+  if (!request) return 0
+
+  const result = await placeOutboundCall({
+    to: request.phone,
+    from: from.e164,
+    reference: `${request.id}-auto`,
+  })
+
+  await db
+    .update(demoCallRequest)
+    .set({
+      status: result.ok ? 'completed' : 'failed',
+      attempts: sql`${demoCallRequest.attempts} + 1`,
+      lastError: result.ok ? null : result.error.slice(0, 300),
+      updatedAt: new Date(),
+    })
+    .where(eq(demoCallRequest.id, request.id))
+
+  if (!result.ok) {
+    voiceError('DEMO_CALL_FAILED', { to: maskNumber(request.phone), error: result.error })
+    return 0
+  }
+  return 1
 }

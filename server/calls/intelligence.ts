@@ -277,6 +277,29 @@ async function runProcessing(callId: string, force: boolean): Promise<Processing
     urgency: parsed.summary.urgency,
   })
   await queueForReviewIfWarranted(callId, row.status, row.outcome, parsed.summary, evidence.tools)
+
+  /**
+   * If this call came from a campaign, close the contact it belongs to.
+   *
+   * Here rather than in the sideband because this is the first moment a
+   * summary exists — the contact's row is what a client reads to find out how
+   * the call went, and linking it before there is anything to show would fill
+   * the column with nothing. Never throws: an outbound bookkeeping failure
+   * must not be why an inbound call has no summary.
+   */
+  try {
+    const { settleCampaignContactForCall } = await import('@/server/outbound/dispatcher')
+    await settleCampaignContactForCall({
+      callId,
+      workspaceId: row.workspaceId,
+      calledNumber: row.callerNumber,
+      outcome: 'completed',
+      summary: parsed.summary.headline,
+    })
+  } catch {
+    // Correlation is best effort by construction; see the function's comment.
+  }
+
   voiceLog('POST_CALL_COMPLETED', { callId: maskIdentifier(callId), model, attempt })
   return { state: 'completed', reused: false }
 }

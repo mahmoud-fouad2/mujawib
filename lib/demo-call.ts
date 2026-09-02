@@ -130,6 +130,8 @@ export function demoThrottle(input: DemoThrottleInput): DemoThrottleResult {
 }
 
 export const DEMO_REQUEST_STATUSES = [
+  'pending_verification',
+  'verified',
   'new',
   'approved',
   'calling',
@@ -141,6 +143,8 @@ export const DEMO_REQUEST_STATUSES = [
 export type DemoRequestStatusValue = (typeof DEMO_REQUEST_STATUSES)[number]
 
 export const DEMO_REQUEST_STATUS_LABEL: Record<DemoRequestStatusValue, string> = {
+  pending_verification: 'بانتظار تأكيد الرقم',
+  verified: 'رقم مؤكَّد — في الطابور',
   new: 'جديد',
   approved: 'معتمد للاتصال',
   calling: 'جارٍ الاتصال',
@@ -154,6 +158,8 @@ export const DEMO_REQUEST_STATUS_TONE: Record<
   DemoRequestStatusValue,
   'neutral' | 'signal' | 'good' | 'warn'
 > = {
+  pending_verification: 'neutral',
+  verified: 'signal',
   new: 'signal',
   approved: 'warn',
   calling: 'warn',
@@ -161,4 +167,108 @@ export const DEMO_REQUEST_STATUS_TONE: Record<
   failed: 'neutral',
   rejected: 'neutral',
   blocked: 'neutral',
+}
+
+/* ─── number-ownership verification ──────────────────────────────────────── */
+
+/** Codes live briefly: long enough to read an SMS, short enough to be useless later. */
+export const DEMO_CODE_TTL_MS = 10 * 60_000
+/** Wrong guesses before the request is burned. Six digits, five tries. */
+export const DEMO_CODE_MAX_ATTEMPTS = 5
+export const DEMO_CODE_LENGTH = 6
+
+export type VerifyRefusal = 'expired' | 'too_many_attempts' | 'wrong_code' | 'already_verified'
+
+export type VerifyResult = { ok: true } | { ok: false; reason: VerifyRefusal }
+
+export const VERIFY_REFUSAL_LABEL: Record<VerifyRefusal, string> = {
+  expired: 'انتهت صلاحية الرمز. اطلب رمزًا جديدًا.',
+  too_many_attempts: 'محاولات كثيرة خاطئة. اطلب رمزًا جديدًا.',
+  wrong_code: 'الرمز غير صحيح.',
+  already_verified: 'تم التحقق من هذا الرقم بالفعل.',
+}
+
+export type VerifyInput = {
+  now: Date
+  expiresAt: Date | null
+  attempts: number
+  verifiedAt: Date | null
+  /** Both already hashed by the caller; never compared in plain text. */
+  expectedHash: string | null
+  providedHash: string
+}
+
+/**
+ * Whether a submitted code opens the request.
+ *
+ * Order matters and is not arbitrary: expiry and the attempt ceiling are
+ * checked before the code itself, so a burned request cannot be used as an
+ * oracle — every guess against it returns the same refusal regardless of
+ * whether the digits happened to be right.
+ */
+export function verifyCode(input: VerifyInput): VerifyResult {
+  if (input.verifiedAt) return { ok: false, reason: 'already_verified' }
+  if (!input.expectedHash || !input.expiresAt) return { ok: false, reason: 'expired' }
+  if (input.now.getTime() > input.expiresAt.getTime()) return { ok: false, reason: 'expired' }
+  if (input.attempts >= DEMO_CODE_MAX_ATTEMPTS) return { ok: false, reason: 'too_many_attempts' }
+  if (input.providedHash !== input.expectedHash) return { ok: false, reason: 'wrong_code' }
+  return { ok: true }
+}
+
+/* ─── spam heuristics ────────────────────────────────────────────────────── */
+
+export type SpamVerdict =
+  | { spam: false }
+  | { spam: true; reason: 'repeated_digits' | 'sequential_digits' | 'blocked' }
+
+export const SPAM_REASON_LABEL: Record<Exclude<SpamVerdict, { spam: false }>['reason'], string> = {
+  repeated_digits: 'الرقم غير حقيقي.',
+  sequential_digits: 'الرقم غير حقيقي.',
+  blocked: 'هذا الرقم محظور من الخدمة التجريبية.',
+}
+
+/**
+ * Numbers nobody owns.
+ *
+ * `+966500000000` and `+966512345678` pass every format check and belong to no
+ * one; they are what a bot fills a form with. Catching them costs one pass
+ * over the string and saves a verification SMS that could never be read.
+ *
+ * Deliberately narrow. Refusing a real customer's number because it looks
+ * unusual is a far worse outcome than letting one throwaway through, so this
+ * only rejects patterns that run the length of the subscriber part.
+ */
+export function looksFake(phone: string): SpamVerdict {
+  const digits = phone.replace(/\D/g, '')
+  // Everything after a plausible country code — the part a person owns.
+  const subscriber = digits.slice(-9)
+  if (subscriber.length < 7) return { spam: false }
+
+  // Digit diversity, not literal repetition. `+966500000000` is a real mobile
+  // prefix followed by eight zeros — the repetition sits *after* the prefix,
+  // so a whole-string test misses exactly the number a bot actually types.
+  // Two distinct digits across nine is not a number anybody was issued.
+  if (new Set(subscriber).size <= 2) return { spam: true, reason: 'repeated_digits' }
+
+  let ascending = true
+  let descending = true
+  for (let i = 1; i < subscriber.length; i += 1) {
+    const step = Number(subscriber[i]) - Number(subscriber[i - 1])
+    if (step !== 1) ascending = false
+    if (step !== -1) descending = false
+  }
+  if (ascending || descending) return { spam: true, reason: 'sequential_digits' }
+
+  return { spam: false }
+}
+
+/**
+ * The last line of defence, checked immediately before an automatic call.
+ *
+ * If verification, rate limiting and the blocklist all fail at once, this is
+ * what stops the bill. It is a platform-wide count, not per visitor, because
+ * the failure it guards against is many visitors — or one pretending to be.
+ */
+export function withinGlobalDemoCap(placedToday: number, cap: number): boolean {
+  return placedToday < Math.max(0, cap)
 }

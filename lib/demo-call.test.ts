@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEMO_CODE_MAX_ATTEMPTS,
   DEMO_COUNTRIES,
   DEMO_NUMBER_COOLDOWN_MS,
   DEMO_REQUESTS_PER_ADDRESS,
   demoCountry,
   demoThrottle,
+  looksFake,
   normalizeDemoPhone,
+  verifyCode,
+  withinGlobalDemoCap,
 } from '@/lib/demo-call'
 
 const NOW = new Date('2026-09-07T10:00:00Z')
@@ -128,5 +132,113 @@ describe('demo throttling', () => {
     expect(demoThrottle({ now: NOW, recentFromAddress: 0, lastForNumberAt: old })).toEqual({
       ok: true,
     })
+  })
+})
+
+describe('verifying a code', () => {
+  const base = {
+    now: NOW,
+    expiresAt: new Date(NOW.getTime() + 5 * 60_000),
+    attempts: 0,
+    verifiedAt: null,
+    expectedHash: 'hash-of-the-right-code',
+    providedHash: 'hash-of-the-right-code',
+  }
+
+  it('accepts the right code inside the window', () => {
+    expect(verifyCode(base)).toEqual({ ok: true })
+  })
+
+  it('refuses the wrong code', () => {
+    expect(verifyCode({ ...base, providedHash: 'something-else' })).toEqual({
+      ok: false,
+      reason: 'wrong_code',
+    })
+  })
+
+  it('refuses after expiry, even with the right code', () => {
+    expect(verifyCode({ ...base, expiresAt: new Date(NOW.getTime() - 1000) })).toEqual({
+      ok: false,
+      reason: 'expired',
+    })
+  })
+
+  it('refuses a request that never had a code', () => {
+    expect(verifyCode({ ...base, expectedHash: null })).toEqual({ ok: false, reason: 'expired' })
+  })
+
+  it('refuses once attempts are spent, before checking the digits', () => {
+    // A burned request must not become an oracle: a right guess and a wrong
+    // guess have to return the same refusal.
+    const spent = { ...base, attempts: DEMO_CODE_MAX_ATTEMPTS }
+    expect(verifyCode(spent)).toEqual({ ok: false, reason: 'too_many_attempts' })
+    expect(verifyCode({ ...spent, providedHash: 'wrong' })).toEqual({
+      ok: false,
+      reason: 'too_many_attempts',
+    })
+  })
+
+  it('refuses a request already verified, so a code cannot be replayed', () => {
+    expect(verifyCode({ ...base, verifiedAt: NOW })).toEqual({
+      ok: false,
+      reason: 'already_verified',
+    })
+  })
+})
+
+describe('fake-number heuristics', () => {
+  it('rejects a number that is a real prefix followed by one repeated digit', () => {
+    // The repetition sits after the mobile prefix, which is why a naive
+    // "whole string is one digit" test misses exactly this case.
+    expect(looksFake('+966500000000')).toEqual({ spam: true, reason: 'repeated_digits' })
+    expect(looksFake('+966555555555')).toEqual({ spam: true, reason: 'repeated_digits' })
+  })
+
+  it('lets a near-miss through, and that is the intended trade', () => {
+    // `511111112` has three distinct digits, so the rule does not fire. Widening
+    // it to catch this would start refusing numbers real customers hold, and a
+    // refused customer costs more than one throwaway that still has to pass
+    // SMS verification before anything is dialled.
+    expect(looksFake('+966511111112')).toEqual({ spam: false })
+  })
+
+  it('rejects a fully sequential subscriber number', () => {
+    expect(looksFake('+966123456789')).toEqual({ spam: true, reason: 'sequential_digits' })
+    expect(looksFake('+966987654321')).toEqual({ spam: true, reason: 'sequential_digits' })
+  })
+
+  it('accepts ordinary numbers, including ones with runs inside them', () => {
+    // Refusing a real customer is far worse than letting a throwaway through,
+    // so the rule only fires when the pattern runs the whole subscriber part.
+    for (const phone of [
+      '+966501234567',
+      '+966555512345',
+      '+201001234567',
+      '+971509876543',
+      '+966512983746',
+    ]) {
+      expect(looksFake(phone), `${phone} should be accepted`).toEqual({ spam: false })
+    }
+  })
+
+  it('does not judge a number too short to have a subscriber part', () => {
+    expect(looksFake('+9665000')).toEqual({ spam: false })
+  })
+})
+
+describe('the platform-wide daily ceiling', () => {
+  it('allows calls below the cap and refuses at it', () => {
+    expect(withinGlobalDemoCap(0, 50)).toBe(true)
+    expect(withinGlobalDemoCap(49, 50)).toBe(true)
+    expect(withinGlobalDemoCap(50, 50)).toBe(false)
+    expect(withinGlobalDemoCap(51, 50)).toBe(false)
+  })
+
+  it('refuses everything when the cap is zero — an off switch that works', () => {
+    expect(withinGlobalDemoCap(0, 0)).toBe(false)
+  })
+
+  it('treats a negative cap as zero rather than as unlimited', () => {
+    expect(withinGlobalDemoCap(0, -5)).toBe(false)
   })
 })

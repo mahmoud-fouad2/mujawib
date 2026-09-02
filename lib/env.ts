@@ -62,6 +62,48 @@ export const env = createEnv({
     // integration rather than being an env var nothing else in the codebase
     // knows about.
     SENTRY_DSN: z.string().url().optional(),
+
+    // ── outbound calling ────────────────────────────────────────────────
+    //
+    // Read directly from process.env in server/outbound/*, which run on the
+    // dispatcher's path and must not pull this module's import graph in.
+    // Declared here so a deploy has one place that lists what outbound needs,
+    // and so a malformed value fails at boot rather than at the first dial.
+    //
+    // Absent, `outboundDialerStatus()` reports not-ready and no code path in
+    // this product can ring a phone. That is the default and it is deliberate.
+    TWILIO_ACCOUNT_SID: z
+      .string()
+      .regex(/^AC[0-9a-fA-F]{32}$/, 'TWILIO_ACCOUNT_SID must be an AC… account SID')
+      .optional(),
+    TWILIO_AUTH_TOKEN: z.string().min(16).optional(),
+    /** The number verification codes are sent from. Without it, no SMS. */
+    TWILIO_SMS_FROM: z
+      .string()
+      .regex(/^\+[1-9]\d{7,14}$/, 'TWILIO_SMS_FROM must be E.164')
+      .optional(),
+    /** OpenAI project whose SIP endpoint every call — in or out — lands on. */
+    OPENAI_PROJECT_ID: z.string().min(1).optional(),
+    /** Overrides the SIP URI built from OPENAI_PROJECT_ID. Rarely needed. */
+    OPENAI_SIP_URI: z.string().min(1).optional(),
+    /**
+     * Ceiling on automatic demo calls per day across the whole platform.
+     *
+     * The last line of defence: if verification, rate limiting and the
+     * blocklist all fail at once, this is what stops the bill. Deliberately
+     * small by default.
+     */
+    DEMO_DAILY_CALL_CAP: z.coerce.number().int().min(0).max(2_000).default(50),
+    /**
+     * Which assistant answers the demo, and which number it calls from.
+     *
+     * Both unset is the safe default: a verified request then waits for an
+     * operator to pick, exactly as it does today. Setting them is the
+     * deliberate act that turns the demo call automatic.
+     */
+    DEMO_AGENT_VERSION_ID: z.string().min(1).optional(),
+    DEMO_FROM_NUMBER_ID: z.string().min(1).optional(),
+
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   },
   client: {
@@ -99,6 +141,14 @@ export const env = createEnv({
     RECAPTCHA_SITE_KEY: process.env.RECAPTCHA_SITE_KEY,
     RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    TWILIO_SMS_FROM: process.env.TWILIO_SMS_FROM,
+    OPENAI_PROJECT_ID: process.env.OPENAI_PROJECT_ID,
+    OPENAI_SIP_URI: process.env.OPENAI_SIP_URI,
+    DEMO_DAILY_CALL_CAP: process.env.DEMO_DAILY_CALL_CAP,
+    DEMO_AGENT_VERSION_ID: process.env.DEMO_AGENT_VERSION_ID,
+    DEMO_FROM_NUMBER_ID: process.env.DEMO_FROM_NUMBER_ID,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

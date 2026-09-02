@@ -233,6 +233,8 @@ export const campaignAttempt = pgTable(
 )
 
 export type DemoRequestStatus =
+  | 'pending_verification'
+  | 'verified'
   | 'new'
   | 'approved'
   | 'calling'
@@ -276,6 +278,20 @@ export const demoCallRequest = pgTable(
 
     /** Ticked explicitly by the visitor; the row is refused without it. */
     consentAt: timestamp('consent_at', { withTimezone: true }).notNull(),
+
+    /**
+     * Number-ownership verification.
+     *
+     * The code is stored hashed and never in plain text — a leaked table
+     * should not hand anybody a working code for a number they do not own.
+     * `verifiedAt` is what makes a request eligible for an automatic call;
+     * without it the request waits for an operator, whatever its status says.
+     */
+    codeHash: text('code_hash'),
+    codeExpiresAt: timestamp('code_expires_at', { withTimezone: true }),
+    codeAttempts: integer('code_attempts').notNull().default(0),
+    codeSentCount: integer('code_sent_count').notNull().default(0),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
     /** Hashed address + number, for the repeat-submission window. */
     requestFingerprint: text('request_fingerprint').notNull(),
 
@@ -288,4 +304,32 @@ export const demoCallRequest = pgTable(
     index('demo_call_request_phone_idx').on(t.phone, t.createdAt),
     index('demo_call_request_fingerprint_idx').on(t.requestFingerprint, t.createdAt),
   ],
+)
+
+export type DemoBlockScope = 'phone' | 'fingerprint'
+
+/**
+ * Permanent refusals for the public demo.
+ *
+ * Separate from `suppression_entry`, which is a client's own do-not-call list
+ * scoped to their workspace. This one is the platform's, it has no workspace,
+ * and it holds two kinds of key: a number that must never be called again, and
+ * a request fingerprint — the hashed address-and-number pair — that identifies
+ * a source worth refusing before it costs an SMS.
+ *
+ * Like the suppression list, there is no expiry. A block that lapses on its
+ * own is not a block.
+ */
+export const demoBlock = pgTable(
+  'demo_block',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').$type<DemoBlockScope>().notNull().default('phone'),
+    /** E.164 number, or a fingerprint hash, depending on `scope`. */
+    value: text('value').notNull(),
+    reason: text('reason'),
+    createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('demo_block_unique_idx').on(t.scope, t.value)],
 )

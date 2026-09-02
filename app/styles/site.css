@@ -3295,3 +3295,26 @@
   text-align: center;
   margin: 0;
 }
+
+/* One field, six digits, read off a lock screen. */
+.demo-call__code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+.demo-call__resend {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.demo-call__resend:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.demo-call__resend:disabled {
+  opacity: 0.5;
+}

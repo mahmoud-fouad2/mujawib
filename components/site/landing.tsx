@@ -16,6 +16,7 @@ import {
 import { LinkButton } from '@/components/ui/button'
 import { copyFor } from '@/lib/content/site'
 import { intentLabel, outcomeLabel } from '@/lib/content/vocabulary'
+import { env } from '@/lib/env'
 import { clock } from '@/lib/format'
 import { isRtl, type Locale, localePath } from '@/lib/i18n'
 import { buildRecordItems } from '@/lib/record'
@@ -203,7 +204,11 @@ export async function Landing({ locale }: { locale: Locale }) {
       */}
       <section className="section reveal" id="demo-call">
         <div className="container demo-call__container">
-          <DemoCallForm locale={locale} personas={data?.personas ?? []} />
+          <DemoCallForm
+            locale={locale}
+            personas={data?.personas ?? []}
+            recaptchaSiteKey={env.RECAPTCHA_SITE_KEY}
+          />
         </div>
       </section>
 

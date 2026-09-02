@@ -3,9 +3,9 @@
 import { PhoneCall } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Confirm, Sheet } from '@/components/ui/overlays'
+import { Sheet } from '@/components/ui/overlays'
 import { RowAction, RowActions, useAction } from '@/components/ui/row-actions'
-import { placeDemoCall, setDemoRequestStatus } from '@/server/actions/demo-call'
+import { blockDemoSource, placeDemoCall, setDemoRequestStatus } from '@/server/actions/demo-call'
 
 /**
  * The operator half of the public demo call.
@@ -46,12 +46,15 @@ export function DemoRequestActions({
   const [calling, setCalling] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [blocking, setBlocking] = useState(false)
+  const [blockScope, setBlockScope] = useState<'phone' | 'fingerprint'>('phone')
   const [versionId, setVersionId] = useState(versions[0]?.id ?? '')
   const [numberId, setNumberId] = useState('')
   const [note, setNote] = useState('')
   const { run, pending } = useAction()
 
-  const actionable = ['new', 'approved', 'failed'].includes(status)
+  const actionable = ['pending_verification', 'verified', 'new', 'approved', 'failed'].includes(
+    status,
+  )
   // The number has to belong to the same workspace as the assistant; the
   // action re-checks, and narrowing here stops an operator picking a pair the
   // server will only reject after they have clicked.
@@ -70,7 +73,7 @@ export function DemoRequestActions({
           رفض
         </RowAction>
         <RowAction onClick={() => setBlocking(true)} tone="danger">
-          حظر الرقم
+          حظر دائم
         </RowAction>
       </RowActions>
 
@@ -159,21 +162,64 @@ export function DemoRequestActions({
         </Sheet>
       ) : null}
 
-      <Confirm
-        open={blocking}
-        onClose={() => setBlocking(false)}
-        onConfirm={() =>
-          run(
-            () => setDemoRequestStatus(requestId, 'blocked', 'حُظر من الكونسول'),
-            () => setBlocking(false),
-          )
-        }
-        title="حظر هذا الطلب؟"
-        body="لن تُجرى مكالمة، ويبقى الطلب في السجل معلَّمًا كمحظور."
-        confirmLabel="حظر"
-        tone="danger"
-        pending={pending}
-      />
+      {blocking ? (
+        <Sheet
+          open
+          onClose={() => setBlocking(false)}
+          title="حظر دائم"
+          description="بلا تاريخ انتهاء، ويوقف كل طلب معلَّق من نفس المصدر فورًا."
+          footer={
+            <>
+              <Button onClick={() => setBlocking(false)} disabled={pending}>
+                إلغاء
+              </Button>
+              <Button
+                variant="danger"
+                disabled={pending}
+                onClick={() =>
+                  run(
+                    () => blockDemoSource(requestId, blockScope, note),
+                    () => setBlocking(false),
+                  )
+                }
+              >
+                حظر
+              </Button>
+            </>
+          }
+        >
+          <div className="field">
+            <label htmlFor="demo-block-scope">ما الذي يُحظر</label>
+            <select
+              id="demo-block-scope"
+              className="input"
+              value={blockScope}
+              onChange={(e) => setBlockScope(e.target.value as 'phone' | 'fingerprint')}
+            >
+              <option value="phone">الرقم نفسه — لن يُتصل به مرة أخرى</option>
+              <option value="fingerprint">المصدر — الجهاز والرقم معًا</option>
+            </select>
+            {/*
+              Two scopes because two things go wrong. Blocking a number
+              protects whoever owns it; blocking the source stops one
+              submitter working through the rate limit with variations.
+            */}
+            <span className="hint">
+              احظر الرقم إذا كان صاحبه طلب عدم الاتصال. احظر المصدر إذا كان الطلب مزيفًا.
+            </span>
+          </div>
+          <div className="field">
+            <label htmlFor="demo-block-note">السبب</label>
+            <input
+              id="demo-block-note"
+              className="input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="طلبات متكررة بأرقام غير حقيقية"
+            />
+          </div>
+        </Sheet>
+      ) : null}
 
       {rejecting ? (
         <Sheet

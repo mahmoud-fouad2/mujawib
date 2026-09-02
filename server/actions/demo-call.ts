@@ -1,24 +1,39 @@
 'use server'
 
-import { createHash, randomUUID } from 'node:crypto'
-import { and, count, desc, eq, gte, inArray } from 'drizzle-orm'
+import { createHash, randomInt, randomUUID } from 'node:crypto'
+import { and, count, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { z } from 'zod'
 import {
   DEMO_ADDRESS_WINDOW_MS,
+  DEMO_CODE_LENGTH,
+  DEMO_CODE_TTL_MS,
   DEMO_PHONE_REFUSAL_LABEL,
   DEMO_THROTTLE_LABEL,
   demoThrottle,
+  looksFake,
   normalizeDemoPhone,
+  SPAM_REASON_LABEL,
+  VERIFY_REFUSAL_LABEL,
+  verifyCode,
 } from '@/lib/demo-call'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { limitAction } from '@/server/actions/guard'
 import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
-import { agent, agentVersion, auditLog, demoCallRequest, phoneNumber } from '@/server/db/schema'
+import {
+  agent,
+  agentVersion,
+  auditLog,
+  demoBlock,
+  demoCallRequest,
+  phoneNumber,
+} from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
 import { outboundDialerStatus, placeOutboundCall } from '@/server/outbound/dialer'
+import { sendVerificationSms, smsStatus } from '@/server/outbound/sms'
+import { verifyRecaptcha } from '@/server/security/recaptcha'
 import { maskNumber } from '@/server/voice/log'
 
 /**
@@ -29,20 +44,39 @@ import { maskNumber } from '@/server/voice/log'
  * argument and its most abusable surface, because the number typed into a
  * public form is very often not the number of the person typing it.
  *
- * So this is deliberately two actions with a person between them.
- * `requestDemoCall` is public and stores a request. `placeDemoCall` is
- * operator-only and is the thing that dials. There is no path from the first
- * to the second that does not pass through somebody deciding.
+ * So a call is only ever placed to a number somebody has proved they hold:
+ * `requestDemoCall` texts a code, `verifyDemoCall` accepts it, and only a
+ * request carrying `verifiedAt` is eligible to be dialled automatically.
+ * Everything else waits for an operator.
  *
- * That is not a placeholder for automation. Until this product verifies that
- * the requester owns the number — a code sent to it, and read back — an
- * unattended public dialer is a harassment tool with a nice landing page.
+ * Five layers stand between the form and a phone ringing, and they are
+ * independent on purpose — each one assumes the others have already failed:
+ *
+ *   1. a honeypot field and reCAPTCHA, for the traffic that is not a browser
+ *   2. patterns nobody owns (+966500000000, +966512345678) refused outright
+ *   3. a permanent blocklist, keyed on the number and on the request source
+ *   4. rate limits: per browser per hour, and one call per number per day
+ *   5. a platform-wide daily ceiling, which is what stops the bill when the
+ *      four above fail at once
+ *
+ * Verification sits on top of all five. It is the only one that establishes
+ * anything positive — the others only refuse.
  */
 
-export type DemoResult = { ok: true; message: string } | { ok: false; error: string }
+export type DemoResult =
+  | { ok: true; message: string; data?: { requestId: string; needsVerification: boolean } }
+  | { ok: false; error: string }
 
 function id(prefix: string) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 20)}`
+}
+
+/**
+ * Salted with the request id, so the same six digits issued to two requests
+ * hash differently and a stolen hash cannot be replayed against another row.
+ */
+function hashCode(requestId: string, code: string): string {
+  return createHash('sha256').update(`${requestId}:${code}`).digest('hex')
 }
 
 const requestSchema = z.object({
@@ -59,6 +93,7 @@ const requestSchema = z.object({
   consent: z.boolean().refine((value) => value, 'Consent is required'),
   /** Honeypot. A real browser leaves it empty. */
   website: z.string().max(0).optional(),
+  recaptchaToken: z.string().optional(),
 })
 
 function say(locale: 'ar' | 'en', ar: string, en: string) {
@@ -94,6 +129,16 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
     }
   }
 
+  // Patterns nobody owns. Cheaper than an SMS that could never be read, and
+  // caught before the request reaches the database at all.
+  const fake = looksFake(normalized.phone)
+  if (fake.spam) {
+    return {
+      ok: false,
+      error: say(locale, SPAM_REASON_LABEL[fake.reason], 'That number is not a real number.'),
+    }
+  }
+
   const requestHeaders = await headers()
   const address = clientIdentifier(requestHeaders)
 
@@ -109,6 +154,33 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
   const now = new Date()
   const since = new Date(now.getTime() - DEMO_ADDRESS_WINDOW_MS)
   const fingerprint = createHash('sha256').update(`${address}:${normalized.phone}`).digest('hex')
+
+  // Not a browser? Neutral success, no row, no SMS — telling a bot which
+  // check it failed is telling it what to fix.
+  const human = await verifyRecaptcha(data.recaptchaToken, address, 'demo_call')
+  if (!human) {
+    return { ok: true, message: say(locale, 'وصل طلبك.', 'Request received.') }
+  }
+
+  // The platform's own permanent refusals: a number, or a source, that must
+  // never reach the dialer again. Checked before the rate limits, because a
+  // block is not a delay.
+  const [blocked] = await db
+    .select({ id: demoBlock.id })
+    .from(demoBlock)
+    .where(
+      or(
+        and(eq(demoBlock.scope, 'phone'), eq(demoBlock.value, normalized.phone)),
+        and(eq(demoBlock.scope, 'fingerprint'), eq(demoBlock.value, fingerprint)),
+      ),
+    )
+    .limit(1)
+  if (blocked) {
+    return {
+      ok: false,
+      error: say(locale, SPAM_REASON_LABEL.blocked, 'This number cannot use the demo.'),
+    }
+  }
 
   const [fromAddress, lastForNumber] = await Promise.all([
     db
@@ -146,6 +218,15 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
     }
   }
 
+  /**
+   * The code is generated here, hashed, and never stored in plain text — a
+   * leaked table must not hand anybody a working code for a number they do
+   * not own. `randomInt` rather than `Math.random`, because this is the thing
+   * standing between a stranger and somebody else's phone.
+   */
+  const sms = smsStatus()
+  const code = String(randomInt(0, 10 ** DEMO_CODE_LENGTH)).padStart(DEMO_CODE_LENGTH, '0')
+
   const requestId = id('demo')
   await db.insert(demoCallRequest).values({
     id: requestId,
@@ -155,12 +236,46 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
     businessName: data.businessName ?? null,
     personaKey: data.personaKey ?? null,
     locale,
-    status: 'new',
+    // Without SMS the number cannot be proved, so the request lands as a lead
+    // an operator handles rather than as something the dispatcher may dial.
+    status: sms.ready ? 'pending_verification' : 'new',
+    ...(sms.ready
+      ? {
+          codeHash: hashCode(requestId, code),
+          codeExpiresAt: new Date(now.getTime() + DEMO_CODE_TTL_MS),
+          codeSentCount: 1,
+        }
+      : {}),
     consentAt: now,
     requestFingerprint: fingerprint,
     createdAt: now,
     updatedAt: now,
   })
+
+  if (sms.ready) {
+    const sent = await sendVerificationSms(normalized.phone, code)
+    if (!sent.ok) {
+      // The row stays, unverified and uncallable. Nothing is lost, and the
+      // visitor is told the truth rather than left waiting for a text.
+      await db
+        .update(demoCallRequest)
+        .set({ lastError: sent.error.slice(0, 300), updatedAt: new Date() })
+        .where(eq(demoCallRequest.id, requestId))
+      return {
+        ok: false,
+        error: say(locale, 'تعذّر إرسال رمز التحقق. حاول بعد قليل.', 'Could not send the code.'),
+      }
+    }
+    return {
+      ok: true,
+      message: say(
+        locale,
+        `أرسلنا رمزًا من ${DEMO_CODE_LENGTH} أرقام إلى هاتفك. أدخله لتأكيد الرقم.`,
+        `We sent a ${DEMO_CODE_LENGTH}-digit code to your phone. Enter it to confirm the number.`,
+      ),
+      data: { requestId, needsVerification: true },
+    }
+  }
 
   void tryNotify(() =>
     notifyOperators({
@@ -188,6 +303,190 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
       'Request received. Mujawib will call you during business hours.',
     ),
   }
+}
+
+/* ─── verification ───────────────────────────────────────────────────────── */
+
+const verifySchema = z.object({
+  requestId: z.string().trim().min(1).max(64),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/, 'الرمز أرقام فقط.'),
+  locale: z.enum(['ar', 'en']),
+})
+
+/**
+ * Accepts the code, and that is what makes an automatic call possible.
+ *
+ * Rate limited per browser on top of the per-request attempt ceiling, because
+ * the ceiling alone only protects one row — somebody creating a request per
+ * guess would otherwise get unlimited attempts across many rows.
+ *
+ * A wrong code increments the counter before anything else, so a failed guess
+ * costs the guesser regardless of how the request ends.
+ */
+export async function verifyDemoCall(input: z.input<typeof verifySchema>): Promise<DemoResult> {
+  const locale = input.locale === 'en' ? 'en' : 'ar'
+  const parsed = verifySchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: say(locale, 'الرمز أرقام فقط.', 'Digits only.') }
+  }
+
+  const requestHeaders = await headers()
+  const address = clientIdentifier(requestHeaders)
+  const burst = rateLimit(`demo-verify:${address}`, 15, 15 * 60_000)
+  if (!burst.success) {
+    return {
+      ok: false,
+      error: say(locale, 'محاولات كثيرة. جرّب بعد قليل.', 'Too many attempts. Try again later.'),
+    }
+  }
+
+  const [request] = await db
+    .select({
+      id: demoCallRequest.id,
+      phone: demoCallRequest.phone,
+      status: demoCallRequest.status,
+      codeHash: demoCallRequest.codeHash,
+      codeExpiresAt: demoCallRequest.codeExpiresAt,
+      codeAttempts: demoCallRequest.codeAttempts,
+      verifiedAt: demoCallRequest.verifiedAt,
+      businessName: demoCallRequest.businessName,
+      name: demoCallRequest.name,
+    })
+    .from(demoCallRequest)
+    .where(eq(demoCallRequest.id, parsed.data.requestId))
+    .limit(1)
+  // A request id that does not exist and a wrong code get the same answer.
+  if (!request) return { ok: false, error: say(locale, VERIFY_REFUSAL_LABEL.expired, 'Expired.') }
+
+  const outcome = verifyCode({
+    now: new Date(),
+    expiresAt: request.codeExpiresAt,
+    attempts: request.codeAttempts,
+    verifiedAt: request.verifiedAt,
+    expectedHash: request.codeHash,
+    providedHash: hashCode(request.id, parsed.data.code),
+  })
+
+  if (!outcome.ok) {
+    if (outcome.reason === 'wrong_code') {
+      await db
+        .update(demoCallRequest)
+        .set({ codeAttempts: request.codeAttempts + 1, updatedAt: new Date() })
+        .where(eq(demoCallRequest.id, request.id))
+    }
+    return {
+      ok: false,
+      error: say(locale, VERIFY_REFUSAL_LABEL[outcome.reason], 'That code did not work.'),
+    }
+  }
+
+  const now = new Date()
+  await db
+    .update(demoCallRequest)
+    .set({
+      status: 'verified',
+      verifiedAt: now,
+      // Burned on success: a code that keeps working after it has been used is
+      // a code somebody can reuse.
+      codeHash: null,
+      codeExpiresAt: null,
+      updatedAt: now,
+    })
+    .where(eq(demoCallRequest.id, request.id))
+
+  void tryNotify(() =>
+    notifyOperators({
+      workspaceId: null,
+      roles: ['owner', 'ops'],
+      severity: 'info',
+      category: 'change_request',
+      title: 'رقم مؤكَّد — مكالمة تجريبية',
+      message: `${request.businessName ?? request.name ?? 'زائر'} — ${maskNumber(request.phone)}`,
+      href: '/console/inquiries',
+      sourceType: 'demo_request',
+      sourceId: request.id,
+      dedupeKey: `demo-verified:${request.id}`,
+    }),
+  )
+
+  revalidatePath('/console/inquiries')
+  return {
+    ok: true,
+    message: say(
+      locale,
+      'تم تأكيد رقمك. سيتصل بك مُجاوِب خلال دقائق داخل ساعات العمل.',
+      'Number confirmed. Mujawib will call you shortly, during business hours.',
+    ),
+  }
+}
+
+/**
+ * Sends a fresh code for a request that has not been verified yet.
+ *
+ * Capped at three sends per request: resending is how a form becomes a way to
+ * text somebody repeatedly, and three is enough for one dropped SMS.
+ */
+export async function resendDemoCode(input: z.input<typeof verifySchema>): Promise<DemoResult> {
+  const locale = input.locale === 'en' ? 'en' : 'ar'
+  const requestId = String(input.requestId ?? '').trim()
+  if (!requestId) return { ok: false, error: say(locale, 'طلب غير معروف.', 'Unknown request.') }
+
+  const requestHeaders = await headers()
+  const address = clientIdentifier(requestHeaders)
+  const burst = rateLimit(`demo-resend:${address}`, 3, 60 * 60_000)
+  if (!burst.success) {
+    return {
+      ok: false,
+      error: say(locale, 'طلبت الرمز مرات كثيرة.', 'Too many code requests.'),
+    }
+  }
+
+  const sms = smsStatus()
+  if (!sms.ready) {
+    return { ok: false, error: say(locale, 'إرسال الرمز غير متاح حاليًا.', 'Codes unavailable.') }
+  }
+
+  const [request] = await db
+    .select({
+      id: demoCallRequest.id,
+      phone: demoCallRequest.phone,
+      verifiedAt: demoCallRequest.verifiedAt,
+      codeSentCount: demoCallRequest.codeSentCount,
+    })
+    .from(demoCallRequest)
+    .where(eq(demoCallRequest.id, requestId))
+    .limit(1)
+  if (!request || request.verifiedAt) {
+    return { ok: false, error: say(locale, 'لا يمكن إرسال رمز جديد.', 'Cannot resend.') }
+  }
+  if (request.codeSentCount >= 3) {
+    return {
+      ok: false,
+      error: say(locale, 'استُنفدت محاولات إرسال الرمز.', 'No more codes for this request.'),
+    }
+  }
+
+  const code = String(randomInt(0, 10 ** DEMO_CODE_LENGTH)).padStart(DEMO_CODE_LENGTH, '0')
+  const sent = await sendVerificationSms(request.phone, code)
+  if (!sent.ok) {
+    return { ok: false, error: say(locale, 'تعذّر إرسال الرمز.', 'Could not send the code.') }
+  }
+
+  await db
+    .update(demoCallRequest)
+    .set({
+      codeHash: hashCode(request.id, code),
+      codeExpiresAt: new Date(Date.now() + DEMO_CODE_TTL_MS),
+      codeAttempts: 0,
+      codeSentCount: request.codeSentCount + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(demoCallRequest.id, request.id))
+
+  return { ok: true, message: say(locale, 'أرسلنا رمزًا جديدًا.', 'A new code is on its way.') }
 }
 
 /* ─── operator side ──────────────────────────────────────────────────────── */
@@ -228,7 +527,10 @@ export async function placeDemoCall(input: z.input<typeof placeSchema>): Promise
     .where(eq(demoCallRequest.id, parsed.data.requestId))
     .limit(1)
   if (!request) return { ok: false, error: 'الطلب غير موجود.' }
-  if (!['new', 'approved', 'failed'].includes(request.status)) {
+  // An operator may place a call to an unverified request — they are a person
+  // deciding, which is the same standard the whole feature is built on. What
+  // they may not do is call one that is blocked or already completed.
+  if (!['pending_verification', 'verified', 'new', 'approved', 'failed'].includes(request.status)) {
     return { ok: false, error: 'لا يمكن الاتصال بهذا الطلب في حالته الحالية.' }
   }
 
@@ -316,7 +618,13 @@ export async function setDemoRequestStatus(
     .where(
       and(
         eq(demoCallRequest.id, requestId),
-        inArray(demoCallRequest.status, ['new', 'approved', 'failed']),
+        inArray(demoCallRequest.status, [
+          'pending_verification',
+          'verified',
+          'new',
+          'approved',
+          'failed',
+        ]),
       ),
     )
     .returning({ phone: demoCallRequest.phone })
@@ -335,4 +643,75 @@ export async function setDemoRequestStatus(
 
   revalidatePath('/console/inquiries')
   return { ok: true, message: 'حُدِّثت حالة الطلب.' }
+}
+
+/**
+ * Blocks a number, or the source that submitted it, permanently.
+ *
+ * Two scopes because two things go wrong. A number blocked is somebody who
+ * asked never to be called again, or a number being used to harass its owner.
+ * A fingerprint blocked is the submitter — the hashed address-and-number pair
+ * — which stops the same source burning through the rate limit with variations.
+ *
+ * No expiry, for the same reason the client suppression list has none.
+ */
+export async function blockDemoSource(
+  requestId: string,
+  scope: 'phone' | 'fingerprint',
+  reason: string,
+): Promise<DemoResult> {
+  const access = await authorizeOperator('campaign.approve')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية الحظر.' }
+
+  const [request] = await db
+    .select({ phone: demoCallRequest.phone, fingerprint: demoCallRequest.requestFingerprint })
+    .from(demoCallRequest)
+    .where(eq(demoCallRequest.id, requestId))
+    .limit(1)
+  if (!request) return { ok: false, error: 'الطلب غير موجود.' }
+
+  const value = scope === 'phone' ? request.phone : request.fingerprint
+  await db
+    .insert(demoBlock)
+    .values({
+      id: id('dblk'),
+      scope,
+      value,
+      reason: reason.trim().slice(0, 300) || null,
+      createdById: access.userId,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: [demoBlock.scope, demoBlock.value] })
+
+  // Everything already queued from this source stops too. A blocklist that
+  // only new requests consult leaves the pending ones to go through anyway.
+  const stopped = await db
+    .update(demoCallRequest)
+    .set({ status: 'blocked', handledById: access.userId, updatedAt: new Date() })
+    .where(
+      and(
+        scope === 'phone'
+          ? eq(demoCallRequest.phone, request.phone)
+          : eq(demoCallRequest.requestFingerprint, request.fingerprint),
+        inArray(demoCallRequest.status, ['pending_verification', 'verified', 'new', 'approved']),
+      ),
+    )
+    .returning({ id: demoCallRequest.id })
+
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: null,
+    actorId: access.userId,
+    action: 'demo.blocked',
+    resourceType: 'demo_call_request',
+    resourceId: requestId,
+    metadata: { note: `${scope} — ${maskNumber(request.phone)}`, stopped: stopped.length },
+    createdAt: new Date(),
+  })
+
+  revalidatePath('/console/inquiries')
+  return {
+    ok: true,
+    message: stopped.length > 1 ? `حُظر المصدر وأُوقف ${stopped.length} طلبًا.` : 'حُظر المصدر.',
+  }
 }
