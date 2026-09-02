@@ -112,6 +112,12 @@ export const env = createEnv({
     DEMO_AGENT_VERSION_ID: z.string().min(1).optional(),
     DEMO_FROM_NUMBER_ID: z.string().min(1).optional(),
 
+    /**
+     * The app's own public URL, pinged every ten minutes to stop a free-tier
+     * container being spun down. Unset on any plan that does not spin down —
+     * see `server/runtime/keep-awake.ts` for the cost of leaving it on.
+     */
+    KEEP_AWAKE_URL: z.string().url().optional(),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   },
   client: {
@@ -157,6 +163,7 @@ export const env = createEnv({
     DEMO_DAILY_CALL_CAP: process.env.DEMO_DAILY_CALL_CAP,
     DEMO_AGENT_VERSION_ID: process.env.DEMO_AGENT_VERSION_ID,
     DEMO_FROM_NUMBER_ID: process.env.DEMO_FROM_NUMBER_ID,
+    KEEP_AWAKE_URL: process.env.KEEP_AWAKE_URL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,

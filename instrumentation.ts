@@ -45,6 +45,12 @@ export async function register() {
     const { startBackgroundWorker } = await import('./server/jobs/worker')
     startBackgroundWorker()
 
+    // Only does anything when KEEP_AWAKE_URL is set. See the module for why
+    // this exists and why it is a workaround for a hosting plan rather than a
+    // feature — a spun-down container does not answer a phone call.
+    const { startKeepAwake } = await import('./server/runtime/keep-awake')
+    startKeepAwake()
+
     // Seeds the launch articles if they are absent. Detached and never fatal:
     // this deployment has no shell, so a seed that needs a terminal would
     // never run — but a content seed must not delay or fail a boot either.
