@@ -50,13 +50,16 @@
   --signal-line: rgb(17 19 24 / 20%);
 
   /* ─── status ─────────────────────────────────────────────────────────── */
-  /* Read against `--good-soft`, which is this same green over the page: the
-     status pills set one on the other, and the old pair came to 3.5:1. */
+  /* Read against `--good-soft`/`--warn-soft`/`--bad-soft`, which are each
+     colour over the page: pills and metric deltas set one on the other. Warn
+     and bad measured 3.2:1 and 4.4:1 against their own soft backgrounds —
+     axe flagged both on `/console` — and are darkened here to clear 4.5:1
+     with the same margin `--good` already had. */
   --good: #137049;
   --good-soft: rgb(19 112 73 / 11%);
-  --warn: #b57917;
+  --warn: #8c5c12;
   --warn-soft: rgb(181 121 23 / 12%);
-  --bad: #c43b48;
+  --bad: #b8323f;
   --bad-soft: rgb(196 59 72 / 11%);
 
   /* ─── type ───────────────────────────────────────────────────────────── */

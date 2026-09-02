@@ -199,6 +199,13 @@ export function ConsoleShell({
                       key={item.id}
                       href={item.href}
                       className="nav-item"
+                      // The visible label is `visibility: hidden` while the
+                      // rail is collapsed — which is the default state for
+                      // every first-time operator — and `visibility: hidden`
+                      // removes text from the accessible name computation.
+                      // Without this, a screen-reader user's first visit to
+                      // the console is a sidebar of nine unlabelled links.
+                      aria-label={item.label}
                       {...(active ? { 'aria-current': 'page' as const } : {})}
                     >
                       <Icon size={16} aria-hidden="true" />
@@ -218,7 +225,7 @@ export function ConsoleShell({
         </nav>
 
         <div className="sidebar__foot">
-          <Link href="/portal" className="nav-item">
+          <Link href="/portal" className="nav-item" aria-label="بوابة العميل">
             <Users size={16} aria-hidden="true" />
             <span className="nav-item__label">بوابة العميل</span>
             <span className="nav-item__tip" aria-hidden="true">

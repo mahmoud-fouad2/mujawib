@@ -40,7 +40,8 @@ test.describe('operator campaigns', () => {
 test.describe('operator voice personas', () => {
   test('the voice lab can create a persona, not only list them', async ({ page }) => {
     await page.goto('/console/voice-lab')
-    await expect(page.getByRole('heading', { name: /الشخصيات الصوتية/ })).toBeVisible()
+    // Section titles render as `<strong>`, not a heading role.
+    await expect(page.getByText('الشخصيات الصوتية', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'شخصية مخصصة' })).toBeVisible()
   })
 

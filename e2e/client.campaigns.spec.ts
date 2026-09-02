@@ -15,7 +15,9 @@ test.describe('client campaigns', () => {
     expect(response?.status()).toBe(200)
     await expect(page).not.toHaveURL(/\/sign-in|\/access-denied/)
     await expect(page.getByRole('heading', { name: /حملات الاتصال الصادر/ })).toBeVisible()
-    await expect(page.getByRole('heading', { name: /قائمة الحظر/ })).toBeVisible()
+    // Section titles render as `<strong>` (components/console/ui.tsx), not a
+    // heading role — this checks the text is there, not its element type.
+    await expect(page.getByText('قائمة الحظر', { exact: true })).toBeVisible()
     await expect(page.getByText(/Application error|Unhandled Runtime Error/i)).toHaveCount(0)
   })
 
@@ -59,6 +61,10 @@ test.describe('client campaigns', () => {
     const block = page.getByRole('button', { name: 'حظر رقم' })
     if ((await block.count()) === 0) test.skip(true, 'this role cannot manage campaigns')
     await block.click()
-    await expect(page.getByText(/بلا تاريخ انتهاء/)).toBeVisible()
+    // Scoped to the dialog: the page behind it also has an unrelated
+    // paragraph containing this phrase, so an unscoped match is ambiguous
+    // the moment both are on screen at once.
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText(/بلا تاريخ انتهاء/)).toBeVisible()
   })
 })
