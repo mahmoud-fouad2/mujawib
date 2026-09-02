@@ -52,6 +52,26 @@ check('client manager may cancel bookings', canClient('client_manager', 'booking
 check('reviewer cannot cancel bookings', canClient('client_reviewer', 'booking.manage'), false)
 check('operator role cannot enter client portal', canClient('owner', 'portal.view'), false)
 
+// Outbound campaigns. The whole safety model is this split: a client may
+// build and submit a campaign, and only an operator may approve it. If these
+// two ever drift, a client can make a phone ring on their own say-so.
+console.log('\nOutbound campaigns')
+check('client admin may build a campaign', canClient('client_admin', 'campaign.manage'), true)
+check('client manager may build a campaign', canClient('client_manager', 'campaign.manage'), true)
+check('reviewer may not build a campaign', canClient('client_reviewer', 'campaign.manage'), false)
+check('read-only may not build a campaign', canClient('client_read_only', 'campaign.manage'), false)
+check('owner approves campaigns', canOperator('owner', 'campaign.approve'), true)
+check('ops approves campaigns', canOperator('ops', 'campaign.approve'), true)
+check('QA cannot approve campaigns', canOperator('qa', 'campaign.approve'), false)
+check('integrator cannot approve campaigns', canOperator('integrator', 'campaign.approve'), false)
+check(
+  'no client role can approve a campaign',
+  ['client_admin', 'client_manager', 'client_reviewer', 'client_read_only'].some((role) =>
+    canOperator(role, 'campaign.approve'),
+  ),
+  false,
+)
+
 if (failures > 0) {
   console.error(`\n${failures} access policy check(s) failed.`)
   process.exit(1)

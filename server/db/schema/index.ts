@@ -1,6 +1,7 @@
 export * from './agents'
 export * from './auth-schema'
 export * from './calls'
+export * from './campaigns'
 export * from './content'
 export * from './customers'
 export * from './integrations'

@@ -1,6 +1,19 @@
 import 'server-only'
 
-import { and, desc, eq, gte, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { canOperator } from '@/lib/access'
 import { readCallIntelligenceState } from '@/lib/call-intelligence'
@@ -49,7 +62,47 @@ import { getVersionTestGate, getVersionTestGates } from '@/server/test-lab/gate'
 /** Calls that are on the wire right now. */
 const LIVE_STATUSES = ['live', 'ringing', 'waiting_tool'] as const
 
-export async function getSalesInquiries(limit = 100) {
+export type InquiryFilter = {
+  /** One of the lifecycle values, or the two meta-views Ops actually asks for. */
+  status?: string
+  /** Free text over company, contact name and email. */
+  search?: string
+}
+
+/**
+ * Filtered in SQL, not in the page.
+ *
+ * The previous version returned the most recent hundred rows and the page
+ * showed all of them. Once there are more than a hundred inquiries, filtering
+ * client-side would silently search only the newest hundred — so the filter
+ * has to be in the query for the answer to be true.
+ */
+export async function getSalesInquiries(filter: InquiryFilter = {}, limit = 100) {
+  const conditions = []
+
+  if (filter.status === 'open') {
+    conditions.push(inArray(salesInquiry.status, ['new', 'qualified', 'proposal']))
+  } else if (filter.status === 'unowned') {
+    conditions.push(isNull(salesInquiry.ownerId))
+  } else if (
+    filter.status &&
+    ['new', 'qualified', 'proposal', 'won', 'lost'].includes(filter.status)
+  ) {
+    conditions.push(eq(salesInquiry.status, filter.status as 'new'))
+  }
+
+  const search = filter.search?.trim()
+  if (search) {
+    const pattern = `%${search.replaceAll('%', '').replaceAll('_', '')}%`
+    conditions.push(
+      or(
+        ilike(salesInquiry.company, pattern),
+        ilike(salesInquiry.name, pattern),
+        ilike(salesInquiry.email, pattern),
+      ),
+    )
+  }
+
   return db
     .select({
       id: salesInquiry.id,
@@ -66,8 +119,30 @@ export async function getSalesInquiries(limit = 100) {
       updatedAt: salesInquiry.updatedAt,
     })
     .from(salesInquiry)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(salesInquiry.createdAt))
     .limit(Math.min(Math.max(limit, 1), 200))
+}
+
+/** Counts for the filter chips — one grouped query, not one per chip. */
+export async function getSalesInquiryCounts() {
+  const rows = await db
+    .select({ status: salesInquiry.status, total: count() })
+    .from(salesInquiry)
+    .groupBy(salesInquiry.status)
+  const [unowned] = await db
+    .select({ total: count() })
+    .from(salesInquiry)
+    .where(isNull(salesInquiry.ownerId))
+
+  const byStatus = Object.fromEntries(rows.map((row) => [row.status, Number(row.total)]))
+  const total = rows.reduce((sum, row) => sum + Number(row.total), 0)
+  return {
+    total,
+    byStatus,
+    open: (byStatus.new ?? 0) + (byStatus.qualified ?? 0) + (byStatus.proposal ?? 0),
+    unowned: Number(unowned?.total ?? 0),
+  }
 }
 
 function startOfToday() {

@@ -33,6 +33,10 @@ const LIMITS = {
   integration_test: { limit: 30, windowMs: 10 * 60_000 },
   /** Reaches a paid telephony provider. */
   phone_provisioning: { limit: 20, windowMs: 10 * 60_000 },
+  /** Parses and inserts up to five thousand rows in one call. */
+  campaign_import: { limit: 10, windowMs: 10 * 60_000 },
+  /** Starts something that rings real phones. */
+  campaign_control: { limit: 30, windowMs: 10 * 60_000 },
 } as const
 
 export type GuardedAction = keyof typeof LIMITS

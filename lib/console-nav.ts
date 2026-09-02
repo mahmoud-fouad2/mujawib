@@ -15,6 +15,7 @@ export type NavIconKey =
   | 'qa'
   | 'clients'
   | 'inquiries'
+  | 'campaigns'
   | 'agents'
   | 'templates'
   | 'voice'
@@ -94,6 +95,14 @@ export const CONSOLE_NAV: NavGroup[] = [
         icon: 'inquiries',
         requiredPermission: 'client.manage',
         keywords: ['leads', 'sales', 'طلبات', 'عروض'],
+      },
+      {
+        id: 'campaigns',
+        label: 'الحملات الصادرة',
+        href: '/console/campaigns',
+        icon: 'campaigns',
+        requiredPermission: 'campaign.approve',
+        keywords: ['campaign', 'outbound', 'حملة', 'حملات', 'اتصال صادر'],
       },
       {
         id: 'agents',

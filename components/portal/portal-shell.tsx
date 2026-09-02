@@ -6,6 +6,7 @@ import {
   FileText,
   Hash,
   Home,
+  Megaphone,
   Menu,
   MessageSquare,
   Moon,
@@ -37,6 +38,7 @@ const NAV = [
   { href: '/portal/business-info', label: 'بيانات النشاط', Icon: FileText },
   { href: '/portal/integrations', label: 'الربط', Icon: Plug },
   { href: '/portal/phone', label: 'الأرقام', Icon: Hash },
+  { href: '/portal/campaigns', label: 'حملات الاتصال', Icon: Megaphone },
   { href: '/portal/requests', label: 'طلبات التعديل', Icon: MessageSquare },
 ]
 

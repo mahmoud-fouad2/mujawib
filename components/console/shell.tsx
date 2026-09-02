@@ -8,6 +8,7 @@ import {
   FolderTree,
   Home,
   LayoutGrid,
+  Megaphone,
   Menu,
   Moon,
   PanelLeftOpen,
@@ -52,6 +53,7 @@ const ICONS: Record<NavIconKey, typeof Home> = {
   integrations: Plug,
   phone: Phone,
   access: UserRoundCog,
+  campaigns: Megaphone,
   content: FileText,
   system: Settings,
 }

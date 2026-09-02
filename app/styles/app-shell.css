@@ -2985,3 +2985,124 @@
     overflow: visible;
   }
 }
+
+/* ─── notices, toggles and definition rows ───────────────────────────────── */
+
+/*
+ * A stated limitation.
+ *
+ * Used where a surface is visible but cannot do its whole job yet — outbound
+ * calling with no provider configured, for instance. The alternative is a
+ * screen that looks enabled and silently does nothing, which costs the reader
+ * a day of waiting before they think to ask.
+ */
+.notice {
+  display: grid;
+  gap: 4px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--raised);
+  margin-block-end: var(--s-4);
+  font-size: 0.8125rem;
+}
+
+.notice p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.notice--warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+  background: var(--warn-soft);
+}
+
+.notice--bad {
+  border-color: color-mix(in srgb, var(--bad) 35%, var(--line));
+  background: var(--bad-soft);
+}
+
+/*
+ * The explanation shown in place of a transcript that is not there.
+ *
+ * Added with the campaigns work: the markup shipped in Phase A but never got
+ * styles, so the reason a transcript was missing rendered as unstyled body
+ * text directly under the heading.
+ */
+.transcript-gap {
+  display: grid;
+  gap: 6px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line);
+  background: var(--raised);
+  font-size: 0.8125rem;
+}
+
+.transcript-gap p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.transcript-gap--alert {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+  background: var(--warn-soft);
+}
+
+/* Weekday selection, and any other small multi-select of short labels. */
+.day-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.day-toggle {
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.day-toggle:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.day-toggle[aria-pressed="true"] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--canvas);
+}
+
+/* Label/value rows — an import report, a campaign's own settings. */
+.stat-list {
+  display: grid;
+  gap: 2px;
+  margin-block-end: var(--s-4);
+}
+
+.stat-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 7px 0;
+  border-block-end: 1px solid var(--line-faint);
+  font-size: 0.8125rem;
+}
+
+.stat-list li span {
+  color: var(--text-muted);
+}
+
+.stat-list li strong {
+  font-variant-numeric: tabular-nums;
+}

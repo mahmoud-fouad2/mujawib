@@ -5,6 +5,7 @@ import { drainCallIntelligenceJobs, enqueueCallIntelligence } from '@/server/cal
 import { db, poolWaitMs } from '@/server/db'
 import { backgroundJob, call, callEvent } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
+import { runCampaignDispatch } from '@/server/outbound/dispatcher'
 import { isDraining } from '@/server/runtime/lifecycle'
 import { readVitals } from '@/server/runtime/vitals'
 import { runRetentionSweep, sweepOperationalTables } from '@/server/security/retention'
@@ -201,6 +202,12 @@ async function runMaintenanceTick() {
     await reconcileStaleCalls()
     await recoverStaleSidebands()
     await drainCallIntelligenceJobs()
+    // Outbound campaigns. Runs under the same lease as everything else here,
+    // which is what stops two containers dialling the same list — and it is
+    // deliberately after the inbound-call reconciliation, because a process
+    // that is behind on the calls it is already carrying has no business
+    // starting new ones.
+    await runCampaignDispatch()
     if (Date.now() - lastRetentionSweep > 60 * 60 * 1000) {
       await runRetentionSweep()
       const purged = await sweepOperationalTables()
