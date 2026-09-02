@@ -5,11 +5,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/overlays'
 import { useAction } from '@/components/ui/row-actions'
-import {
-  DEFAULT_VOICE_PERSONAS,
-  profileMatchesPersona,
-  type VoicePersonaKey,
-} from '@/lib/voice-personas'
+import { PERSONA_GENDER_LABEL, personaByKey } from '@/lib/voice-personas'
 import { createVoiceAgent } from '@/server/actions/console'
 
 type ClientOption = { id: string; name: string; slug: string }
@@ -20,6 +16,11 @@ type ProfileOption = {
   dialect: string
   style: string
   isGlobal: boolean
+  personaKey: string | null
+  gender: 'male' | 'female' | null
+  language: 'ar' | 'en'
+  providerVoice: string
+  isProtected: boolean
 }
 
 export function AgentCreateSheet({
@@ -43,11 +44,13 @@ export function AgentCreateSheet({
   )
   const { run, pending } = useAction()
 
-  const applyPersona = (key: VoicePersonaKey) => {
-    const persona = DEFAULT_VOICE_PERSONAS.find((item) => item.key === key)
-    const profile = availableProfiles.find((candidate) => profileMatchesPersona(candidate, key))
-    if (profile) setVoiceProfileId(profile.id)
-    if (persona && !name.trim()) setName(persona.defaultAgentName)
+  // The database is the source of truth for personas now, so selection is an
+  // exact id rather than a fuzzy match between a hardcoded list and whatever
+  // rows happen to exist. Picking a persona also names the assistant, unless
+  // the operator already typed a name.
+  const applyProfile = (profile: ProfileOption) => {
+    setVoiceProfileId(profile.id)
+    if (!name.trim()) setName(profile.name.split('—')[0]?.trim() || profile.name)
   }
 
   const close = () => {
@@ -90,23 +93,29 @@ export function AgentCreateSheet({
         }
       >
         <section className="voice-persona-grid" aria-label="اختيار شخصية الموظف الصوتي">
-          {DEFAULT_VOICE_PERSONAS.map((persona) => {
-            const matchedProfile = availableProfiles.find((profile) =>
-              profileMatchesPersona(profile, persona.key),
-            )
-            const active = matchedProfile?.id === voiceProfileId
+          {availableProfiles.map((profile) => {
+            const persona = profile.personaKey ? personaByKey(profile.personaKey) : null
+            const active = profile.id === voiceProfileId
             return (
               <button
-                key={persona.key}
+                key={profile.id}
                 type="button"
                 className="voice-persona"
                 data-active={active ? 'true' : 'false'}
-                onClick={() => applyPersona(persona.key)}
-                disabled={!matchedProfile}
+                onClick={() => applyProfile(profile)}
               >
-                <strong>{persona.label}</strong>
-                <span>{persona.description}</span>
-                <small>{matchedProfile ? matchedProfile.name : 'غير متاح بعد'}</small>
+                <strong>{profile.name}</strong>
+                <span>{persona?.description ?? `${profile.dialect} · ${profile.style}`}</span>
+                <small>
+                  {profile.gender ? PERSONA_GENDER_LABEL[profile.gender] : 'غير محدد'}
+                  {' · '}
+                  {profile.language === 'en' ? 'الإنجليزية' : 'العربية'}
+                  {' · '}
+                  {/* Stated, not hidden: several personas share one provider
+                      voice, so an operator choosing between them knows the
+                      difference is dialect and pacing, not timbre. */}
+                  <span className="mono">{profile.providerVoice}</span>
+                </small>
               </button>
             )
           })}

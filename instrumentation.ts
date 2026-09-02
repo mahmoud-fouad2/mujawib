@@ -45,6 +45,12 @@ export async function register() {
     const { startBackgroundWorker } = await import('./server/jobs/worker')
     startBackgroundWorker()
 
+    // Seeds the launch articles if they are absent. Detached and never fatal:
+    // this deployment has no shell, so a seed that needs a terminal would
+    // never run — but a content seed must not delay or fail a boot either.
+    const { ensureSeedArticles } = await import('./server/content/ensure-articles')
+    void ensureSeedArticles()
+
     const { checkSecretDrift } = await import('./server/security/secret-drift')
     void checkSecretDrift()
   }

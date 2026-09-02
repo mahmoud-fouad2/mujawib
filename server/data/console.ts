@@ -949,9 +949,16 @@ export async function getAgentCreationOptions() {
         dialect: voiceProfile.dialect,
         style: voiceProfile.style,
         isGlobal: voiceProfile.isGlobal,
+        personaKey: voiceProfile.personaKey,
+        gender: voiceProfile.gender,
+        language: voiceProfile.language,
+        providerVoice: voiceProfile.providerVoice,
+        isProtected: voiceProfile.isProtected,
       })
       .from(voiceProfile)
-      .orderBy(voiceProfile.name),
+      // Platform defaults first, in their curated order; a workspace's own
+      // profiles after, alphabetically.
+      .orderBy(desc(voiceProfile.isGlobal), voiceProfile.sortOrder, voiceProfile.name),
   ])
 
   return { clients, profiles }

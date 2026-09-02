@@ -27,7 +27,14 @@ import { toolsFor } from '@/server/voice/tools'
  * agent (Bible §23).
  */
 
-const VOICE_BY_DIALECT: Record<string, string> = {
+/**
+ * Fallback when a profile predates the provider_voice column, or when a
+ * workspace built a profile without choosing a voice. The real choice now
+ * lives on the profile row itself (voice_profile.provider_voice), so an
+ * operator can reassign a voice after listening to it rather than inheriting
+ * whatever this table guessed from the dialect.
+ */
+const FALLBACK_VOICE_BY_DIALECT: Record<string, string> = {
   saudi: 'cedar',
   gulf: 'cedar',
   lebanese: 'marin',
@@ -132,7 +139,10 @@ async function resolveAgentForNumber(
     tools: toolsFor(bindings, {
       voiceCancellationEnabled: version.voiceCancellationEnabled,
     }),
-    voice: VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ?? 'marin',
+    voice:
+      resolvedProfile?.providerVoice ??
+      FALLBACK_VOICE_BY_DIALECT[resolvedProfile?.dialect ?? 'msa'] ??
+      'marin',
     pacing:
       resolvedProfile?.pacing && typeof resolvedProfile.pacing === 'object'
         ? (resolvedProfile.pacing as JsonRecord)

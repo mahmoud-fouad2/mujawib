@@ -485,13 +485,19 @@ function build() {
     B.voiceProfile.add({
       id: vid,
       workspaceId: null,
-      name: v.label,
+      name: v.name,
       country: v.country,
       dialect: v.dialect,
       style: v.style,
       languagePolicy: v.policy,
       pacing: v.pacing,
       isGlobal: true,
+      personaKey: v.key,
+      gender: v.gender,
+      language: v.language,
+      providerVoice: v.providerVoice,
+      isProtected: true,
+      sortOrder: v.sortOrder,
       createdAt: daysAgo(190),
     })
   }

@@ -2413,3 +2413,138 @@ export async function verifyRecordingStorage(): Promise<ActionResult> {
     }
   }
 }
+
+/* ─── voice personas ─────────────────────────────────────────────────────── */
+
+const duplicatePersonaSchema = z.object({
+  voiceProfileId: z.string().trim().min(1),
+  workspaceId: z.string().trim().min(1),
+  name: z.string().trim().min(2).max(120).optional(),
+})
+
+/**
+ * Copies a platform default into a workspace so it can be customised.
+ *
+ * The defaults themselves are never edited by a client: they are shared by
+ * every workspace, onboarding, and the public demo, so a change to one would
+ * silently change the voice of businesses that never asked for it. Duplicating
+ * gives the workspace a row it owns outright — unprotected, editable, and
+ * unlinked from the original, which is what "customise" has to mean if it is
+ * not to be a shared mutation wearing a different label.
+ */
+export async function duplicateVoicePersona(
+  input: z.input<typeof duplicatePersonaSchema>,
+): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
+
+  const parsed = duplicatePersonaSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'بيانات النسخ غير مكتملة.' }
+
+  const [source] = await db
+    .select()
+    .from(voiceProfile)
+    .where(eq(voiceProfile.id, parsed.data.voiceProfileId))
+    .limit(1)
+  if (!source) return { ok: false, error: 'الشخصية الصوتية غير موجودة.' }
+  if (!source.isGlobal && source.workspaceId !== parsed.data.workspaceId) {
+    return { ok: false, error: 'لا يمكن نسخ شخصية تخص عميلًا آخر.' }
+  }
+
+  const [target] = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.id, parsed.data.workspaceId))
+    .limit(1)
+  if (!target) return { ok: false, error: 'العميل غير موجود.' }
+
+  const copyId = id('voice')
+  const copyName = parsed.data.name?.trim() || `${source.name} — نسخة ${target.name}`
+  const now = new Date()
+
+  await db.insert(voiceProfile).values({
+    id: copyId,
+    workspaceId: target.id,
+    name: copyName.slice(0, 120),
+    country: source.country,
+    dialect: source.dialect,
+    style: source.style,
+    languagePolicy: source.languagePolicy ?? {},
+    pacing: source.pacing ?? {},
+    // A copy belongs to one workspace and is neither shared nor protected.
+    isGlobal: false,
+    isProtected: false,
+    personaKey: null,
+    gender: source.gender,
+    language: source.language,
+    providerVoice: source.providerVoice,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  await audit({
+    workspaceId: target.id,
+    action: 'voice.persona_duplicated',
+    resourceType: 'voice_profile',
+    resourceId: copyId,
+    note: `نسخ «${source.name}» إلى ${target.name} للتخصيص`,
+  })
+
+  revalidatePath('/console/voice-lab')
+  revalidatePath('/console/agents')
+  return { ok: true, message: `أُنشئت نسخة قابلة للتعديل باسم «${copyName}».` }
+}
+
+/**
+ * Deletes a workspace's own voice profile.
+ *
+ * Refuses a platform default outright. Those are referenced by onboarding, the
+ * public demo, and any agent version that selected one — deleting the row
+ * underneath them is not an undo, it is a broken call at the moment the next
+ * caller dials. The guard is here rather than only in the UI because a Server
+ * Action is a POST endpoint, and a button that is not rendered is not a
+ * permission check.
+ */
+export async function deleteVoicePersona(voiceProfileId: string): Promise<ActionResult> {
+  const denied = await requireActionPermission('voice.manage')
+  if (denied) return denied
+
+  const [profile] = await db
+    .select()
+    .from(voiceProfile)
+    .where(eq(voiceProfile.id, voiceProfileId))
+    .limit(1)
+  if (!profile) return { ok: false, error: 'الشخصية الصوتية غير موجودة.' }
+
+  if (profile.isProtected || profile.isGlobal) {
+    return {
+      ok: false,
+      error: 'هذه شخصية افتراضية للمنصة ولا يمكن حذفها. انسخها إلى عميل ثم عدّل النسخة.',
+    }
+  }
+
+  const [inUse] = await db
+    .select({ id: agentVersion.id })
+    .from(agentVersion)
+    .where(eq(agentVersion.voiceProfileId, voiceProfileId))
+    .limit(1)
+  if (inUse) {
+    return {
+      ok: false,
+      error: 'هذه الشخصية مستخدمة في نسخة موظف صوتي. غيّر الشخصية هناك أولًا.',
+    }
+  }
+
+  await db.delete(voiceProfile).where(eq(voiceProfile.id, voiceProfileId))
+  await audit({
+    workspaceId: profile.workspaceId,
+    action: 'voice.persona_deleted',
+    resourceType: 'voice_profile',
+    resourceId: voiceProfileId,
+    note: profile.name,
+  })
+
+  revalidatePath('/console/voice-lab')
+  return { ok: true, message: 'حُذفت الشخصية الصوتية.' }
+}
