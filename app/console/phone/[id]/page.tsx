@@ -244,7 +244,7 @@ export default async function PhoneDetailPage({ params, searchParams }: Props) {
         flush
       >
         <div className="table-scroll">
-          <table className="table table--rows">
+          <table className="table table--rows table--cards">
             <thead>
               <tr>
                 <th>المتصل</th>
@@ -259,19 +259,25 @@ export default async function PhoneDetailPage({ params, searchParams }: Props) {
               {phone.recentCalls.length ? (
                 phone.recentCalls.map((item) => (
                   <tr key={item.id}>
-                    <td className="mono">{item.callerNumber ?? '—'}</td>
-                    <td>
+                    <td data-label="المتصل" className="mono">
+                      {item.callerNumber ?? '—'}
+                    </td>
+                    <td data-label="الحالة">
                       <Pill tone={statusTone(item.status)}>
                         {CALL_STATUS_LABEL[item.status] ?? item.status}
                       </Pill>
                     </td>
-                    <td>
+                    <td data-label="النتيجة">
                       {item.outcome
                         ? (CALL_OUTCOME_LABEL[item.outcome] ?? item.outcome)
                         : 'لم تُسجل بعد'}
                     </td>
-                    <td className="muted">{relative(item.startedAt)}</td>
-                    <td className="muted">{item.endedAt ? relative(item.endedAt) : 'غير متاح'}</td>
+                    <td data-label="بدأت" className="muted">
+                      {relative(item.startedAt)}
+                    </td>
+                    <td data-label="انتهت" className="muted">
+                      {item.endedAt ? relative(item.endedAt) : 'غير متاح'}
+                    </td>
                     <td>
                       <Link href={`/console/calls/${item.id}`} className="table-link">
                         فتح

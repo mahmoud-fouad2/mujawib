@@ -12,7 +12,7 @@ import {
 } from '@/lib/integrations'
 import { normalizePhoneE164 } from '@/lib/voice-normalization'
 import { buildCallSummary } from '@/server/calls/presentation'
-import { readCallTranscript } from '@/server/calls/transcript'
+import { readCallTranscriptDetailed } from '@/server/calls/transcript'
 import { db } from '@/server/db'
 import {
   agent,
@@ -1146,11 +1146,12 @@ export async function getCallDetail(id: string) {
     db.select().from(lead).where(eq(lead.callId, id)).limit(1),
   ])
 
-  const transcript = await readCallTranscript(
+  const transcriptRead = await readCallTranscriptDetailed(
     id,
     row.call.transcriptEncrypted,
     row.call.transcript ?? [],
   )
+  const transcript = transcriptRead.turns
   const tools = rawTools.map((item) => ({
     ...item,
     request: revealJson(item.requestEncrypted, item.request ?? {}),
@@ -1194,6 +1195,10 @@ export async function getCallDetail(id: string) {
     phoneE164: row.phoneE164,
     transferDestination: row.transferDestination,
     transcript,
+    // Why there is no transcript, when there is none — the console shows the
+    // reason instead of the same shrug for three different causes.
+    transcriptAvailability: transcriptRead.availability,
+    storedTurnEvents: transcriptRead.storedTurnEvents,
     summary: buildCallSummary({
       status: row.call.status,
       outcome: row.call.outcome,
@@ -1217,7 +1222,30 @@ export async function getCallDetail(id: string) {
 
 /* ─── QA ─────────────────────────────────────────────────────────────────── */
 
-export async function getQaQueue(limit = 40) {
+export type QaQueueFilter = { status?: 'open' | 'closed'; search?: string; flag?: string }
+
+export async function getQaQueue(limit = 40, filters: QaQueueFilter = {}) {
+  // Filters are applied in SQL, not to the page after it is fetched. Filtering
+  // a already-limited page in JavaScript silently hides matches that sit past
+  // the limit, which reads to an operator as "the filter is broken" rather
+  // than "the page is truncated".
+  const search = filters.search?.trim()
+  const conditions = [eq(call.origin, 'live')]
+  if (filters.status === 'open') conditions.push(sql`${qaResult.reviewerId} is null`)
+  if (filters.status === 'closed') conditions.push(sql`${qaResult.reviewerId} is not null`)
+  // `?` is the jsonb "contains key" operator — the flags column is an array of
+  // reason strings written by queueForReviewIfWarranted.
+  if (filters.flag) conditions.push(sql`${qaResult.flags} ? ${filters.flag}`)
+  if (search) {
+    const like = `%${search}%`
+    const matches = or(
+      sql`${workspace.name} ilike ${like}`,
+      sql`coalesce(${call.intent}, '') ilike ${like}`,
+      sql`${qaResult.callId} ilike ${like}`,
+    )
+    if (matches) conditions.push(matches)
+  }
+
   const rows = await db
     .select({
       id: qaResult.id,
@@ -1238,7 +1266,7 @@ export async function getQaQueue(limit = 40) {
     .from(qaResult)
     .innerJoin(call, eq(qaResult.callId, call.id))
     .innerJoin(workspace, eq(call.workspaceId, workspace.id))
-    .where(eq(call.origin, 'live'))
+    .where(and(...conditions))
     .orderBy(desc(qaResult.createdAt))
     .limit(limit)
 

@@ -18,6 +18,7 @@ import {
   duration,
   EVENT_LABEL,
   fullDate,
+  num,
   outcomeTone,
   relative,
   statusTone,
@@ -351,9 +352,10 @@ function CallDetailView({ call, canRetrySummary }: { call: CallDetail; canRetryS
         </div>
         <div className="transcript">
           {call.transcript.length === 0 ? (
-            <p className="muted">
-              لم يصل نص الحوار لهذه المكالمة. السجل الحالي يثبت الاستقبال والقبول فقط.
-            </p>
+            <TranscriptGap
+              availability={call.transcriptAvailability}
+              storedTurnEvents={call.storedTurnEvents}
+            />
           ) : (
             call.transcript.map((t) => (
               <div key={`${t.role}-${t.at}-${t.text}`} className={`turn turn--${t.role}`}>
@@ -574,5 +576,58 @@ function CallInspector({ call }: { call: CallDetail }) {
         </dl>
       </div>
     </>
+  )
+}
+
+/**
+ * Says why a transcript is missing, rather than showing the same sentence for
+ * three unrelated causes.
+ *
+ * The distinction that matters operationally is `decryption_failed`: the turns
+ * are in the database and cannot be opened, which means the data key changed
+ * and *every* protected field on the platform is reading back empty. That is
+ * recoverable, urgent, and was previously indistinguishable from a call that
+ * simply never produced a transcript.
+ */
+function TranscriptGap({
+  availability,
+  storedTurnEvents,
+}: {
+  availability: 'available' | 'never_recorded' | 'decryption_failed' | 'empty'
+  storedTurnEvents: number
+}) {
+  if (availability === 'decryption_failed') {
+    return (
+      <div className="transcript-gap transcript-gap--alert">
+        <strong>النص مسجَّل لكن تعذّر فكّ تشفيره.</strong>
+        <p>
+          {storedTurnEvents > 0
+            ? `${num(storedTurnEvents)} دورًا محفوظًا في قاعدة البيانات، ولم يُفتح أي منها.`
+            : 'الحوار محفوظ مشفَّرًا ولم يُفتح.'}{' '}
+          هذا يحدث عندما يتغيّر مفتاح حماية البيانات (
+          <span className="mono">DATA_ENCRYPTION_KEY</span> أو{' '}
+          <span className="mono">BETTER_AUTH_SECRET</span>) — وعندها تقرأ كل الحقول المحمية على
+          المنصة فارغة، لا هذه المكالمة وحدها.
+        </p>
+        <a className="btn btn--sm" href="/console/system">
+          افحص صحة المفاتيح
+        </a>
+      </div>
+    )
+  }
+
+  if (availability === 'empty') {
+    return (
+      <p className="muted">
+        سُجّلت أحداث لهذه المكالمة لكنها لا تحمل حوارًا — غالبًا مكالمة انتهت قبل أن يتكلم أحد.
+      </p>
+    )
+  }
+
+  return (
+    <p className="muted">
+      لم يصل نص الحوار لهذه المكالمة. السجل الحالي يثبت الاستقبال والقبول فقط، ولا يوجد ما يشير إلى
+      فقد بيانات.
+    </p>
   )
 }

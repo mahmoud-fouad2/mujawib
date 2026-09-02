@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: 'مختبر الاختبار' }
 export const dynamic = 'force-dynamic'
 
 type PageProps = {
-  searchParams: Promise<{ version?: string | string[] }>
+  searchParams: Promise<{ version?: string | string[]; state?: string; critical?: string }>
 }
 
 function runState(scenario: Awaited<ReturnType<typeof getTestLab>>['scenarios'][number]) {
@@ -29,9 +29,26 @@ function runState(scenario: Awaited<ReturnType<typeof getTestLab>>['scenarios'][
 }
 
 export default async function TestLabPage({ searchParams }: PageProps) {
-  const rawVersion = (await searchParams).version
+  const params = await searchParams
+  const rawVersion = params.version
   const requestedVersion = Array.isArray(rawVersion) ? rawVersion[0] : rawVersion
   const data = await getTestLab(requestedVersion)
+
+  // Filtered here rather than in the query: a version holds a handful of
+  // scenarios, all of them already loaded to compute the publish gate, so a
+  // second round trip would buy nothing.
+  const stateFilter = params.state ?? 'all'
+  const criticalOnly = params.critical === '1'
+  const visibleScenarios = data.scenarios.filter((scenario) => {
+    if (criticalOnly && !scenario.isCritical) return false
+    if (stateFilter === 'all') return true
+    const state = runState(scenario)
+    if (stateFilter === 'passed') return state.tone === 'good'
+    if (stateFilter === 'failed') return state.tone === 'bad'
+    if (stateFilter === 'stale') return state.tone === 'warn'
+    if (stateFilter === 'never') return state.tone === 'neutral'
+    return true
+  })
 
   return (
     <>
@@ -142,7 +159,39 @@ export default async function TestLabPage({ searchParams }: PageProps) {
             meta="تشغيل سلوكي نصي على Realtime؛ اختبار الصوت الهاتفي يبقى في مختبر الصوت ومكالمة التحقق"
             flush
           >
-            {data.scenarios.length === 0 ? (
+            <form className="test-lab-version-bar" method="get">
+              {requestedVersion ? (
+                <input type="hidden" name="version" value={requestedVersion} />
+              ) : null}
+              <label htmlFor="scenario-state">النتيجة</label>
+              <select id="scenario-state" name="state" className="input" defaultValue={stateFilter}>
+                <option value="all">كل السيناريوهات</option>
+                <option value="passed">ناجح</option>
+                <option value="failed">لم ينجح</option>
+                <option value="stale">يحتاج إعادة تشغيل</option>
+                <option value="never">لم يُشغّل بعد</option>
+              </select>
+              <label htmlFor="scenario-critical">
+                <input
+                  id="scenario-critical"
+                  type="checkbox"
+                  name="critical"
+                  value="1"
+                  defaultChecked={criticalOnly}
+                />{' '}
+                الحرجة فقط
+              </label>
+              <Button type="submit" size="sm">
+                طبّق
+              </Button>
+              {stateFilter !== 'all' || criticalOnly ? (
+                <span className="muted">
+                  {num(visibleScenarios.length)} من {num(data.scenarios.length)}
+                </span>
+              ) : null}
+            </form>
+
+            {visibleScenarios.length === 0 ? (
               <EmptyState
                 title="لا توجد حزمة اختبار بعد"
                 body="ابدأ بأكثر القرارات خطورة: التأكيد، التحويل، السعر، والحالات التي يجب فيها الامتناع عن التنفيذ."
@@ -155,7 +204,7 @@ export default async function TestLabPage({ searchParams }: PageProps) {
                   <span>الدليل</span>
                   <span>الإجراء</span>
                 </div>
-                {data.scenarios.map((scenario) => {
+                {visibleScenarios.map((scenario) => {
                   const state = runState(scenario)
                   const StateIcon = state.icon
                   const callerText = scenario.inputContract?.turns[0] ?? 'عقد إدخال قديم'

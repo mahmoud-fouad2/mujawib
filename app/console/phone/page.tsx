@@ -164,7 +164,7 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
           <EmptyState title="لا نتائج مطابقة" body="غيّر البحث أو الفلاتر لعرض أرقام أخرى." />
         ) : (
           <div className="table-scroll">
-            <table className="table table--rows">
+            <table className="table table--rows table--cards">
               <thead>
                 <tr>
                   <th>الرقم</th>
@@ -186,13 +186,13 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
 
                   return (
                     <tr key={n.id}>
-                      <td className="mono" style={{ fontWeight: 500 }} dir="ltr">
+                      <td className="mono" style={{ fontWeight: 500 }} dir="ltr" data-label="الرقم">
                         <Link href={`/console/phone/${n.id}`}>{n.e164}</Link>
                       </td>
-                      <td className="muted">
+                      <td data-label="العميل" className="muted">
                         <Link href={`/console/clients/${n.workspaceSlug}`}>{n.workspaceName}</Link>
                       </td>
-                      <td>
+                      <td data-label="الموظف الصوتي">
                         {n.agentName ? (
                           <>
                             {n.agentName}
@@ -206,11 +206,13 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
                           <Pill tone="bad">لم يُسنَد</Pill>
                         )}
                       </td>
-                      <td className="muted">{MODE_LABEL[n.mode] ?? n.mode}</td>
-                      <td className="mono muted" dir="ltr">
+                      <td data-label="وضع الاستقبال" className="muted">
+                        {MODE_LABEL[n.mode] ?? n.mode}
+                      </td>
+                      <td data-label="وجهة التحويل" className="mono muted" dir="ltr">
                         {n.transferDestination ?? '—'}
                       </td>
-                      <td>
+                      <td data-label="حالة المسار">
                         <span className="route-state">
                           <Pill tone={phoneLifecycleTone(status)} dot>
                             {PHONE_LIFECYCLE_LABEL[status] ?? status}
@@ -226,10 +228,12 @@ export default async function PhonePage({ searchParams }: { searchParams: Promis
                           </span>
                         </span>
                       </td>
-                      <td className="muted">
+                      <td data-label="آخر مكالمة ناجحة" className="muted">
                         {n.lastSuccessfulCallAt ? relative(n.lastSuccessfulCallAt) : 'لا يوجد'}
                       </td>
-                      <td className="mono">{num(n.calls30d)}</td>
+                      <td data-label="مكالمات 30 يومًا" className="mono">
+                        {num(n.calls30d)}
+                      </td>
                       <td>
                         <PhoneRowActions
                           id={n.id}

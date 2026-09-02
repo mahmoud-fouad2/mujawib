@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { QaRowActions } from '@/components/console/qa-actions'
+import { ConsoleSearchFilters } from '@/components/console/table-tools'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { CALL_OUTCOME_LABEL, duration, num, outcomeTone, relative } from '@/lib/format'
@@ -9,14 +10,42 @@ import { getQaQueue } from '@/server/data/console'
 export const metadata: Metadata = { title: 'الجودة' }
 export const dynamic = 'force-dynamic'
 
-export default async function QaPage() {
-  const { rows, totals, reasons } = await getQaQueue(60)
+type PageProps = {
+  searchParams: Promise<{ status?: string; q?: string; flag?: string }>
+}
+
+const QA_STATUS_OPTIONS = [
+  { value: 'all', label: 'الكل' },
+  { value: 'open', label: 'بانتظار المراجعة' },
+  { value: 'closed', label: 'مُغلقة' },
+]
+
+export default async function QaPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const status = params.status === 'open' || params.status === 'closed' ? params.status : undefined
+  const search = params.q?.trim() || undefined
+  const flag = params.flag?.trim() || undefined
+  const { rows, totals, reasons } = await getQaQueue(60, {
+    ...(status ? { status } : {}),
+    ...(search ? { search } : {}),
+    ...(flag ? { flag } : {}),
+  })
 
   return (
     <>
       <PageHead
         title="مركز الجودة"
         sub="المكالمات التي تحتاج قرارًا بشريًا — أغلقها بتصنيف واضح حتى يعرف الفريق ما يُصلح"
+      />
+
+      <ConsoleSearchFilters
+        basePath="/console/qa"
+        search={search ?? ''}
+        status={status ?? 'all'}
+        range="all"
+        searchPlaceholder="ابحث بالعميل، النية، أو معرّف المكالمة…"
+        statusOptions={QA_STATUS_OPTIONS}
+        rangeOptions={[]}
       />
 
       <SummaryBar
@@ -43,7 +72,7 @@ export default async function QaPage() {
             />
           ) : (
             <div className="table-scroll">
-              <table className="table table--rows">
+              <table className="table table--rows table--cards">
                 <thead>
                   <tr>
                     <th>المتصل</th>
@@ -60,20 +89,26 @@ export default async function QaPage() {
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id}>
-                      <td>
+                      <td data-label="المتصل">
                         <Link href={`/console/calls?call=${r.callId}`} className="mono">
                           {r.callerNumber ?? '—'}
                         </Link>
                       </td>
-                      <td className="muted">{r.workspaceName}</td>
-                      <td className="muted">{r.intent ?? '—'}</td>
-                      <td>
+                      <td data-label="العميل" className="muted">
+                        {r.workspaceName}
+                      </td>
+                      <td data-label="النية" className="muted">
+                        {r.intent ?? '—'}
+                      </td>
+                      <td data-label="النتيجة">
                         <Pill tone={outcomeTone(r.outcome)}>
                           {r.outcome ? (CALL_OUTCOME_LABEL[r.outcome] ?? r.outcome) : '—'}
                         </Pill>
                       </td>
-                      <td className="mono">{r.score ?? '—'}</td>
-                      <td>
+                      <td data-label="الدرجة" className="mono">
+                        {r.score ?? '—'}
+                      </td>
+                      <td data-label="الأسباب">
                         <span className="queue__flags">
                           {(r.flags ?? []).slice(0, 2).map((f) => (
                             <Pill key={f} tone="warn">
@@ -82,8 +117,10 @@ export default async function QaPage() {
                           ))}
                         </span>
                       </td>
-                      <td className="mono">{duration(r.durationSeconds)}</td>
-                      <td>
+                      <td data-label="المدة" className="mono">
+                        {duration(r.durationSeconds)}
+                      </td>
+                      <td data-label="الحالة">
                         {r.reviewerId ? (
                           <Pill tone="good">رُوجعت · {relative(r.createdAt)}</Pill>
                         ) : (

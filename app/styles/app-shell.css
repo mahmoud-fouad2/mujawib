@@ -2899,3 +2899,89 @@
   line-height: 1.6;
   margin: 0;
 }
+
+/* ─── responsive tables → cards ───────────────────────────────────────────
+ *
+ * Every console table used to keep a 760px minimum width and scroll sideways
+ * on a phone. A 360px screen showed a fifth of a nine-column row, and reading
+ * one record meant dragging horizontally through eight others — which is
+ * exactly the state the phone and routing pages were reported in.
+ *
+ * `table--cards` restacks each row into a labelled card below 760px. The label
+ * comes from each cell's own `data-label`, so the header text is not
+ * duplicated in CSS and cannot drift from the column it names. Above the
+ * breakpoint nothing changes: the desktop table is still the right shape for
+ * scanning many rows at once.
+ */
+@media (max-width: 760px) {
+  .table-scroll:has(> .table--cards) {
+    overflow-x: visible;
+  }
+
+  .table--cards,
+  .table--cards tbody,
+  .table--cards tr,
+  .table--cards td {
+    display: block;
+    inline-size: 100%;
+  }
+
+  /* Headers are redundant once every cell carries its own label, and a
+     screen reader announces the label rather than a detached header row. */
+  .table--cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table-scroll > .table--cards {
+    min-inline-size: 0;
+  }
+
+  .table--cards tr {
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    padding: var(--s-3) var(--s-4);
+    margin-block-end: var(--s-3);
+  }
+
+  .table--cards td {
+    display: grid;
+    grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+    gap: var(--s-3);
+    align-items: baseline;
+    padding: var(--s-2) 0;
+    border: 0;
+    border-block-end: 1px solid var(--line-faint);
+  }
+
+  .table--cards td:last-child {
+    border-block-end: 0;
+    padding-block-end: 0;
+  }
+
+  .table--cards td[data-label]::before {
+    content: attr(data-label);
+    color: var(--text-faint);
+    font-size: 13px;
+  }
+
+  /* A cell with no label is an actions cell: give it the full width and put
+     its controls at the end, where a thumb reaches them. */
+  .table--cards td:not([data-label]) {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--s-2);
+    padding-block-start: var(--s-3);
+  }
+
+  /* The row menu is positioned against the viewport, so it must not be
+     clipped by the card's own rounding. */
+  .table--cards tr {
+    overflow: visible;
+  }
+}
