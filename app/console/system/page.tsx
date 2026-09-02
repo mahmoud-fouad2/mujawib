@@ -1,5 +1,6 @@
 import { CircleAlert, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
+import { OutboundSelfTest } from '@/components/console/outbound-check'
 import { PlatformContactSettings } from '@/components/console/platform-contact-form'
 import { RecordingStorageCheck } from '@/components/console/recording-storage-check'
 import { MetricStrip, PageHead, Section } from '@/components/console/ui'
@@ -8,6 +9,8 @@ import { clock, fullDate, num, relative } from '@/lib/format'
 import { requireOperatorPage } from '@/server/auth/access'
 import { getSystemOverview } from '@/server/data/console'
 import { getPlatformContactDraft } from '@/server/data/platform'
+import { outboundDialerStatus } from '@/server/outbound/dialer'
+import { smsStatus } from '@/server/outbound/sms'
 import { recordingStorageProblem, recordingStorageReady } from '@/server/storage/recordings'
 
 export const metadata: Metadata = { title: 'النظام' }
@@ -22,6 +25,10 @@ const ACTION_LABEL: Record<string, string> = {
   'system.secret_drift': 'تغيّر مفتاح تشفير',
   'system.contact_update': 'تحديث قنوات التواصل',
   'system.recording_storage_verified': 'اختبار تخزين التسجيلات',
+  'outbound.test_sms': 'رسالة اختبار صادرة',
+  'outbound.test_sms_failed': 'فشل رسالة اختبار',
+  'outbound.test_call': 'مكالمة اختبار صادرة',
+  'outbound.test_call_failed': 'فشل مكالمة اختبار',
 }
 
 export default async function SystemPage() {
@@ -31,6 +38,8 @@ export default async function SystemPage() {
       getPlatformContactDraft(),
       requireOperatorPage('/console/system'),
     ])
+  const dialer = outboundDialerStatus()
+  const sms = smsStatus()
   const recentChange = secretHealth.some((s) => s.status === 'recent-change')
   const recordingState = recordingStorageProblem()
     ? 'misconfigured'
@@ -83,6 +92,19 @@ export default async function SystemPage() {
 
       <Section title="قنوات التواصل العامة" meta="ما يظهره الموقع وبيانات محركات البحث للزوار">
         <PlatformContactSettings canEdit={access.role === 'owner'} initial={contact} />
+      </Section>
+
+      <Section title="الاتصال الصادر" meta="لم يُجرَ أي اتصال صادر من هذا الخادم بعد — هذا ما يثبته">
+        <OutboundSelfTest
+          smsReady={sms.ready}
+          dialerReady={dialer.ready}
+          problems={[
+            ...dialer.missing.map((k) => `${k}: غير مضبوط`),
+            ...dialer.malformed.map((m) => `${m.key}: يجب أن يكون ${m.expected}`),
+            ...sms.missing.filter((k) => !dialer.missing.includes(k)).map((k) => `${k}: غير مضبوط`),
+            ...sms.malformed.map((m) => `${m.key}: يجب أن يكون ${m.expected}`),
+          ]}
+        />
       </Section>
 
       <Section title="تخزين التسجيلات" meta="خاص، بلا رابط bucket مباشر أو وصول عام">

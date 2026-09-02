@@ -19,6 +19,7 @@ import {
   verifyCode,
 } from '@/lib/demo-call'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
+import { normalizePhoneE164 } from '@/lib/voice-normalization'
 import { limitAction } from '@/server/actions/guard'
 import { authorizeOperator } from '@/server/auth/access'
 import { db } from '@/server/db'
@@ -714,4 +715,102 @@ export async function blockDemoSource(
     ok: true,
     message: stopped.length > 1 ? `حُظر المصدر وأُوقف ${stopped.length} طلبًا.` : 'حُظر المصدر.',
   }
+}
+
+/* ─── self-test ──────────────────────────────────────────────────────────── */
+
+const selfTestSchema = z.object({
+  phone: z.string().trim().min(6).max(30),
+  kind: z.enum(['sms', 'call']),
+})
+
+/**
+ * Sends a real SMS, or places a real call, to a number the operator types.
+ *
+ * The outbound path has never run from this deployment, and the honest way to
+ * change that is not to reason about it — it is to try it once, deliberately,
+ * against a number the person pressing the button owns. This is that button.
+ *
+ * It returns the provider's own error text rather than a friendly summary.
+ * "Could not send" is useless here; `21606 The From number is not a valid,
+ * SMS-capable inbound phone number` is the whole answer, and the person
+ * reading it is the person who can fix it.
+ */
+export async function runOutboundSelfTest(
+  input: z.input<typeof selfTestSchema>,
+): Promise<DemoResult> {
+  const access = await authorizeOperator('campaign.approve')
+  if (!access) return { ok: false, error: 'ليس لديك صلاحية اختبار الاتصال الصادر.' }
+  // Same ceiling as starting a campaign: this spends money and rings a phone.
+  const limited = limitAction('campaign_control', access.userId)
+  if (limited) return limited
+
+  const parsed = selfTestSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'رقم غير صالح.' }
+
+  const phone = normalizePhoneE164(parsed.data.phone)
+  if (!phone) return { ok: false, error: 'اكتب الرقم بالصيغة الدولية، مثل +9665…' }
+
+  if (parsed.data.kind === 'sms') {
+    const status = smsStatus()
+    if (!status.ready) {
+      const problems = [
+        ...status.missing,
+        ...status.malformed.map((m) => `${m.key} (${m.expected})`),
+      ]
+      return { ok: false, error: `SMS غير مُهيّأ — ${problems.join('، ')}` }
+    }
+    // A visibly fake code, so a test message can never be mistaken for a real
+    // verification and read back into the form.
+    const sent = await sendVerificationSms(phone, '000000')
+    await db.insert(auditLog).values({
+      id: id('audit'),
+      workspaceId: null,
+      actorId: access.userId,
+      action: sent.ok ? 'outbound.test_sms' : 'outbound.test_sms_failed',
+      resourceType: 'outbound',
+      resourceId: 'self_test',
+      metadata: { note: maskNumber(phone), error: sent.ok ? null : sent.error },
+      createdAt: new Date(),
+    })
+    return sent.ok
+      ? { ok: true, message: `أُرسلت رسالة اختبار إلى ${maskNumber(phone)}. الرمز فيها 000000.` }
+      : { ok: false, error: sent.error }
+  }
+
+  const target = await resolveDemoTargetForTest()
+  if (!target) {
+    return {
+      ok: false,
+      error: 'لا يوجد موظف صوتي منشور مربوط برقم — انشر نسخة واربط رقمًا أولًا.',
+    }
+  }
+
+  const placed = await placeOutboundCall({
+    to: phone,
+    from: target.fromNumber,
+    reference: `selftest-${Date.now()}`,
+  })
+  await db.insert(auditLog).values({
+    id: id('audit'),
+    workspaceId: null,
+    actorId: access.userId,
+    action: placed.ok ? 'outbound.test_call' : 'outbound.test_call_failed',
+    resourceType: 'outbound',
+    resourceId: 'self_test',
+    metadata: { note: maskNumber(phone), error: placed.ok ? null : placed.error },
+    createdAt: new Date(),
+  })
+  return placed.ok
+    ? {
+        ok: true,
+        message: `بدأت مكالمة اختبار إلى ${maskNumber(phone)} من ${target.fromNumber} — سيردّ عليها ${target.agentLabel}.`,
+      }
+    : { ok: false, error: placed.error }
+}
+
+/** Imported lazily so this action file does not pull the dispatcher's graph. */
+async function resolveDemoTargetForTest() {
+  const { resolveDemoTarget } = await import('@/server/outbound/dispatcher')
+  return resolveDemoTarget()
 }
