@@ -3,6 +3,7 @@ import 'server-only'
 import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import WebSocket, { type RawData } from 'ws'
+import { maxCallDurationMs } from '@/lib/call-limits'
 import { enqueueCallIntelligence } from '@/server/calls/intelligence'
 import { compactCallTranscript } from '@/server/calls/transcript'
 // Every query in this file sits on a live call's critical path, so it runs on
@@ -43,6 +44,10 @@ const OPENAI_API = 'https://api.openai.com/v1'
 const CONNECT_TIMEOUT_MS = 10_000
 const SIDEBAND_LEASE_MS = 120_000
 const HANGUP_FALLBACK_MS = 5_000
+// Read once per process rather than per call: this is an operational dial,
+// not something that changes mid-deploy, and re-parsing it on every call is
+// pointless work on the hottest path in the codebase.
+const MAX_CALL_DURATION_MS = maxCallDurationMs(process.env.MAX_CALL_DURATION_MINUTES)
 const NORMAL_CLOSE_CODES = new Set([1000, 1005])
 
 type SidebandContext = {
@@ -820,6 +825,33 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
   let queue = Promise.resolve()
   let toolQueue = Promise.resolve()
   let hangupFallback: ReturnType<typeof setTimeout> | null = null
+  let maxDurationTimer: ReturnType<typeof setTimeout> | null = null
+
+  /**
+   * The circuit breaker `overCapacity` cannot be: that check counts calls,
+   * not minutes, so a workspace under its call limit can still hold one call
+   * open indefinitely. This ends it the same way the agent's own `end_call`
+   * tool does — `hangupCall` against the same OpenAI endpoint — rather than
+   * `ws.terminate()`, which would sever the control channel mid-conversation
+   * and leave the caller talking to a line that has already gone silent on
+   * our end without ever being told the call ended.
+   *
+   * Deliberately independent of `requestHangup`'s state machine: that
+   * function is for the agent's own decision to end the call, gated on
+   * `state.pendingHangup`. This is the platform overriding a call nobody
+   * ended, and it must fire whether or not the agent ever asked to hang up.
+   */
+  const forceEndOnMaxDuration = async () => {
+    voiceError('CALL_MAX_DURATION_REACHED', {
+      callId: maskIdentifier(ctx.externalCallId),
+      maxMinutes: Math.round(MAX_CALL_DURATION_MS / 60_000),
+    })
+    const succeeded = await hangupCall(ctx.externalCallId)
+    await recordEvent(ctx, succeeded ? 'call_hangup_requested' : 'call_hangup_failed', 'end_call', {
+      success: succeeded,
+      reason: 'max_duration',
+    })
+  }
 
   const requestHangup = async () => {
     if (state.hangupRequested || !state.pendingHangup) return
@@ -885,6 +917,8 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
       markTimeline(ctx.timeline, 'sideband_ws_opened')
       voiceLog('SIDEBAND_CONNECTED', { wsConnectMs: Date.now() - connectStartTime })
       activeSockets.set(ctx.externalCallId, { ws, ctx, state, leaseOwner })
+      maxDurationTimer = setTimeout(() => void forceEndOnMaxDuration(), MAX_CALL_DURATION_MS)
+      maxDurationTimer.unref()
 
       if (shouldSendInitialGreeting(ctx)) {
         ws.send(JSON.stringify(initialGreetingEvent()))
@@ -938,6 +972,7 @@ async function runSideband(ctx: SidebandContext, leaseOwner: string) {
       clearTimeout(timeout)
       clearInterval(heartbeat)
       if (hangupFallback) clearTimeout(hangupFallback)
+      if (maxDurationTimer) clearTimeout(maxDurationTimer)
       activeSockets.delete(ctx.externalCallId)
       queue = queue
         .then(() => toolQueue)

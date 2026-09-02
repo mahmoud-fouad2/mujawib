@@ -26,6 +26,13 @@ export const env = createEnv({
     // is a real outcome: an unanswered invite falls through to the client's
     // human line, which beats being answered by an overloaded process.
     ACTIVE_REALTIME_CALL_LIMIT: z.coerce.number().int().min(1).max(500).optional(),
+    // No caller has ever needed longer than this to be helped; a call still
+    // running past it is a stuck line, not a long conversation. Enforced in
+    // server/voice/sideband.ts, which force-ends the call the same way the
+    // agent's own `end_call` tool does. Read directly from process.env there
+    // — the call's critical path must not gain a dependency on this module's
+    // import graph — declared here so a deploy has one place that lists it.
+    MAX_CALL_DURATION_MINUTES: z.coerce.number().int().min(5).max(120).optional(),
     // How long shutdown waits for calls to end before handing them over. Must
     // stay comfortably under the platform's own kill grace period.
     SHUTDOWN_DRAIN_TIMEOUT_MS: z.coerce.number().int().min(0).max(120_000).optional(),
@@ -140,6 +147,7 @@ export const env = createEnv({
     RECORDING_STORAGE_SECRET_ACCESS_KEY: process.env.RECORDING_STORAGE_SECRET_ACCESS_KEY,
     RECORDING_MAX_SECONDS: process.env.RECORDING_MAX_SECONDS,
     ACTIVE_REALTIME_CALL_LIMIT: process.env.ACTIVE_REALTIME_CALL_LIMIT,
+    MAX_CALL_DURATION_MINUTES: process.env.MAX_CALL_DURATION_MINUTES,
     SHUTDOWN_DRAIN_TIMEOUT_MS: process.env.SHUTDOWN_DRAIN_TIMEOUT_MS,
     DATABASE_REALTIME_POOL_MAX: process.env.DATABASE_REALTIME_POOL_MAX,
     MEMORY_LIMIT_MB: process.env.MEMORY_LIMIT_MB,
