@@ -1,10 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { DemoRequestActions } from '@/components/console/demo-request-actions'
 import { InquiryActions } from '@/components/console/inquiry-actions'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
+import { DEMO_REQUEST_STATUS_LABEL, DEMO_REQUEST_STATUS_TONE } from '@/lib/demo-call'
 import { num, relative } from '@/lib/format'
-import { getSalesInquiries, getSalesInquiryCounts } from '@/server/data/console'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
+import {
+  getDemoCallRequests,
+  getDemoCallTargets,
+  getSalesInquiries,
+  getSalesInquiryCounts,
+} from '@/server/data/console'
+import { outboundDialerStatus } from '@/server/outbound/dialer'
+import { maskNumber } from '@/server/voice/log'
 
 export const metadata: Metadata = { title: 'طلبات العروض' }
 export const dynamic = 'force-dynamic'
@@ -56,14 +66,29 @@ export default async function InquiriesPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>
 }) {
+  // This page now carries visitors' phone numbers, so the permission the nav
+  // already declares is enforced on the route as well — a hidden link is not
+  // a check.
+  await requireOperatorPermissionPage('client.manage', '/console/inquiries')
+
   const params = await searchParams
   const status = FILTERS.some((f) => f.value === params.status) ? (params.status ?? '') : ''
   const search = params.q?.trim() ?? ''
 
-  const [inquiries, counts] = await Promise.all([
+  const [inquiries, counts, demoRequests, demoTargets] = await Promise.all([
     getSalesInquiries({ ...(status ? { status } : {}), ...(search ? { search } : {}) }),
     getSalesInquiryCounts(),
+    getDemoCallRequests(),
+    getDemoCallTargets(),
   ])
+  const dialer = outboundDialerStatus()
+  const pendingDemos = demoRequests.filter((r) => r.status === 'new').length
+
+  const versionOptions = demoTargets.versions.map((v) => ({
+    id: v.id,
+    label: `${v.workspaceName} · ${v.agentName} — نسخة ${v.versionNumber}`,
+    workspaceId: v.workspaceId,
+  }))
 
   return (
     <>
@@ -81,8 +106,98 @@ export default async function InquiriesPage({
             value: num(counts.byStatus.won ?? 0),
             tone: 'good',
           },
+          {
+            label: 'مكالمة تجريبية مطلوبة',
+            value: num(pendingDemos),
+            ...(pendingDemos ? { tone: 'warn' as const } : {}),
+          },
         ]}
       />
+
+      {/*
+        The public "call me" form writes here. It is a lead like any other, so
+        it lives on the leads page — an operator working the pipeline should
+        not have to know the site has two forms writing to two tables.
+      */}
+      <Section title="طلبات المكالمة التجريبية" meta={`${num(demoRequests.length)} طلب`} flush>
+        {!dialer.ready && demoRequests.length > 0 ? (
+          <div className="notice notice--warn" role="status">
+            <strong>الاتصال الصادر غير مُهيّأ — لا يمكن إجراء المكالمة من هنا.</strong>
+            <p>
+              الطلبات محفوظة بأرقامها الكاملة ويمكن الاتصال بها يدويًا. الناقص:{' '}
+              <code dir="ltr">{dialer.missing.join(', ')}</code>
+            </p>
+          </div>
+        ) : null}
+
+        {demoRequests.length === 0 ? (
+          <EmptyState
+            title="لا طلبات تجريبية"
+            body="يظهر هنا كل من طلب من الموقع أن يتصل به مُجاوِب. المكالمة يجريها مشغّل بنفسه — لا يوجد اتصال تلقائي من نموذج عام."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="table table--rows table--cards">
+              <thead>
+                <tr>
+                  <th>الرقم</th>
+                  <th>الجهة</th>
+                  <th>الصوت المطلوب</th>
+                  <th>الحالة</th>
+                  <th>وصل</th>
+                  <th aria-label="إجراءات" />
+                </tr>
+              </thead>
+              <tbody>
+                {demoRequests.map((request) => (
+                  <tr key={request.id}>
+                    {/* Masked on the row. The full number is on the page —
+                        an operator has to read it before dialling — but it is
+                        shown only in the dialogue that places the call, since
+                        a console screen is read over shoulders far more often
+                        than a dialogue is. */}
+                    <td data-label="الرقم" dir="ltr" className="mono">
+                      {maskNumber(request.phone)}
+                    </td>
+                    <td data-label="الجهة">
+                      {request.businessName ?? request.name ?? '—'}
+                      <div className="muted mono">{request.countryCode}</div>
+                    </td>
+                    <td data-label="الصوت المطلوب">{request.personaKey ?? '—'}</td>
+                    <td data-label="الحالة">
+                      <Pill
+                        tone={
+                          DEMO_REQUEST_STATUS_TONE[
+                            request.status as keyof typeof DEMO_REQUEST_STATUS_TONE
+                          ] ?? 'neutral'
+                        }
+                      >
+                        {DEMO_REQUEST_STATUS_LABEL[
+                          request.status as keyof typeof DEMO_REQUEST_STATUS_LABEL
+                        ] ?? request.status}
+                      </Pill>
+                      {request.lastError ? <div className="muted">{request.lastError}</div> : null}
+                    </td>
+                    <td data-label="وصل" className="muted">
+                      {relative(request.createdAt)}
+                    </td>
+                    <td data-label="إجراءات">
+                      <DemoRequestActions
+                        requestId={request.id}
+                        phone={request.phone}
+                        status={request.status}
+                        versions={versionOptions}
+                        numbers={demoTargets.numbers}
+                        dialerReady={dialer.ready}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
       <Section title="الطلبات" meta={`${num(inquiries.length)} معروض`} flush>
         {/*
           Server-rendered links rather than a client filter component: the

@@ -2,6 +2,7 @@ import 'server-only'
 
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
+import { dialectLabel } from '@/lib/voice-personas'
 import { db } from '@/server/db'
 import {
   booking,
@@ -11,6 +12,7 @@ import {
   integrationConnection,
   qaResult,
   toolExecution,
+  voiceProfile,
   workspace,
 } from '@/server/db/schema'
 
@@ -325,3 +327,46 @@ export const getDemoCalls = cachedMarketing('demo-calls', loadDemoCalls)
 export const getIndustryPacks = cachedMarketing('industry-packs', loadIndustryPacks)
 export const getLiveIntegrations = cachedMarketing('live-integrations', loadLiveIntegrations)
 export const getConsolePreview = cachedMarketing('console-preview', loadConsolePreview)
+
+export type DemoPersona = {
+  key: string
+  name: string
+  dialectLabel: string
+  gender: 'male' | 'female'
+}
+
+/**
+ * The voices a visitor may ask to hear on the demo call.
+ *
+ * Read from the database, like every other figure on this site, so a persona
+ * an operator has renamed or retired is not still being offered by a constant
+ * compiled into the page.
+ */
+async function loadDemoPersonas(): Promise<DemoPersona[]> {
+  const rows = await db
+    .select({
+      personaKey: voiceProfile.personaKey,
+      name: voiceProfile.name,
+      dialect: voiceProfile.dialect,
+      gender: voiceProfile.gender,
+    })
+    .from(voiceProfile)
+    .where(and(eq(voiceProfile.isGlobal, true), eq(voiceProfile.language, 'ar')))
+    .orderBy(voiceProfile.sortOrder)
+    .limit(12)
+
+  return rows.flatMap((row) =>
+    row.personaKey
+      ? [
+          {
+            key: row.personaKey,
+            name: row.name,
+            dialectLabel: dialectLabel(row.dialect),
+            gender: (row.gender ?? 'female') as 'male' | 'female',
+          },
+        ]
+      : [],
+  )
+}
+
+export const getDemoPersonas = cachedMarketing('demo-personas', loadDemoPersonas)

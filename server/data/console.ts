@@ -37,6 +37,7 @@ import {
   callEvent,
   changeRequest,
   customer,
+  demoCallRequest,
   flow,
   industryTemplate,
   integrationConnection,
@@ -122,6 +123,71 @@ export async function getSalesInquiries(filter: InquiryFilter = {}, limit = 100)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(salesInquiry.createdAt))
     .limit(Math.min(Math.max(limit, 1), 200))
+}
+
+/**
+ * Public demo-call requests, newest first.
+ *
+ * Lives beside the sales inquiries because that is what it is: a lead who has
+ * told us their number and asked to hear the product. It is shown on the same
+ * page for the same reason — an operator working the pipeline should not have
+ * to know that two forms on the site write to two tables.
+ */
+export async function getDemoCallRequests(limit = 50) {
+  return db
+    .select({
+      id: demoCallRequest.id,
+      phone: demoCallRequest.phone,
+      countryCode: demoCallRequest.countryCode,
+      name: demoCallRequest.name,
+      businessName: demoCallRequest.businessName,
+      personaKey: demoCallRequest.personaKey,
+      locale: demoCallRequest.locale,
+      status: demoCallRequest.status,
+      attempts: demoCallRequest.attempts,
+      lastError: demoCallRequest.lastError,
+      note: demoCallRequest.note,
+      createdAt: demoCallRequest.createdAt,
+    })
+    .from(demoCallRequest)
+    .orderBy(desc(demoCallRequest.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 200))
+}
+
+/**
+ * Published agent versions across every client, with their numbers.
+ *
+ * The demo call needs an assistant and a caller id, and which client
+ * demonstrates is an operator's choice rather than a hardcoded workspace —
+ * so the picker is populated from what actually exists.
+ */
+export async function getDemoCallTargets() {
+  const [versions, numbers] = await Promise.all([
+    db
+      .select({
+        id: agentVersion.id,
+        versionNumber: agentVersion.versionNumber,
+        agentName: agent.name,
+        workspaceId: agent.workspaceId,
+        workspaceName: workspace.name,
+      })
+      .from(agentVersion)
+      .innerJoin(agent, eq(agentVersion.agentId, agent.id))
+      .innerJoin(workspace, eq(agent.workspaceId, workspace.id))
+      .where(eq(agentVersion.status, 'published'))
+      .orderBy(workspace.name, desc(agentVersion.versionNumber))
+      .limit(60),
+    db
+      .select({
+        id: phoneNumber.id,
+        e164: phoneNumber.e164,
+        workspaceId: phoneNumber.workspaceId,
+      })
+      .from(phoneNumber)
+      .orderBy(phoneNumber.e164)
+      .limit(60),
+  ])
+  return { versions, numbers }
 }
 
 /** Counts for the filter chips — one grouped query, not one per chip. */

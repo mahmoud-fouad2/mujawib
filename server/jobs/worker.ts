@@ -207,7 +207,17 @@ async function runMaintenanceTick() {
     // deliberately after the inbound-call reconciliation, because a process
     // that is behind on the calls it is already carrying has no business
     // starting new ones.
-    await runCampaignDispatch()
+    //
+    // Isolated, because it is the newest thing in this tick and the least
+    // important: a database still mid-migration threw here and took the whole
+    // maintenance tick down with it, so retention sweeps and stale-call
+    // reconciliation stopped too. Outbound is the one piece of this loop that
+    // can be skipped for fifteen seconds with no consequence at all.
+    try {
+      await runCampaignDispatch()
+    } catch (error) {
+      voiceError('CAMPAIGN_DISPATCH_FAILED', safeDatabaseError(error))
+    }
     if (Date.now() - lastRetentionSweep > 60 * 60 * 1000) {
       await runRetentionSweep()
       const purged = await sweepOperationalTables()

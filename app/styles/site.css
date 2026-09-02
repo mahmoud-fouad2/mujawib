@@ -3252,3 +3252,46 @@
   color: var(--text-muted);
   margin: 0 0 var(--s-4);
 }
+
+/* ─── demo call request ──────────────────────────────────────────────────── */
+
+/*
+ * The one form on the public site that leads to a phone ringing. Narrow and
+ * centred rather than full-bleed: it is a short, deliberate act, not a page.
+ */
+.demo-call__container {
+  display: flex;
+  justify-content: center;
+}
+
+.demo-call {
+  display: grid;
+  gap: var(--s-4);
+  inline-size: min(100%, 34rem);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+}
+
+.demo-call__head {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.demo-call__head h2 {
+  font-size: var(--step-3);
+  margin: 0;
+}
+
+.demo-call__head p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.demo-call__note {
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  text-align: center;
+  margin: 0;
+}

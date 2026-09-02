@@ -231,3 +231,61 @@ export const campaignAttempt = pgTable(
     index('campaign_attempt_workspace_idx').on(t.workspaceId, t.createdAt),
   ],
 )
+
+export type DemoRequestStatus =
+  | 'new'
+  | 'approved'
+  | 'calling'
+  | 'completed'
+  | 'failed'
+  | 'rejected'
+  | 'blocked'
+
+/**
+ * A visitor asking to be called by the assistant.
+ *
+ * This is the one row in the product created by somebody with no account, that
+ * can end with the platform dialling a phone. So it is a request, not a
+ * trigger: it is stored, rate limited, and shown to an operator, and the call
+ * is placed by a person deciding to place it.
+ *
+ * That is not a temporary limitation waiting on a provider. A public form that
+ * dials whatever number is typed into it is a harassment tool regardless of
+ * how good the demo is — the number entered is very often not the number of
+ * the person entering it. An operator in the loop, or verified ownership of
+ * the number, is the price of the feature.
+ */
+export const demoCallRequest = pgTable(
+  'demo_call_request',
+  {
+    id: text('id').primaryKey(),
+    /** E.164, normalised on write. Never stored as typed. */
+    phone: text('phone').notNull(),
+    countryCode: text('country_code').notNull(),
+    name: text('name'),
+    businessName: text('business_name'),
+    /** Which of the default assistants the visitor asked to hear. */
+    personaKey: text('persona_key'),
+    locale: text('locale').notNull().default('ar'),
+
+    status: text('status').$type<DemoRequestStatus>().notNull().default('new'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    callId: text('call_id').references(() => call.id, { onDelete: 'set null' }),
+    note: text('note'),
+
+    /** Ticked explicitly by the visitor; the row is refused without it. */
+    consentAt: timestamp('consent_at', { withTimezone: true }).notNull(),
+    /** Hashed address + number, for the repeat-submission window. */
+    requestFingerprint: text('request_fingerprint').notNull(),
+
+    handledById: text('handled_by_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('demo_call_request_status_idx').on(t.status, t.createdAt),
+    index('demo_call_request_phone_idx').on(t.phone, t.createdAt),
+    index('demo_call_request_fingerprint_idx').on(t.requestFingerprint, t.createdAt),
+  ],
+)

@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { CallPlayer } from '@/components/site/call-player'
+import { DemoCallForm } from '@/components/site/demo-call-form'
 import { Industries } from '@/components/site/industries'
 import {
   ArabicFirst,
@@ -21,6 +22,7 @@ import { buildRecordItems } from '@/lib/record'
 import {
   getConsolePreview,
   getDemoCalls,
+  getDemoPersonas,
   getHeroCall,
   getIndustryPacks,
   getLiveIntegrations,
@@ -50,15 +52,16 @@ const READY_INTEGRATIONS = [
  * reason about and no chance of the layers disagreeing.
  */
 async function loadLandingData() {
-  const [proof, hero, demos, packs, integrations, consolePreview] = await Promise.all([
+  const [proof, hero, demos, packs, integrations, consolePreview, personas] = await Promise.all([
     getPlatformProof(),
     getHeroCall(),
     getDemoCalls(),
     getIndustryPacks(),
     getLiveIntegrations(),
     getConsolePreview(),
+    getDemoPersonas(),
   ])
-  return { proof, hero, demos, packs, integrations, consolePreview }
+  return { proof, hero, demos, packs, integrations, consolePreview, personas }
 }
 
 export async function Landing({ locale }: { locale: Locale }) {
@@ -192,6 +195,17 @@ export async function Landing({ locale }: { locale: Locale }) {
           turns: d.turns,
         }))}
       />
+
+      {/*
+        The recordings above are ours; this is the visitor's own phone. It sits
+        immediately after them because that is the moment the question becomes
+        "does it sound like that for me".
+      */}
+      <section className="section reveal" id="demo-call">
+        <div className="container demo-call__container">
+          <DemoCallForm locale={locale} personas={data?.personas ?? []} />
+        </div>
+      </section>
 
       <Capabilities copy={copy} />
 
