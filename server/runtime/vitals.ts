@@ -82,9 +82,22 @@ export function startVitals() {
   histogram.enable()
 }
 
-function pressureFor(heapUsedPct: number): MemoryPressure {
-  if (heapUsedPct >= CRITICAL_WATER_PCT) return 'critical'
-  if (heapUsedPct >= HIGH_WATER_PCT) return 'high'
+/**
+ * `rssPct` alone decides 'critical'. `heapUsedPct` was meant as the second
+ * opinion the 2026-09-01 incident showed was missing, but production's own
+ * `heap_size_limit` has since turned out to be the unreliable one: the same
+ * --max-old-space-size flag that measures ~384MB on a plain local Node
+ * process reports ~195MB inside this container, so heapUsedPct crosses 88%
+ * on entirely ordinary usage — confirmed from real PROCESS_VITALS lines
+ * where rssPct sat near 50-56% while heapUsedPct alone pushed pressure to
+ * 'critical' and acquireCallSlot() refused a call that never touched 512MB.
+ * RSS is what the container's own limit enforces and what actually killed
+ * the process before, so it is the only signal allowed to refuse a call;
+ * heap crossing its line still shows up as 'high' — visible, not blocking.
+ */
+export function pressureFor(heapUsedPct: number, rssPct: number): MemoryPressure {
+  if (rssPct >= CRITICAL_WATER_PCT) return 'critical'
+  if (heapUsedPct >= HIGH_WATER_PCT || rssPct >= HIGH_WATER_PCT) return 'high'
   return 'ok'
 }
 
@@ -116,10 +129,7 @@ export function readVitals(options: { reset?: boolean } = {}): Vitals {
     heapUsedPct,
     rssPct,
     containerLimitMB: limitMB,
-    // Whichever is worse. Heap alone under-reports: on 2026-09-01 the live set
-    // was a fraction of the heap ceiling while RSS — which is what the
-    // container counts — was the number that crossed 512MB.
-    pressure: pressureFor(Math.max(heapUsedPct, rssPct)),
+    pressure: pressureFor(heapUsedPct, rssPct),
     eventLoopP50Ms: Math.round(p50 * 100) / 100,
     eventLoopP99Ms: Math.round(p99 * 100) / 100,
     uptimeSeconds: Math.round(process.uptime()),
@@ -138,5 +148,5 @@ export function memoryPressure(): MemoryPressure {
   const heapLimit = getHeapStatistics().heap_size_limit
   const heapPct = heapLimit > 0 ? Math.round((memory.heapUsed / heapLimit) * 100) : 0
   const rssPct = Math.round((mb(memory.rss) / containerLimitMB()) * 100)
-  return pressureFor(Math.max(heapPct, rssPct))
+  return pressureFor(heapPct, rssPct)
 }
