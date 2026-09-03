@@ -1,13 +1,16 @@
 import 'server-only'
 
-import { and, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm'
 import { recordingDisclosureInstruction } from '@/lib/recording-policy'
 import { db } from '@/server/db'
 import {
   agent,
   agentVersion,
+  campaignContact,
+  demoCallRequest,
   flow,
   knowledgeItem,
+  outboundCampaign,
   phoneNumber,
   pronunciation,
   voiceProfile,
@@ -166,11 +169,74 @@ async function resolveAgentForNumber(
  */
 export async function resolveAgentFromCandidates(
   candidates: { header: string; e164: string }[],
+  callerNumber?: string | null,
 ): Promise<ResolvedAgent | null> {
   for (const candidate of candidates) {
     const resolved = await resolveAgentForNumber(candidate.e164, candidate.header)
     if (resolved) return resolved
   }
+
+  // Fallback for outbound bridged calls (e.g. public demo request or campaign call)
+  // where the SIP leg from the carrier might not convey the DID in a destination header.
+  if (callerNumber) {
+    const digits = callerNumber.replace(/\D/g, '')
+    if (digits.length >= 7) {
+      const tail = digits.slice(-7)
+
+      // 1. Check recent demo call request
+      const [recentDemo] = await db
+        .select({ id: demoCallRequest.id })
+        .from(demoCallRequest)
+        .where(
+          and(
+            inArray(demoCallRequest.status, ['calling', 'verified']),
+            sql`right(regexp_replace(${demoCallRequest.phone}, '[^0-9]', '', 'g'), 7) = ${tail}`,
+            gte(demoCallRequest.updatedAt, new Date(Date.now() - 5 * 60_000)),
+          ),
+        )
+        .orderBy(desc(demoCallRequest.updatedAt))
+        .limit(1)
+
+      if (recentDemo) {
+        const { resolveDemoTarget } = await import('@/server/outbound/dispatcher')
+        const demoTarget = await resolveDemoTarget()
+        if (demoTarget?.fromNumber) {
+          const resolved = await resolveAgentForNumber(demoTarget.fromNumber, 'OutboundDemo')
+          if (resolved) return resolved
+        }
+      }
+
+      // 2. Check recent campaign contact
+      const [recentCampaign] = await db
+        .select({
+          fromNumberId: outboundCampaign.fromNumberId,
+        })
+        .from(campaignContact)
+        .innerJoin(outboundCampaign, eq(campaignContact.campaignId, outboundCampaign.id))
+        .where(
+          and(
+            eq(campaignContact.status, 'calling'),
+            sql`right(regexp_replace(${campaignContact.phone}, '[^0-9]', '', 'g'), 7) = ${tail}`,
+            gte(campaignContact.updatedAt, new Date(Date.now() - 5 * 60_000)),
+          ),
+        )
+        .orderBy(desc(campaignContact.updatedAt))
+        .limit(1)
+
+      if (recentCampaign?.fromNumberId) {
+        const [fromPhone] = await db
+          .select({ e164: phoneNumber.e164 })
+          .from(phoneNumber)
+          .where(eq(phoneNumber.id, recentCampaign.fromNumberId))
+          .limit(1)
+        if (fromPhone?.e164) {
+          const resolved = await resolveAgentForNumber(fromPhone.e164, 'OutboundCampaign')
+          if (resolved) return resolved
+        }
+      }
+    }
+  }
+
   return null
 }
 

@@ -136,9 +136,18 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<PlaceCal
   // The recipient's leg is handed to the same SIP endpoint the inbound path
   // uses, so `realtime.call.incoming` fires and the existing sideband handles
   // the conversation. No second media path, no separate runtime.
+  const queryParts = [
+    `X-Phone-Number=${encodeURIComponent(input.from)}`,
+    `X-Did=${encodeURIComponent(input.from)}`,
+    `X-Caller=${encodeURIComponent(input.to)}`,
+    `Diversion=${encodeURIComponent(`<sip:${input.from}@twilio.com>`)}`,
+  ]
+  const separator = target.includes('?') ? '&' : '?'
+  const targetWithHeaders = `${target}${separator}${queryParts.join('&')}`
+
   const twiml =
     `<?xml version="1.0" encoding="UTF-8"?><Response><Dial answerOnBridge="true">` +
-    `<Sip>${escapeXml(target)}</Sip></Dial></Response>`
+    `<Sip>${escapeXml(targetWithHeaders)}</Sip></Dial></Response>`
 
   const body = new URLSearchParams({
     To: input.to,

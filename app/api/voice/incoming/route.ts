@@ -294,7 +294,8 @@ async function handleIncomingCall(req: NextRequest, timeline: CallTimeline) {
   }))
   voiceLog('DID_CANDIDATES', safeCandidates)
 
-  const resolved = await resolveAgentFromCandidates(candidates)
+  const caller = callerFrom(headers)
+  const resolved = await resolveAgentFromCandidates(candidates, caller)
 
   if (!resolved) {
     // No default client, no first-row fallback. An unknown DID stays unknown.
@@ -414,7 +415,6 @@ async function handleIncomingCall(req: NextRequest, timeline: CallTimeline) {
     return NextResponse.json({ accepted: false }, { status: 503 })
   }
 
-  const caller = callerFrom(headers)
   const realtimeModel = await resolveRealtimeModel(apiKey)
   if (realtimeModel !== PRIMARY_REALTIME_MODEL) {
     voiceLog('REALTIME_MODEL_FALLBACK', {

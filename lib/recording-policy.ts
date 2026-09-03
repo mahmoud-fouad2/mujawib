@@ -16,5 +16,5 @@ export function recordingPolicyAllowsCapture(policy: WorkspaceRecordingPolicy) {
 
 export function recordingDisclosureInstruction(mode: string) {
   if (mode !== 'agent_intro') return null
-  return 'ابدأ المكالمة بإبلاغ المتصل بوضوح أن المكالمة مسجلة لأغراض الجودة والتشغيل، ثم انتظر إقراره قبل متابعة الخدمة.'
+  return 'نبّه المتصل في بداية المكالمة بعبارة موجزة أن: «المكالمة مسجلة لضمان جودة الخدمة»، ثم تابع تقديم الخدمة فوراً دون سؤاله هل يوافق ودون انتظار إقرار.'
 }
