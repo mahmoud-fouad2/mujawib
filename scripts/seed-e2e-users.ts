@@ -3,6 +3,23 @@
  *
  *   pnpm e2e:seed
  *
+ * The two-factor secret this writes is only ever verifiable by whichever
+ * server holds the same `BETTER_AUTH_SECRET` used to run this script — Better
+ * Auth encrypts it with that value directly. This repository's `DATABASE_URL`
+ * points at the real production database from a local machine, but its
+ * `BETTER_AUTH_SECRET` is a placeholder, different from Render's. Running
+ * this script and then signing in through the *deployed* app — rather than a
+ * local `next dev`/`next start` started with the same env file — leaves an
+ * account whose stored secret the production server can never decrypt: every
+ * code is refused with a bare 500, not "wrong code," because the server
+ * fails before it has anything to compare. That happened once, during an
+ * audit; the accounts it created were deleted, not repaired, because a wrong
+ * key cannot be corrected after the fact — only reissued.
+ *
+ * Safe usage: run this with the same env file as the server you will sign
+ * into (`pnpm e2e` against a local `next dev`, both reading `.env.local`).
+ * Never run it, then authenticate against the production URL directly.
+ *
  * Why this exists: the suite could never run. It needs an operator and a
  * client account, and this product requires two-factor before either console
  * opens — so `auth.setup.ts` was throwing "use an account with 2FA already
