@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { CRM_SOURCE_LABEL, CRM_STATUS_LABEL } from '@/lib/format'
+import { CRM_SOURCE_LABEL, CRM_STATUS_LABEL, escapeCsvField } from '@/lib/format'
 import { getPortalAccess } from '@/server/auth/access'
 import type { CrmDateRange, CrmStatusFilter } from '@/server/data/crm'
 import { getCrmCustomers } from '@/server/data/crm'
@@ -9,11 +9,8 @@ export const dynamic = 'force-dynamic'
 const STATUS_VALUES = new Set(['lead', 'active', 'inactive', 'all'])
 const RANGE_VALUES = new Set(['today', 'week', 'month', 'year', 'all'])
 
-/** Quotes a field only when it needs it — commas, quotes, or a line break. */
-function csvField(value: string): string {
-  if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
-  return value
-}
+/** Quotes a field and neutralizes spreadsheet formula injection (ASVS v5.0.0-1.2.10). */
+const csvField = escapeCsvField
 
 const HEADER = [
   'الاسم',

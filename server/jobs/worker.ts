@@ -38,7 +38,10 @@ let lastRetentionSweep = 0
 async function reconcileStaleCalls() {
   const now = new Date()
   const acceptingCutoff = new Date(now.getTime() - 10 * 60 * 1000)
-  const liveCutoff = new Date(now.getTime() - 4 * 60 * 60 * 1000)
+  // Max call duration is 15 minutes. Any call still in live/waiting_tool after
+  // 20 minutes was abandoned by a dead process and must be reaped so it does not
+  // block the client's concurrent call capacity.
+  const liveCutoff = new Date(now.getTime() - 20 * 60 * 1000)
 
   // Never accepted: the caller heard nothing, so this one is a real failure.
   const neverAccepted = await db

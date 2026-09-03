@@ -3,7 +3,7 @@
 import { Download, MessageSquare, Phone, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState, Pill } from '@/components/ui/primitives'
-import { clock, fullDate, num, relative } from '@/lib/format'
+import { clock, escapeCsvField, fullDate, num, relative } from '@/lib/format'
 import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import type { getPortalCustomers } from '@/server/data/portal'
 
@@ -26,12 +26,12 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
   const handleExportCsv = () => {
     const headers = ['الاسم', 'الجوال', 'عدد المكالمات', 'عدد الحجوزات', 'الوسوم', 'آخر اتصال']
     const csvLines = filteredRows.map((c) => [
-      `"${(c.name ?? '').replace(/"/g, '""')}"`,
-      c.phone ?? '',
+      escapeCsvField(c.name ?? ''),
+      escapeCsvField(c.phone ?? ''),
       c.calls,
       c.bookings,
-      `"${(c.tags ?? []).join('، ').replace(/"/g, '""')}"`,
-      c.lastCallAt ? `${fullDate(c.lastCallAt)} ${clock(c.lastCallAt)}` : '—',
+      escapeCsvField((c.tags ?? []).join('، ')),
+      escapeCsvField(c.lastCallAt ? `${fullDate(c.lastCallAt)} ${clock(c.lastCallAt)}` : '—'),
     ])
     const csvContent = `\uFEFF${[headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')}`
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })

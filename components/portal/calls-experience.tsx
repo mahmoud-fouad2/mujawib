@@ -23,6 +23,7 @@ import {
   CRM_RANGE_LABEL,
   clock,
   duration,
+  escapeCsvField,
   fullDate,
   outcomeTone,
   relative,
@@ -117,11 +118,11 @@ export function PortalCallsExperience({
       'المدة (ثواني)',
     ]
     const csvLines = filteredRows.map((r) => [
-      fullDate(r.startedAt),
-      clock(r.startedAt),
-      r.callerNumber ?? '',
-      `"${(r.intent ?? '').replace(/"/g, '""')}"`,
-      `"${(callLabel(r) ?? '').replace(/"/g, '""')}"`,
+      escapeCsvField(fullDate(r.startedAt)),
+      escapeCsvField(clock(r.startedAt)),
+      escapeCsvField(r.callerNumber ?? ''),
+      escapeCsvField(r.intent ?? ''),
+      escapeCsvField(callLabel(r) ?? ''),
       r.durationSeconds ?? 0,
     ])
     const csvContent = `\uFEFF${[headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')}`

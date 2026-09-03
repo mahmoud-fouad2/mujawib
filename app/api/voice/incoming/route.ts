@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
-import { and, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { upsertCustomerFromContact } from '@/server/crm/upsert'
@@ -148,6 +148,8 @@ async function overCapacity(
           eq(call.workspaceId, workspaceId),
           eq(call.origin, 'live'),
           gte(call.startedAt, startOfMonth()),
+          notInArray(call.status, ['failed', 'accept_failed']),
+          or(isNull(call.durationSeconds), gte(call.durationSeconds, 3)),
         ),
       )
     if ((monthly?.n ?? 0) >= monthlyCallLimit) {
@@ -163,6 +165,7 @@ async function overCapacity(
         eq(call.workspaceId, workspaceId),
         eq(call.origin, 'live'),
         inArray(call.status, [...OCCUPYING_STATUSES]),
+        gte(call.startedAt, new Date(Date.now() - 20 * 60 * 1000)),
       ),
     )
   if ((concurrent?.n ?? 0) >= concurrentCallLimit) {

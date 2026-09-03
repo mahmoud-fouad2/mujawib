@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { getPortalAccess } from '@/server/auth/access'
 import { buildCallSummary } from '@/server/calls/presentation'
 import { readCallTranscript } from '@/server/calls/transcript'
@@ -70,6 +70,8 @@ export async function getPortalMonthlyUsage(workspaceId: string): Promise<Portal
         eq(call.workspaceId, workspaceId),
         eq(call.origin, 'live'),
         gte(call.startedAt, startOfMonth()),
+        notInArray(call.status, ['failed', 'accept_failed']),
+        or(isNull(call.durationSeconds), gte(call.durationSeconds, 3)),
       ),
     )
 

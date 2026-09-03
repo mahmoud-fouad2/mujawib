@@ -320,3 +320,12 @@ export const CRM_RANGE_LABEL: Record<string, string> = {
   month: 'آخر شهر',
   year: 'آخر سنة',
 }
+
+/** Quotes a CSV field and neutralizes spreadsheet formula injection (ASVS v5.0.0-1.2.10). */
+export function escapeCsvField(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '""'
+  const raw = String(value)
+  const isFormula = /^[=+\-@\t\r\0]/.test(raw) || /^[=+\-@]/.test(raw.trim())
+  const neutralized = isFormula ? `'${raw}` : raw
+  return `"${neutralized.replace(/"/g, '""')}"`
+}

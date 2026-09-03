@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { Confirm } from '@/components/ui/overlays'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
-import { CRM_RANGE_LABEL, clock, fullDate } from '@/lib/format'
+import { CRM_RANGE_LABEL, clock, escapeCsvField, fullDate } from '@/lib/format'
 import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import { cancelBooking } from '@/server/actions/portal'
 import type { getPortalBookings } from '@/server/data/portal'
@@ -70,13 +70,13 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
     const csvLines = filteredRows.map((b) => {
       const meta = (b.metadata ?? {}) as { branch?: string }
       return [
-        `"${(b.customerName ?? '').replace(/"/g, '""')}"`,
-        b.customerPhone ?? '',
-        `"${(b.service ?? '').replace(/"/g, '""')}"`,
-        fullDate(b.scheduledAt),
-        clock(b.scheduledAt),
-        `"${(meta.branch ?? '').replace(/"/g, '""')}"`,
-        b.status === 'confirmed' ? 'مؤكد' : 'ملغى',
+        escapeCsvField(b.customerName ?? ''),
+        escapeCsvField(b.customerPhone ?? ''),
+        escapeCsvField(b.service ?? ''),
+        escapeCsvField(fullDate(b.scheduledAt)),
+        escapeCsvField(clock(b.scheduledAt)),
+        escapeCsvField(meta.branch ?? ''),
+        escapeCsvField(b.status === 'confirmed' ? 'مؤكد' : 'ملغى'),
       ]
     })
     const csvContent = `\uFEFF${[headers.join(','), ...csvLines.map((l) => l.join(','))].join('\n')}`

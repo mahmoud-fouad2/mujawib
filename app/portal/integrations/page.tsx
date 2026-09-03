@@ -1,5 +1,6 @@
 import { Calendar, MessageSquare, Network } from 'lucide-react'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { PageHead, Section } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
@@ -52,8 +53,14 @@ export default async function PortalIntegrationsPage() {
               قراءة الخانات المتاحة فورياً وتثبيت المواعيد مباشرة في تقويم الفريق أو الموارد دون أي
               تعارض.
             </p>
-            <div className="integration-card__footer">
+            <div
+              className="integration-card__footer"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <Pill tone="good">مدعوم وجاهز</Pill>
+              <Link href="/portal/requests" className="btn btn--quiet btn--sm">
+                اطلب الربط
+              </Link>
             </div>
           </div>
 
@@ -68,8 +75,14 @@ export default async function PortalIntegrationsPage() {
               إرسال رسائل تأكيد الحجوزات والموقع وتعليمات الزيارة تلقائياً على جوال المتصل بمجرد
               إغلاق الخط.
             </p>
-            <div className="integration-card__footer">
+            <div
+              className="integration-card__footer"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <Pill tone="good">مدعوم وجاهز</Pill>
+              <Link href="/portal/requests" className="btn btn--quiet btn--sm">
+                اطلب الربط
+              </Link>
             </div>
           </div>
 
@@ -83,8 +96,14 @@ export default async function PortalIntegrationsPage() {
             <p className="integration-card__desc">
               إرسال ملخص كل مكالمة وبيانات المتصلين تلقائياً إلى CRM أو نظام المنشأة الداخلي.
             </p>
-            <div className="integration-card__footer">
+            <div
+              className="integration-card__footer"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <Pill tone="good">مدعوم وجاهز</Pill>
+              <Link href="/portal/requests" className="btn btn--quiet btn--sm">
+                اطلب الربط
+              </Link>
             </div>
           </div>
         </div>
@@ -95,6 +114,11 @@ export default async function PortalIntegrationsPage() {
           <EmptyState
             title="لا اتصالات نشطة بعد"
             body="سيظهر هنا كل نظام نشط يُربط بمُجاوِب — التقويم، واتساب، وأنظمتك الداخلية."
+            action={
+              <Link href="/portal/requests" className="btn btn--primary btn--sm">
+                طلب ربط نظام جديد
+              </Link>
+            }
           />
         ) : (
           <div className="table-scroll">

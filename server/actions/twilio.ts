@@ -239,6 +239,14 @@ export async function approvePhoneNumberPurchase(changeRequestId: string): Promi
 
   let response: Response
   try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || ''
+    const voiceUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/api/voice/fallback` : ''
+    const searchParams = new URLSearchParams({ PhoneNumber: e164Number })
+    if (voiceUrl?.startsWith('https://')) {
+      searchParams.set('VoiceUrl', voiceUrl)
+      searchParams.set('VoiceMethod', 'POST')
+    }
+
     response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json`,
       {
@@ -247,7 +255,7 @@ export async function approvePhoneNumberPurchase(changeRequestId: string): Promi
           Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({ PhoneNumber: e164Number }).toString(),
+        body: searchParams.toString(),
       },
     )
   } catch {

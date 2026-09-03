@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   duration,
+  escapeCsvField,
   healthTone,
   maskPhone,
   num,
@@ -117,5 +118,25 @@ describe('PHONE_LIFECYCLE_LABEL / PHONE_LIFECYCLE_HINT', () => {
       expect(typeof PHONE_LIFECYCLE_LABEL[state]).toBe('string')
       expect(typeof PHONE_LIFECYCLE_HINT[state]).toBe('string')
     }
+  })
+})
+
+describe('escapeCsvField', () => {
+  it('escapes quotes and wraps in double quotes', () => {
+    expect(escapeCsvField('John "Doc"')).toBe('"John ""Doc"""')
+  })
+
+  it('neutralizes spreadsheet formula injection characters with a leading single quote', () => {
+    expect(escapeCsvField('=cmd|')).toBe(`"'=cmd|"`)
+    expect(escapeCsvField('+12345')).toBe(`"'+12345"`)
+    expect(escapeCsvField('-12345')).toBe(`"'-12345"`)
+    expect(escapeCsvField('@SUM(A1)')).toBe(`"'@SUM(A1)"`)
+    expect(escapeCsvField('\tcalc')).toBe(`"'\tcalc"`)
+  })
+
+  it('handles null, undefined, and safe strings normally', () => {
+    expect(escapeCsvField(null)).toBe('""')
+    expect(escapeCsvField(undefined)).toBe('""')
+    expect(escapeCsvField('عادي')).toBe('"عادي"')
   })
 })
