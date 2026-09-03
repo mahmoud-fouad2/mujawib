@@ -347,6 +347,26 @@ async function appendTranscript(
       : undefined
   if (action.responseId) state.turnLatencyByResponse.delete(action.responseId)
 
+  // Every production call has landed this row with payloadEncrypted null —
+  // the turn itself (role/characters/sourceEvent) always lands, so recordEvent
+  // is reached; only the encrypted text is ever missing. Nothing here should
+  // throw, so if it does, that exception is the one piece of evidence this
+  // investigation is missing. Surface it loudly instead of losing it a second
+  // time to the same silent failure this is trying to diagnose — and never put
+  // the caller's actual words in the unencrypted payload to do it.
+  let payloadEncrypted: string | undefined
+  let encryptionError: string | undefined
+  try {
+    payloadEncrypted = protectJson({ role: action.role, text: cleanText, at, sourceId: turnId })
+  } catch (error) {
+    encryptionError = sanitizeLogText(String(error))
+    voiceError('TRANSCRIPT_ENCRYPT_FAILED', {
+      callId: maskIdentifier(ctx.externalCallId),
+      role: action.role,
+      message: encryptionError,
+    })
+  }
+
   await recordEvent(
     ctx,
     action.role === 'agent' ? 'agent_turn' : 'caller_turn',
@@ -356,9 +376,10 @@ async function appendTranscript(
       characters: cleanText.length,
       sourceEvent: action.eventType,
       ...(latencyMs === undefined ? {} : { firstAudioMs: latencyMs }),
+      ...(encryptionError ? { encryptionError } : {}),
     },
     latencyMs,
-    protectJson({ role: action.role, text: cleanText, at, sourceId: turnId }),
+    payloadEncrypted,
   )
 }
 
