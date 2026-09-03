@@ -5,6 +5,7 @@ import { ReviewCampaign, StartCampaign } from '@/components/console/campaign-rev
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import {
+  ATTEMPT_REASON_LABEL,
   CAMPAIGN_PURPOSE_LABEL,
   CAMPAIGN_STATUS_LABEL,
   CONSENT_BASIS_LABEL,
@@ -24,6 +25,13 @@ import { dispatchReasonLabel } from '@/server/outbound/dispatcher'
 
 export const metadata: Metadata = { title: 'مراجعة حملة' }
 export const dynamic = 'force-dynamic'
+
+/** `outcome` is 'placed', one of the pre-dial refusal codes, or null (a real dial failure — see the adjacent error column instead). */
+function attemptOutcomeLabel(outcome: string | null): string {
+  if (outcome === 'placed') return 'تم الاتصال'
+  if (!outcome) return '—'
+  return ATTEMPT_REASON_LABEL[outcome as keyof typeof ATTEMPT_REASON_LABEL] ?? outcome
+}
 
 export default async function ConsoleCampaignPage({ params }: { params: Promise<{ id: string }> }) {
   await requireOperatorPermissionPage('campaign.approve', '/console/campaigns')
@@ -216,7 +224,7 @@ export default async function ConsoleCampaignPage({ params }: { params: Promise<
                         {attempt.placed ? 'نعم' : 'لا'}
                       </Pill>
                     </td>
-                    <td data-label="النتيجة">{attempt.outcome ?? '—'}</td>
+                    <td data-label="النتيجة">{attemptOutcomeLabel(attempt.outcome)}</td>
                     <td data-label="الخطأ">{attempt.error ?? '—'}</td>
                     <td data-label="الوقت">{relative(attempt.createdAt)}</td>
                   </tr>

@@ -3,6 +3,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import {
+  ATTEMPT_REASON_LABEL,
   type CampaignStatus,
   canAttempt,
   DEFAULT_CALLING_WINDOW,
@@ -339,7 +340,7 @@ async function dispatchOne(
         .update(campaignContact)
         .set({
           status: eligible.reason === 'suppressed' ? 'suppressed' : 'pending',
-          lastError: eligible.reason,
+          lastError: ATTEMPT_REASON_LABEL[eligible.reason],
           updatedAt: new Date(),
         })
         .where(eq(campaignContact.id, row.id))
