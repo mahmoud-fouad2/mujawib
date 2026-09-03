@@ -5,6 +5,7 @@ import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { fullDate, HEALTH_LABEL, healthTone, num, relative, TOOL_LABEL } from '@/lib/format'
 import { INTEGRATION_ACTION_LABEL } from '@/lib/integrations'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getClientBySlug, getIntegrations } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الربط' }
@@ -33,6 +34,8 @@ export default async function IntegrationsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await requireOperatorPermissionPage('integration.manage', '/console/integrations')
+
   const params = await searchParams
   const search = params.q?.trim() ?? ''
   const status = INTEGRATION_STATUS_OPTIONS.some((option) => option.value === params.status)

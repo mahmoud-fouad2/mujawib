@@ -16,12 +16,15 @@ import {
 } from '@/lib/announcements'
 import { ARTICLE_CATEGORY_LABEL, type ArticleCategory } from '@/lib/articles'
 import { fullDate, num, relative } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getAnnouncementsForConsole, getArticlesForConsole } from '@/server/data/content'
 
 export const metadata: Metadata = { title: 'المحتوى والإعلانات' }
 export const dynamic = 'force-dynamic'
 
 export default async function ContentPage() {
+  await requireOperatorPermissionPage('content.manage', '/console/content')
+
   const [announcements, articles] = await Promise.all([
     getAnnouncementsForConsole(),
     getArticlesForConsole(),

@@ -6,6 +6,7 @@ import { ConsoleSearchFilters, CsvExportButton } from '@/components/console/tabl
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { fullDate, num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getAgentCreationOptions, getAgents, getClientBySlug } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الموظفون الصوتيون' }
@@ -35,6 +36,8 @@ export default async function AgentsPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await requireOperatorPermissionPage('agent.publish', '/console/agents')
+
   const params = await searchParams
   const search = params.q?.trim() ?? ''
   const status = AGENT_STATUS_OPTIONS.some((option) => option.value === params.status)

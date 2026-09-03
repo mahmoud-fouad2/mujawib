@@ -6,6 +6,7 @@ import { AddPronunciation, PronunciationRowActions } from '@/components/console/
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { num, relative } from '@/lib/format'
 import { dialectLabel, PERSONA_GENDER_LABEL } from '@/lib/voice-personas'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getClientOptions, getVoiceLab } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'مختبر الصوت' }
@@ -33,6 +34,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 export default async function VoiceLabPage() {
+  await requireOperatorPermissionPage('voice.manage', '/console/voice-lab')
+
   const [{ profiles, words, wordTotals, runs, passRate, criticalFailed }, clients] =
     await Promise.all([getVoiceLab(), getClientOptions()])
 

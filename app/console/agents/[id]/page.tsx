@@ -9,6 +9,7 @@ import { KnowledgeManager } from '@/components/console/knowledge-manager'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { fullDate, num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getAgentDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,8 @@ const STYLE_LABEL: Record<string, string> = {
 }
 
 export default async function AgentDetailPage({ params, searchParams }: Props) {
+  await requireOperatorPermissionPage('agent.publish', '/console/agents')
+
   const a = await getAgentDetail((await params).id)
   if (!a) notFound()
   const client = (await searchParams).client

@@ -7,6 +7,7 @@ import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { LinkButton } from '@/components/ui/button'
 import { Pill, type Tone } from '@/components/ui/primitives'
 import { CALL_OUTCOME_LABEL, CALL_STATUS_LABEL, fullDate, relative, statusTone } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getPhoneNumberDetail } from '@/server/data/console'
 
 export const dynamic = 'force-dynamic'
@@ -47,6 +48,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PhoneDetailPage({ params, searchParams }: Props) {
+  await requireOperatorPermissionPage('phone.manage', '/console/phone')
+
   const phone = await getPhoneNumberDetail((await params).id)
   if (!phone) notFound()
   const client = (await searchParams).client

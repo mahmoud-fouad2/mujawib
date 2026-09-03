@@ -6,6 +6,7 @@ import { Button, LinkButton } from '@/components/ui/button'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { num, relative, VERSION_STATUS_LABEL } from '@/lib/format'
 import { SCENARIO_CATEGORY_LABEL } from '@/lib/test-lab'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getTestLab } from '@/server/data/test-lab'
 
 export const metadata: Metadata = { title: 'مختبر الاختبار' }
@@ -29,6 +30,8 @@ function runState(scenario: Awaited<ReturnType<typeof getTestLab>>['scenarios'][
 }
 
 export default async function TestLabPage({ searchParams }: PageProps) {
+  await requireOperatorPermissionPage('test.manage', '/console/test-lab')
+
   const params = await searchParams
   const rawVersion = params.version
   const requestedVersion = Array.isArray(rawVersion) ? rawVersion[0] : rawVersion

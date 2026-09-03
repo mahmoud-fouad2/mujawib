@@ -15,6 +15,7 @@ import {
   relative,
 } from '@/lib/format'
 import { getPendingPhoneRequests } from '@/server/actions/twilio'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getClientBySlug, getClientOptions, getPhoneNumbers } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الهاتف' }
@@ -47,6 +48,8 @@ const MODE_LABEL: Record<string, string> = {
 }
 
 export default async function PhonePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireOperatorPermissionPage('phone.manage', '/console/phone')
+
   const params = await searchParams
   const search = params.q?.trim() ?? ''
   const status = PHONE_STATUS_OPTIONS.some((option) => option.value === params.status)

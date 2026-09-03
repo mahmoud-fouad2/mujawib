@@ -5,6 +5,7 @@ import { ConsoleSearchFilters } from '@/components/console/table-tools'
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { CALL_OUTCOME_LABEL, duration, num, outcomeTone, relative } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getQaQueue } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'الجودة' }
@@ -21,6 +22,10 @@ const QA_STATUS_OPTIONS = [
 ]
 
 export default async function QaPage({ searchParams }: PageProps) {
+  // The nav hides this from a role without qa.review, but a hidden link is
+  // not a check — the route is reachable by typing it.
+  await requireOperatorPermissionPage('qa.review', '/console/qa')
+
   const params = await searchParams
   const status = params.status === 'open' || params.status === 'closed' ? params.status : undefined
   const search = params.q?.trim() || undefined

@@ -4,6 +4,7 @@ import { AddTemplateButton, TemplateRowActions } from '@/components/console/temp
 import { PageHead, Section, SummaryBar } from '@/components/console/ui'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { fullDate, num } from '@/lib/format'
+import { requireOperatorPermissionPage } from '@/server/auth/access'
 import { getTemplates } from '@/server/data/console'
 
 export const metadata: Metadata = { title: 'القوالب' }
@@ -30,6 +31,8 @@ export default async function TemplatesPage({
 }: {
   searchParams: Promise<SearchParams>
 }) {
+  await requireOperatorPermissionPage('client.manage', '/console/templates')
+
   const params = await searchParams
   const search = params.q?.trim() ?? ''
   const status = TEMPLATE_STATUS_OPTIONS.some((option) => option.value === params.status)
