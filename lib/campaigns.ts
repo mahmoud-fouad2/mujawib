@@ -63,7 +63,11 @@ export const CAMPAIGN_STATUS_TONE: Record<CampaignStatus, 'neutral' | 'signal' |
     approved: 'signal',
     running: 'good',
     paused: 'warn',
-    completed: 'good',
+    // Not 'good': this fires once nothing is left to dial, whether every
+    // attempt succeeded or every one was refused by the provider. A green
+    // pill next to a 100%-refused campaign reads as success it did not earn —
+    // the real outcome is the per-contact counts beside it, not this word.
+    completed: 'neutral',
     stopped: 'neutral',
     rejected: 'neutral',
   }
