@@ -2959,6 +2959,16 @@
     border-block-end: 1px solid var(--line-faint);
   }
 
+  /* A link fills its grid cell already, but at 1-2 lines of text its own
+     height is well under the ~44px a thumb needs. Reclaim the cell's own
+     padding as part of the tap target instead of growing the card: equal
+     and opposite margin keeps every card the same height it already was. */
+  .table--cards td a {
+    display: block;
+    margin-block: calc(var(--s-2) * -1);
+    padding-block: var(--s-2);
+  }
+
   .table--cards td:last-child {
     border-block-end: 0;
     padding-block-end: 0;
