@@ -91,8 +91,12 @@ export const env = createEnv({
     // is malformed, on a screen an operator is looking at.
     TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
     TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
-    /** The number verification codes are sent from. Without it, no SMS. */
-    TWILIO_SMS_FROM: z.string().min(1).optional(),
+    /**
+     * The Twilio Verify Service that sends and checks the demo-call ownership
+     * code. Without it, no verification codes — the request still lands, but
+     * as a lead an operator handles rather than one the dispatcher may dial.
+     */
+    TWILIO_VERIFY_SERVICE_SID: z.string().min(1).optional(),
     /** OpenAI project whose SIP endpoint every call — in or out — lands on. */
     OPENAI_PROJECT_ID: z.string().min(1).optional(),
     /** Overrides the SIP URI built from OPENAI_PROJECT_ID. Rarely needed. */
@@ -165,7 +169,7 @@ export const env = createEnv({
     SENTRY_DSN: process.env.SENTRY_DSN,
     TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
     TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
-    TWILIO_SMS_FROM: process.env.TWILIO_SMS_FROM,
+    TWILIO_VERIFY_SERVICE_SID: process.env.TWILIO_VERIFY_SERVICE_SID,
     OPENAI_PROJECT_ID: process.env.OPENAI_PROJECT_ID,
     OPENAI_SIP_URI: process.env.OPENAI_SIP_URI,
     DEMO_DAILY_CALL_CAP: process.env.DEMO_DAILY_CALL_CAP,

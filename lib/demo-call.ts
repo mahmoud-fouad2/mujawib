@@ -188,30 +188,32 @@ export const VERIFY_REFUSAL_LABEL: Record<VerifyRefusal, string> = {
   already_verified: 'تم التحقق من هذا الرقم بالفعل.',
 }
 
-export type VerifyInput = {
+export type VerifyGateInput = {
   now: Date
   expiresAt: Date | null
   attempts: number
   verifiedAt: Date | null
-  /** Both already hashed by the caller; never compared in plain text. */
-  expectedHash: string | null
-  providedHash: string
 }
 
+export type VerifyGateRefusal = Exclude<VerifyRefusal, 'wrong_code'>
+export type VerifyGateResult = { ok: true } | { ok: false; reason: VerifyGateRefusal }
+
 /**
- * Whether a submitted code opens the request.
+ * Whether a request is even eligible to have a code checked against it —
+ * every gate that does not require asking the provider.
  *
- * Order matters and is not arbitrary: expiry and the attempt ceiling are
- * checked before the code itself, so a burned request cannot be used as an
- * oracle — every guess against it returns the same refusal regardless of
- * whether the digits happened to be right.
+ * Twilio Verify holds the code itself and decides right-or-wrong; this is
+ * everything upstream of that call. Order matters and is not arbitrary:
+ * expiry and the attempt ceiling are checked before a request is allowed to
+ * ask Twilio at all, so a burned request cannot be used as an oracle — and so
+ * a request past its own expiry never spends a Twilio check on a code Twilio
+ * itself has usually already forgotten.
  */
-export function verifyCode(input: VerifyInput): VerifyResult {
+export function verifyGate(input: VerifyGateInput): VerifyGateResult {
   if (input.verifiedAt) return { ok: false, reason: 'already_verified' }
-  if (!input.expectedHash || !input.expiresAt) return { ok: false, reason: 'expired' }
+  if (!input.expiresAt) return { ok: false, reason: 'expired' }
   if (input.now.getTime() > input.expiresAt.getTime()) return { ok: false, reason: 'expired' }
   if (input.attempts >= DEMO_CODE_MAX_ATTEMPTS) return { ok: false, reason: 'too_many_attempts' }
-  if (input.providedHash !== input.expectedHash) return { ok: false, reason: 'wrong_code' }
   return { ok: true }
 }
 

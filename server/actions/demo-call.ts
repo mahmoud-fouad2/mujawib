@@ -1,6 +1,6 @@
 'use server'
 
-import { createHash, randomInt, randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, count, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
@@ -16,7 +16,7 @@ import {
   normalizeDemoPhone,
   SPAM_REASON_LABEL,
   VERIFY_REFUSAL_LABEL,
-  verifyCode,
+  verifyGate,
 } from '@/lib/demo-call'
 import { clientIdentifier, rateLimit } from '@/lib/rate-limit'
 import { normalizePhoneE164 } from '@/lib/voice-normalization'
@@ -33,7 +33,7 @@ import {
 } from '@/server/db/schema'
 import { notifyOperators, tryNotify } from '@/server/notifications/service'
 import { outboundDialerStatus, placeOutboundCall } from '@/server/outbound/dialer'
-import { sendVerificationSms, smsStatus } from '@/server/outbound/sms'
+import { checkVerificationSms, sendVerificationSms, smsStatus } from '@/server/outbound/sms'
 import { verifyRecaptcha } from '@/server/security/recaptcha'
 import { maskNumber } from '@/server/voice/log'
 
@@ -70,14 +70,6 @@ export type DemoResult =
 
 function id(prefix: string) {
   return `${prefix}_${randomUUID().replaceAll('-', '').slice(0, 20)}`
-}
-
-/**
- * Salted with the request id, so the same six digits issued to two requests
- * hash differently and a stolen hash cannot be replayed against another row.
- */
-function hashCode(requestId: string, code: string): string {
-  return createHash('sha256').update(`${requestId}:${code}`).digest('hex')
 }
 
 const requestSchema = z.object({
@@ -220,14 +212,10 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
   }
 
   /**
-   * The code is generated here, hashed, and never stored in plain text — a
-   * leaked table must not hand anybody a working code for a number they do
-   * not own. `randomInt` rather than `Math.random`, because this is the thing
-   * standing between a stranger and somebody else's phone.
+   * Twilio Verify manages the code end-to-end: generation, delivery, expiry,
+   * and comparison. We never store or generate the code in plain text.
    */
   const sms = smsStatus()
-  const code = String(randomInt(0, 10 ** DEMO_CODE_LENGTH)).padStart(DEMO_CODE_LENGTH, '0')
-
   const requestId = id('demo')
   await db.insert(demoCallRequest).values({
     id: requestId,
@@ -242,7 +230,6 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
     status: sms.ready ? 'pending_verification' : 'new',
     ...(sms.ready
       ? {
-          codeHash: hashCode(requestId, code),
           codeExpiresAt: new Date(now.getTime() + DEMO_CODE_TTL_MS),
           codeSentCount: 1,
         }
@@ -254,7 +241,7 @@ export async function requestDemoCall(input: z.input<typeof requestSchema>): Pro
   })
 
   if (sms.ready) {
-    const sent = await sendVerificationSms(normalized.phone, code)
+    const sent = await sendVerificationSms(normalized.phone)
     if (!sent.ok) {
       // The row stays, unverified and uncallable. Nothing is lost, and the
       // visitor is told the truth rather than left waiting for a text.
@@ -362,25 +349,40 @@ export async function verifyDemoCall(input: z.input<typeof verifySchema>): Promi
   // A request id that does not exist and a wrong code get the same answer.
   if (!request) return { ok: false, error: say(locale, VERIFY_REFUSAL_LABEL.expired, 'Expired.') }
 
-  const outcome = verifyCode({
+  const gate = verifyGate({
     now: new Date(),
     expiresAt: request.codeExpiresAt,
     attempts: request.codeAttempts,
     verifiedAt: request.verifiedAt,
-    expectedHash: request.codeHash,
-    providedHash: hashCode(request.id, parsed.data.code),
   })
 
-  if (!outcome.ok) {
-    if (outcome.reason === 'wrong_code') {
-      await db
-        .update(demoCallRequest)
-        .set({ codeAttempts: request.codeAttempts + 1, updatedAt: new Date() })
-        .where(eq(demoCallRequest.id, request.id))
-    }
+  if (!gate.ok) {
     return {
       ok: false,
-      error: say(locale, VERIFY_REFUSAL_LABEL[outcome.reason], 'That code did not work.'),
+      error: say(locale, VERIFY_REFUSAL_LABEL[gate.reason], 'That code did not work.'),
+    }
+  }
+
+  const check = await checkVerificationSms(request.phone, parsed.data.code)
+  if (!check.ok) {
+    return {
+      ok: false,
+      error: say(
+        locale,
+        'تعذّر التحقق من الرمز حاليًا. حاول بعد قليل.',
+        'Could not verify the code. Try again in a moment.',
+      ),
+    }
+  }
+
+  if (!check.approved) {
+    await db
+      .update(demoCallRequest)
+      .set({ codeAttempts: request.codeAttempts + 1, updatedAt: new Date() })
+      .where(eq(demoCallRequest.id, request.id))
+    return {
+      ok: false,
+      error: say(locale, VERIFY_REFUSAL_LABEL.wrong_code, 'That code did not work.'),
     }
   }
 
@@ -470,8 +472,7 @@ export async function resendDemoCode(input: z.input<typeof verifySchema>): Promi
     }
   }
 
-  const code = String(randomInt(0, 10 ** DEMO_CODE_LENGTH)).padStart(DEMO_CODE_LENGTH, '0')
-  const sent = await sendVerificationSms(request.phone, code)
+  const sent = await sendVerificationSms(request.phone)
   if (!sent.ok) {
     return { ok: false, error: say(locale, 'تعذّر إرسال الرمز.', 'Could not send the code.') }
   }
@@ -479,7 +480,6 @@ export async function resendDemoCode(input: z.input<typeof verifySchema>): Promi
   await db
     .update(demoCallRequest)
     .set({
-      codeHash: hashCode(request.id, code),
       codeExpiresAt: new Date(Date.now() + DEMO_CODE_TTL_MS),
       codeAttempts: 0,
       codeSentCount: request.codeSentCount + 1,
@@ -760,9 +760,7 @@ export async function runOutboundSelfTest(
       ]
       return { ok: false, error: `SMS غير مُهيّأ — ${problems.join('، ')}` }
     }
-    // A visibly fake code, so a test message can never be mistaken for a real
-    // verification and read back into the form.
-    const sent = await sendVerificationSms(phone, '000000')
+    const sent = await sendVerificationSms(phone)
     await db.insert(auditLog).values({
       id: id('audit'),
       workspaceId: null,
@@ -774,7 +772,7 @@ export async function runOutboundSelfTest(
       createdAt: new Date(),
     })
     return sent.ok
-      ? { ok: true, message: `أُرسلت رسالة اختبار إلى ${maskNumber(phone)}. الرمز فيها 000000.` }
+      ? { ok: true, message: `أُرسل رمز تحقق عبر Twilio Verify إلى ${maskNumber(phone)} بنجاح.` }
       : { ok: false, error: sent.error }
   }
 

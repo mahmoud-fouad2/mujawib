@@ -8,7 +8,7 @@ import {
   demoThrottle,
   looksFake,
   normalizeDemoPhone,
-  verifyCode,
+  verifyGate,
   withinGlobalDemoCap,
 } from '@/lib/demo-call'
 
@@ -135,51 +135,36 @@ describe('demo throttling', () => {
   })
 })
 
-describe('verifying a code', () => {
+describe('verifying gate eligibility', () => {
   const base = {
     now: NOW,
     expiresAt: new Date(NOW.getTime() + 5 * 60_000),
     attempts: 0,
     verifiedAt: null,
-    expectedHash: 'hash-of-the-right-code',
-    providedHash: 'hash-of-the-right-code',
   }
 
-  it('accepts the right code inside the window', () => {
-    expect(verifyCode(base)).toEqual({ ok: true })
+  it('accepts an unverified request inside the window', () => {
+    expect(verifyGate(base)).toEqual({ ok: true })
   })
 
-  it('refuses the wrong code', () => {
-    expect(verifyCode({ ...base, providedHash: 'something-else' })).toEqual({
-      ok: false,
-      reason: 'wrong_code',
-    })
-  })
-
-  it('refuses after expiry, even with the right code', () => {
-    expect(verifyCode({ ...base, expiresAt: new Date(NOW.getTime() - 1000) })).toEqual({
+  it('refuses after expiry', () => {
+    expect(verifyGate({ ...base, expiresAt: new Date(NOW.getTime() - 1000) })).toEqual({
       ok: false,
       reason: 'expired',
     })
   })
 
-  it('refuses a request that never had a code', () => {
-    expect(verifyCode({ ...base, expectedHash: null })).toEqual({ ok: false, reason: 'expired' })
+  it('refuses a request that never had an expiry date', () => {
+    expect(verifyGate({ ...base, expiresAt: null })).toEqual({ ok: false, reason: 'expired' })
   })
 
-  it('refuses once attempts are spent, before checking the digits', () => {
-    // A burned request must not become an oracle: a right guess and a wrong
-    // guess have to return the same refusal.
+  it('refuses once attempts are spent', () => {
     const spent = { ...base, attempts: DEMO_CODE_MAX_ATTEMPTS }
-    expect(verifyCode(spent)).toEqual({ ok: false, reason: 'too_many_attempts' })
-    expect(verifyCode({ ...spent, providedHash: 'wrong' })).toEqual({
-      ok: false,
-      reason: 'too_many_attempts',
-    })
+    expect(verifyGate(spent)).toEqual({ ok: false, reason: 'too_many_attempts' })
   })
 
-  it('refuses a request already verified, so a code cannot be replayed', () => {
-    expect(verifyCode({ ...base, verifiedAt: NOW })).toEqual({
+  it('refuses a request already verified, so verification cannot be replayed', () => {
+    expect(verifyGate({ ...base, verifiedAt: NOW })).toEqual({
       ok: false,
       reason: 'already_verified',
     })
