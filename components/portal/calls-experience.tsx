@@ -28,6 +28,7 @@ import {
   relative,
   statusTone,
 } from '@/lib/format'
+import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import type { getPortalCallDetail, getPortalCalls } from '@/server/data/portal'
 
 type CallRow = Awaited<ReturnType<typeof getPortalCalls>>[number]
@@ -242,8 +243,9 @@ export function PortalCallsExperience({
 
 function PortalCallDetail({ call }: { call: CallDetail }) {
   const [copied, setCopied] = useState(false)
-  const rawPhone = (call.callerNumber ?? '').replace(/[^\d+]/g, '')
-  const whatsappUrl = `https://wa.me/${rawPhone.replace('+', '')}`
+  const isMasked = (call.callerNumber ?? '').includes('*')
+  const dialPhone = isMasked ? null : normalizePhoneE164(call.callerNumber)
+  const whatsappUrl = isMasked ? null : buildWhatsAppUrl(call.callerNumber)
 
   const copySummary = () => {
     const text = `خلاصة مكالمة مُجاوِب:
@@ -292,15 +294,24 @@ function PortalCallDetail({ call }: { call: CallDetail }) {
         }}
       >
         <span style={{ fontSize: 'var(--step--1)', fontWeight: 500 }}>إجراء سريع مع المتصل:</span>
-        <div className="row" style={{ gap: 'var(--s-2)' }}>
-          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn--sm">
-            <MessageSquare size={14} aria-hidden="true" />
-            مراسلة عبر واتساب
-          </a>
-          <a href={`tel:${rawPhone}`} className="btn btn--sm btn--primary">
-            <Phone size={14} aria-hidden="true" />
-            معاودة الاتصال
-          </a>
+        <div className="row" style={{ gap: 'var(--s-2)', alignItems: 'center' }}>
+          {whatsappUrl ? (
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn--sm">
+              <MessageSquare size={14} aria-hidden="true" />
+              مراسلة عبر واتساب
+            </a>
+          ) : null}
+          {dialPhone ? (
+            <a href={`tel:${dialPhone}`} className="btn btn--sm btn--primary">
+              <Phone size={14} aria-hidden="true" />
+              معاودة الاتصال
+            </a>
+          ) : null}
+          {isMasked ? (
+            <span className="muted" style={{ fontSize: 'var(--step--1)' }}>
+              رقم المتصل محجوب وفق سياسة الخصوصية
+            </span>
+          ) : null}
         </div>
       </div>
 

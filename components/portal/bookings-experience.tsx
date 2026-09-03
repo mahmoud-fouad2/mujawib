@@ -6,6 +6,7 @@ import { Confirm } from '@/components/ui/overlays'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { useAction } from '@/components/ui/row-actions'
 import { CRM_RANGE_LABEL, clock, fullDate } from '@/lib/format'
+import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import { cancelBooking } from '@/server/actions/portal'
 import type { getPortalBookings } from '@/server/data/portal'
 
@@ -177,11 +178,9 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
             <tbody>
               {filteredRows.map((b) => {
                 const meta = (b.metadata ?? {}) as { branch?: string }
-                const cleanPhone = b.customerPhone ? b.customerPhone.replace(/\D/g, '') : ''
-                const confirmMsg = encodeURIComponent(
-                  `مرحباً ${b.customerName ? `أستاذ/ة ${b.customerName}` : 'بك'}، نود تأكيد موعدك لخدمة (${b.service ?? 'المحددة'}) يوم ${fullDate(b.scheduledAt)} الساعة ${clock(b.scheduledAt)}.${meta.branch ? ` الفرع: ${meta.branch}` : ''}`,
-                )
-                const waUrl = `https://wa.me/${cleanPhone}?text=${confirmMsg}`
+                const confirmMsg = `مرحباً ${b.customerName ? `أستاذ/ة ${b.customerName}` : 'بك'}، نود تأكيد موعدك لخدمة (${b.service ?? 'المحددة'}) يوم ${fullDate(b.scheduledAt)} الساعة ${clock(b.scheduledAt)}.${meta.branch ? ` الفرع: ${meta.branch}` : ''}`
+                const waUrl = buildWhatsAppUrl(b.customerPhone, confirmMsg)
+                const dialPhone = normalizePhoneE164(b.customerPhone)
                 return (
                   <tr key={b.id}>
                     <td style={{ fontWeight: 600 }}>{b.customerName ?? '—'}</td>
@@ -197,30 +196,29 @@ export function PortalBookingsExperience({ rows }: { rows: BookingRow[] }) {
                     </td>
                     <td>
                       <span className="row" style={{ gap: 'var(--s-1)' }}>
-                        {cleanPhone ? (
-                          <>
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn--quiet btn--sm"
-                              title="إرسال رسالة تأكيد الحجز وموقع الفرع عبر واتساب"
-                              aria-label="واتساب"
-                            >
-                              <MessageSquare size={14} aria-hidden="true" />
-                            </a>
-                            <a
-                              href={`tel:${b.customerPhone}`}
-                              className="btn btn--quiet btn--sm"
-                              title="اتصال مباشر بالعميل"
-                              aria-label="اتصال"
-                            >
-                              <Phone size={14} aria-hidden="true" />
-                            </a>
-                          </>
-                        ) : (
-                          '—'
-                        )}
+                        {waUrl ? (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn--quiet btn--sm"
+                            title="إرسال رسالة تأكيد الحجز وموقع الفرع عبر واتساب"
+                            aria-label="واتساب"
+                          >
+                            <MessageSquare size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {dialPhone ? (
+                          <a
+                            href={`tel:${dialPhone}`}
+                            className="btn btn--quiet btn--sm"
+                            title="اتصال مباشر بالعميل"
+                            aria-label="اتصال"
+                          >
+                            <Phone size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {!waUrl && !dialPhone ? '—' : null}
                         {b.status === 'confirmed' ? (
                           <BookingCancelButton id={b.id} customerName={b.customerName} />
                         ) : null}

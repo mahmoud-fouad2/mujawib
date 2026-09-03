@@ -43,3 +43,17 @@ export function normalizePhoneE164(value: string | null | undefined): string | n
   if (digits.length < 8 || digits.length > 15 || digits.startsWith('0')) return null
   return `+${digits}`
 }
+
+/**
+ * Builds a valid WhatsApp chat URL from any plausible phone format.
+ * Handles local Saudi numbers (05xxxxxxxx -> 9665xxxxxxxx), removes punctuation,
+ * and rejects masked numbers (+966****4567) that cannot be messaged.
+ */
+export function buildWhatsAppUrl(phone: string | null | undefined, text?: string): string | null {
+  if (!phone || phone.includes('*')) return null
+  const normalized = normalizePhoneE164(phone)
+  if (!normalized) return null
+  const digits = normalized.replace('+', '')
+  const query = text ? `?text=${encodeURIComponent(text)}` : ''
+  return `https://wa.me/${digits}${query}`
+}

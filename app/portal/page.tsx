@@ -14,6 +14,7 @@ import {
 import {
   getPortalCalls,
   getPortalInsights,
+  getPortalMonthlyUsage,
   getPortalRequests,
   getPortalSummary,
   getPortalWorkspace,
@@ -31,12 +32,13 @@ export default async function PortalOverviewPage() {
   const workspace = await getPortalWorkspace()
   if (!workspace) notFound()
 
-  const [summary, insights, reasons, calls, requests] = await Promise.all([
+  const [summary, insights, reasons, calls, requests, usage] = await Promise.all([
     getPortalSummary(workspace.id),
     getPortalInsights(workspace.id),
     getTopReasons(workspace.id),
     getPortalCalls(workspace.id, 8),
     getPortalRequests(workspace.id),
+    getPortalMonthlyUsage(workspace.id),
   ])
 
   const openRequests = requests.filter((r) => r.status !== 'live' && r.status !== 'rejected')
@@ -95,6 +97,54 @@ export default async function PortalOverviewPage() {
           },
         ]}
       />
+
+      {usage.monthlyCallLimit !== null ? (
+        <div
+          className="card-sub"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-card)',
+            padding: 'var(--s-3) var(--s-4)',
+            marginBlockEnd: 'var(--s-5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--s-2)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 'var(--s-2)',
+            }}
+          >
+            <span style={{ fontSize: 'var(--step--1)', fontWeight: 500 }}>
+              استهلاك الباقة هذا الشهر (مكالمات حية)
+            </span>
+            <span className="mono" style={{ fontSize: 'var(--step--1)' }}>
+              <strong>{num(usage.callsThisMonth)}</strong> / {num(usage.monthlyCallLimit)} مكالمة (
+              {Math.min(100, Math.round((usage.callsThisMonth / usage.monthlyCallLimit) * 100))}%)
+            </span>
+          </div>
+          <div className="share-row__track" style={{ marginBlockStart: 0, height: '6px' }}>
+            <span
+              className="share-row__fill"
+              style={{
+                width: `${Math.min(100, Math.round((usage.callsThisMonth / usage.monthlyCallLimit) * 100))}%`,
+                background:
+                  usage.callsThisMonth >= usage.monthlyCallLimit
+                    ? 'var(--bad)'
+                    : usage.callsThisMonth / usage.monthlyCallLimit >= 0.8
+                      ? 'var(--warn)'
+                      : 'var(--signal)',
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className="split">
         <Section

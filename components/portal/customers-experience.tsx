@@ -4,6 +4,7 @@ import { Download, MessageSquare, Phone, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState, Pill } from '@/components/ui/primitives'
 import { clock, fullDate, num, relative } from '@/lib/format'
+import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import type { getPortalCustomers } from '@/server/data/portal'
 
 type CustomerRow = Awaited<ReturnType<typeof getPortalCustomers>>['rows'][number]
@@ -102,7 +103,8 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
             </thead>
             <tbody>
               {filteredRows.map((c) => {
-                const cleanPhone = c.phone ? c.phone.replace(/\D/g, '') : ''
+                const waUrl = buildWhatsAppUrl(c.phone)
+                const dialPhone = normalizePhoneE164(c.phone)
                 return (
                   <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.name ?? '—'}</td>
@@ -121,30 +123,29 @@ export function PortalCustomersExperience({ rows }: { rows: CustomerRow[] }) {
                     <td className="muted">{relative(c.lastCallAt)}</td>
                     <td>
                       <span className="row" style={{ gap: 'var(--s-1)' }}>
-                        {cleanPhone ? (
-                          <>
-                            <a
-                              href={`https://wa.me/${cleanPhone}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn--quiet btn--sm"
-                              title="مراسلة المتصل عبر واتساب"
-                              aria-label="واتساب"
-                            >
-                              <MessageSquare size={14} aria-hidden="true" />
-                            </a>
-                            <a
-                              href={`tel:${c.phone}`}
-                              className="btn btn--quiet btn--sm"
-                              title="اتصال مباشر بالمتصل"
-                              aria-label="اتصال"
-                            >
-                              <Phone size={14} aria-hidden="true" />
-                            </a>
-                          </>
-                        ) : (
-                          '—'
-                        )}
+                        {waUrl ? (
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn--quiet btn--sm"
+                            title="مراسلة المتصل عبر واتساب"
+                            aria-label="واتساب"
+                          >
+                            <MessageSquare size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {dialPhone ? (
+                          <a
+                            href={`tel:${dialPhone}`}
+                            className="btn btn--quiet btn--sm"
+                            title="اتصال مباشر بالمتصل"
+                            aria-label="اتصال"
+                          >
+                            <Phone size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {!waUrl && !dialPhone ? '—' : null}
                       </span>
                     </td>
                   </tr>

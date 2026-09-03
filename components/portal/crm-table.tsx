@@ -18,6 +18,7 @@ import {
   num,
   relative,
 } from '@/lib/format'
+import { buildWhatsAppUrl, normalizePhoneE164 } from '@/lib/voice-normalization'
 import {
   createCustomer,
   deleteCustomer,
@@ -618,24 +619,29 @@ export function CrmTable({
                     <td className="mono">{c.phone}</td>
                     <td>
                       <span className="row" style={{ gap: 'var(--s-1)' }}>
-                        <a
-                          href={`https://wa.me/${c.phone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn--quiet btn--sm"
-                          title="مراسلة عبر واتساب"
-                          aria-label="واتساب"
-                        >
-                          <MessageSquare size={14} aria-hidden="true" />
-                        </a>
-                        <a
-                          href={`tel:${c.phone}`}
-                          className="btn btn--quiet btn--sm"
-                          title="اتصال مباشر"
-                          aria-label="اتصال"
-                        >
-                          <Phone size={14} aria-hidden="true" />
-                        </a>
+                        {buildWhatsAppUrl(c.phone) ? (
+                          <a
+                            href={buildWhatsAppUrl(c.phone)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn--quiet btn--sm"
+                            title="مراسلة عبر واتساب"
+                            aria-label="واتساب"
+                          >
+                            <MessageSquare size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {normalizePhoneE164(c.phone) ? (
+                          <a
+                            href={`tel:${normalizePhoneE164(c.phone)}`}
+                            className="btn btn--quiet btn--sm"
+                            title="اتصال مباشر"
+                            aria-label="اتصال"
+                          >
+                            <Phone size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {!buildWhatsAppUrl(c.phone) && !normalizePhoneE164(c.phone) ? '—' : null}
                       </span>
                     </td>
                     {visible.has('email') ? <td className="muted">{c.email ?? '—'}</td> : null}
