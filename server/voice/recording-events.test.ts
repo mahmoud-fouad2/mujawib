@@ -49,6 +49,13 @@ describe('recordingActionsFromRealtimeEvent', () => {
     ).toEqual([{ kind: 'agent_audio_delta', responseId: 'resp_1', audioBase64: 'BAUG' }])
     expect(
       recordingActionsFromRealtimeEvent({
+        type: 'response.audio.delta',
+        response_id: 'resp_1',
+        delta: 'BAUG',
+      }),
+    ).toEqual([{ kind: 'agent_audio_delta', responseId: 'resp_1', audioBase64: 'BAUG' }])
+    expect(
+      recordingActionsFromRealtimeEvent({
         type: 'output_audio_buffer.cleared',
         response_id: 'resp_1',
       }),

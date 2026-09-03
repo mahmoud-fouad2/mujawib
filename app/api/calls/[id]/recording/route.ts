@@ -97,13 +97,16 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   try {
     const object = await getRecording(recording.objectKey, range?.header)
     const contentLength = object.contentLength ?? range?.length ?? recording.byteSize
+    const contentRange =
+      object.contentRange ??
+      (range ? `bytes ${range.start}-${range.end}/${recording.byteSize}` : undefined)
     return new Response(object.body.transformToWebStream(), {
       status: range ? 206 : 200,
       headers: privateHeaders({
         callId: recording.id,
         contentType: recording.contentType ?? object.contentType,
         contentLength,
-        ...(object.contentRange ? { contentRange: object.contentRange } : {}),
+        ...(contentRange ? { contentRange } : {}),
         ...(object.etag ? { etag: object.etag } : {}),
       }),
     })

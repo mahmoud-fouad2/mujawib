@@ -226,7 +226,8 @@ export function buildAcceptPayload(
         transcription: {
           model: 'gpt-4o-transcribe',
           language: 'ar',
-          prompt: 'مكالمة خدمة عملاء عربية. قد تتضمن أسماء أشخاص وشركات ومصطلحات إنجليزية.',
+          prompt:
+            'مكالمة هاتفية لخدمة العملاء باللغة العربية تشمل اللهجة السعودية بكافة مناطقها (النجدية، الحجازية، الشرقية، الجنوبية)، والخليجية والمصرية. تتضمن أسماء أشخاص وعائلات ومناطق ومواعيد وحجوزات وأرقام هواتف ومصطلحات إنجليزية تقنية.',
         },
         turn_detection: {
           type: 'server_vad',
@@ -262,7 +263,7 @@ function turnDetectionSettings(pacing: JsonRecord | null) {
   return {
     threshold: numberSetting(pacing, 'vadThreshold', 0.5, 0.35, 0.75),
     prefixPaddingMs: Math.round(numberSetting(pacing, 'prefixPaddingMs', 240, 120, 500)),
-    silenceDurationMs: Math.round(numberSetting(pacing, 'silenceDurationMs', 520, 380, 900)),
-    idleTimeoutMs: Math.round(numberSetting(pacing, 'idleTimeoutMs', 7_000, 4_000, 15_000)),
+    silenceDurationMs: Math.round(numberSetting(pacing, 'silenceDurationMs', 680, 400, 1000)),
+    idleTimeoutMs: Math.round(numberSetting(pacing, 'idleTimeoutMs', 8_000, 4_000, 15_000)),
   }
 }

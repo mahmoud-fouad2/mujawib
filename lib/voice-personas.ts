@@ -49,8 +49,8 @@ export const PACING_MEASURED = {
   responseLength: 'short',
   vadThreshold: 0.5,
   prefixPaddingMs: 240,
-  silenceDurationMs: 560,
-  idleTimeoutMs: 7_000,
+  silenceDurationMs: 680,
+  idleTimeoutMs: 8_000,
   bargeIn: true,
 }
 
@@ -58,8 +58,8 @@ export const PACING_BRISK = {
   responseLength: 'short',
   vadThreshold: 0.48,
   prefixPaddingMs: 220,
-  silenceDurationMs: 480,
-  idleTimeoutMs: 6_500,
+  silenceDurationMs: 580,
+  idleTimeoutMs: 7_000,
   bargeIn: true,
 }
 

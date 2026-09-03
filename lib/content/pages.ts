@@ -124,7 +124,7 @@ const ar: Pages = {
       {
         name: 'التأسيس والنمو',
         forWho: 'عيادة، مطعم، أو فرع واحد بطلبات محددة',
-        volume: 'حتى 500 مكالمة شهريًا',
+        volume: 'حتى 500 مكالمة شهريًا · يبدأ من 1,490 ر.س / شهر',
         includes: [
           'موظف صوتي واحد بنبرة ولهجة مختارة',
           'ربط مباشر للتقويم وتأكيد واتساب فوري',
@@ -135,7 +135,7 @@ const ar: Pages = {
       {
         name: 'التشغيل الاحترافي',
         forWho: 'عدة فروع أو سيناريوهات حجز متعددة',
-        volume: '500 – 3,000 مكالمة شهريًا',
+        volume: '500 – 1,500 مكالمة شهريًا · يبدأ من 3,990 ر.س / شهر',
         includes: [
           'تعدد الموظفين الصوتيين واللهجات لكل فرع',
           'ربط أنظمة CRM وإدارة العملاء المتقدمة',
@@ -148,7 +148,7 @@ const ar: Pages = {
       {
         name: 'المؤسسات والشبكات الكبرى',
         forWho: 'شبكات الفروع، المستشفيات، والحجم المرتفع',
-        volume: 'أكثر من 3,000 مكالمة شهريًا',
+        volume: 'أكثر من 3,000 مكالمة شهريًا · تسعير مخصص للشبكات',
         includes: [
           'كافة الميزات الاحترافية بالكامل',
           'اتفاقية مستوى خدمة مخصصة (SLA) ملزمة',
@@ -540,7 +540,7 @@ const en: Pages = {
       {
         name: 'Start',
         forWho: 'One branch or one scenario',
-        volume: 'Up to 500 calls a month',
+        volume: 'Up to 500 calls a month · from 1,490 SAR / mo',
         includes: [
           'One agent, one dialect',
           'Calendar and WhatsApp',
@@ -551,7 +551,7 @@ const en: Pages = {
       {
         name: 'Operate',
         forWho: 'Several branches or scenarios',
-        volume: '500 – 3,000 calls a month',
+        volume: '500 – 1,500 calls a month · from 3,990 SAR / mo',
         includes: [
           'Multiple agents and dialects',
           'CRM and your own systems',
@@ -564,7 +564,7 @@ const en: Pages = {
       {
         name: 'Enterprise',
         forWho: 'Branch networks or high volume',
-        volume: 'Over 3,000 calls a month',
+        volume: 'Over 3,000 calls a month · custom enterprise volume',
         includes: [
           'Everything above',
           'Service level agreement',

@@ -64,7 +64,7 @@ export function recordingActionsFromRealtimeEvent(value: unknown): RecordingReal
     return item && audioBase64 ? [{ kind: 'caller_audio', itemId: item.itemId, audioBase64 }] : []
   }
 
-  if (type === 'response.output_audio.delta') {
+  if (type === 'response.output_audio.delta' || type === 'response.audio.delta') {
     const responseId = asString(event.response_id)
     const audioBase64 = asString(event.delta)
     return responseId && audioBase64 ? [{ kind: 'agent_audio_delta', responseId, audioBase64 }] : []
